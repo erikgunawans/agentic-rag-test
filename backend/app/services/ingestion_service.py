@@ -1,9 +1,12 @@
+import logging
 import fitz  # PyMuPDF
 import tiktoken
 from langsmith import traceable
 from app.config import get_settings
 from app.database import get_supabase_client
 from app.services.embedding_service import EmbeddingService
+
+logger = logging.getLogger(__name__)
 
 settings = get_settings()
 embedding_service = EmbeddingService()
@@ -39,7 +42,7 @@ async def process_document(
 ):
     client = get_supabase_client()
     try:
-        client.table("documents").update({"status": "processing"}).eq("id", doc_id).execute()
+        client.table("documents").update({"status": "processing"}).eq("id", doc_id).eq("user_id", user_id).execute()
 
         # Download from Supabase Storage
         file_bytes = client.storage.from_(settings.storage_bucket).download(file_path)
@@ -76,10 +79,11 @@ async def process_document(
         client.table("documents").update({
             "status": "completed",
             "chunk_count": len(chunks),
-        }).eq("id", doc_id).execute()
+        }).eq("id", doc_id).eq("user_id", user_id).execute()
 
     except Exception as e:
+        logger.error("Document processing failed for doc_id=%s: %s", doc_id, e)
         client.table("documents").update({
             "status": "failed",
-            "error_msg": str(e)[:500],
-        }).eq("id", doc_id).execute()
+            "error_msg": "Processing failed. Please try uploading again.",
+        }).eq("id", doc_id).eq("user_id", user_id).execute()

@@ -35,7 +35,7 @@ async def stream_chat(
         .select("id")
         .eq("id", body.thread_id)
         .eq("user_id", user["id"])
-        .single()
+        .limit(1)
         .execute()
     )
     if not thread_result.data:
@@ -46,6 +46,7 @@ async def stream_chat(
         client.table("messages")
         .select("role, content")
         .eq("thread_id", body.thread_id)
+        .eq("user_id", user["id"])
         .order("created_at")
         .execute()
     ).data or []
@@ -90,18 +91,22 @@ async def stream_chat(
     async def event_generator():
         full_response = ""
 
-        async for chunk in openrouter_service.stream_response(messages, model=user_settings["llm_model"]):
-            if not chunk["done"]:
-                full_response += chunk["delta"]
-                yield f"data: {json.dumps({'delta': chunk['delta'], 'done': False})}\n\n"
+        try:
+            async for chunk in openrouter_service.stream_response(messages, model=user_settings["llm_model"]):
+                if not chunk["done"]:
+                    full_response += chunk["delta"]
+                    yield f"data: {json.dumps({'delta': chunk['delta'], 'done': False})}\n\n"
+        except Exception:
+            pass
 
-        # Persist assistant message after streaming completes
-        client.table("messages").insert({
-            "thread_id": body.thread_id,
-            "user_id": user["id"],
-            "role": "assistant",
-            "content": full_response,
-        }).execute()
+        # Persist assistant message after streaming completes (only if we got a response)
+        if full_response:
+            client.table("messages").insert({
+                "thread_id": body.thread_id,
+                "user_id": user["id"],
+                "role": "assistant",
+                "content": full_response,
+            }).execute()
 
         yield f"data: {json.dumps({'delta': '', 'done': True})}\n\n"
 

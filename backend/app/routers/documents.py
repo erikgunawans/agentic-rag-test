@@ -1,4 +1,5 @@
 import hashlib
+import re
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks
 from fastapi.responses import JSONResponse
@@ -64,7 +65,8 @@ async def upload_document(
                 pass
             client.table("documents").delete().eq("id", doc["id"]).eq("user_id", user["id"]).execute()
 
-    storage_path = f"{user['id']}/{uuid.uuid4()}-{file.filename}"
+    safe_filename = re.sub(r"[^a-zA-Z0-9._-]", "_", file.filename or "upload")
+    storage_path = f"{user['id']}/{uuid.uuid4()}-{safe_filename}"
 
     # Upload raw file to Supabase Storage
     client.storage.from_(settings.storage_bucket).upload(
