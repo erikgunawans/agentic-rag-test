@@ -25,7 +25,7 @@ Track your progress through the masterclass. Update this file as you complete mo
 ## Notes
 
 - `openai>=2.30.0` required (responses API + `.stream()` context manager not in v1)
-- User message is saved to DB before streaming starts — if stream fails, message is orphaned (known limitation, addressed in Module 2 refactor)
+- User message is saved to DB before streaming starts; assistant message is only persisted if the stream produces a response (stream errors no longer create orphaned messages)
 - `text-embedding-3-small` cosine similarity scores are typically 0.3–0.6 for semantically related text — use `RAG_SIMILARITY_THRESHOLD=0.3` (not 0.7)
 - `pymupdf>=1.25.0` and `tiktoken>=0.8.0` required (Python 3.14 compatible versions)
 
