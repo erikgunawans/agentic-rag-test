@@ -13,6 +13,7 @@ export function FileUpload({ onUploaded }: FileUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [info, setInfo] = useState<string | null>(null)
 
   async function handleFile(file: File) {
     if (!ACCEPTED_TYPES.has(file.type)) {
@@ -20,12 +21,18 @@ export function FileUpload({ onUploaded }: FileUploadProps) {
       return
     }
     setError(null)
+    setInfo(null)
     setUploading(true)
     try {
       const form = new FormData()
       form.append('file', file)
-      await apiFetch('/documents/upload', { method: 'POST', body: form })
-      onUploaded()
+      const res = await apiFetch('/documents/upload', { method: 'POST', body: form })
+      const data = await res.json()
+      if (data.duplicate) {
+        setInfo(`"${data.filename}" is already uploaded and processed.`)
+      } else {
+        onUploaded()
+      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Upload failed')
     } finally {
@@ -65,6 +72,7 @@ export function FileUpload({ onUploaded }: FileUploadProps) {
       </p>
       <p className="text-xs text-muted-foreground mt-1">PDF, TXT, or Markdown · Max 50 MB</p>
       {error && <p className="text-xs text-destructive mt-2">{error}</p>}
+      {info && <p className="text-xs text-blue-600 mt-2">{info}</p>}
     </div>
   )
 }

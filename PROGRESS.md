@@ -56,9 +56,26 @@ Track your progress through the masterclass. Update this file as you complete mo
 - `.agent/plans/10.m2-realtime-status.md`
 - `.agent/plans/11.m2-documents-ui.md`
 
-### Module 3: Record Manager
+### Module 3: Record Manager ✅ COMPLETE
 
-- [ ] Not started
+- [x] Migration `supabase/migrations/004_record_manager.sql` — add `content_hash` column + partial index to `documents` table
+- [x] Backend dedup logic — SHA-256 hashing, check for completed/pending/failed duplicates in `documents.py` upload endpoint
+- [x] Frontend feedback — `FileUpload.tsx` shows info message for duplicate uploads; `database.types.ts` updated with `content_hash` field
+- [x] API tests — `TestDocumentDedup` class with 5 dedup tests in `tests/api/test_documents.py`
+
+#### Module 3 Architecture Summary
+
+- **Hashing**: SHA-256 of raw file bytes, computed before any storage or DB writes
+- **Dedup scope**: Per-user — two users uploading the same file each get their own copy
+- **On completed duplicate**: Return 200 `{id, filename, status, duplicate: true}` — no storage upload, no DB insert, no background task
+- **On pending/processing duplicate**: Return 409
+- **On failed duplicate**: Delete failed record + storage file, then proceed with fresh upload
+- **Schema**: `content_hash text` column (nullable), partial index on `(user_id, content_hash) WHERE content_hash IS NOT NULL`
+- **Legacy docs**: Pre-Module 3 documents have `content_hash = NULL` and are never matched as duplicates
+
+#### Sub-Plan Files
+
+- `.agent/plans/12.m3-record-manager.md`
 
 ### Module 4: Metadata Extraction
 

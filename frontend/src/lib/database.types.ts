@@ -26,5 +26,6 @@ export interface Document {
   status: 'pending' | 'processing' | 'completed' | 'failed'
   chunk_count: number | null
   error_msg: string | null
+  content_hash: string | null
   created_at: string
 }

@@ -11,12 +11,14 @@ FIXTURES = os.path.join(os.path.dirname(__file__), "../fixtures")
 
 
 def upload_txt(client, filename="sample.txt"):
+    """Upload a text file with a unique suffix to avoid dedup collisions across tests."""
     path = os.path.join(FIXTURES, filename)
     with open(path, "rb") as f:
-        resp = client.post(
-            "/documents/upload",
-            files={"file": (filename, f, "text/plain")},
-        )
+        content = f.read() + f"\n# {uuid.uuid4()}".encode()
+    resp = client.post(
+        "/documents/upload",
+        files={"file": (filename, content, "text/plain")},
+    )
     return resp
 
 
