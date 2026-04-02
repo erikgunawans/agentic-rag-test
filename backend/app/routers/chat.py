@@ -54,8 +54,8 @@ async def stream_chat(
     # Load user's model preferences
     user_settings = get_or_create_settings(client, user["id"])
 
-    # Retrieve relevant document chunks via pgvector (using user's embedding model)
-    chunks = await embedding_service.retrieve_chunks(
+    # Retrieve relevant document chunks with document metadata via pgvector
+    chunk_results = await embedding_service.retrieve_chunks_with_metadata(
         query=body.message,
         user_id=user["id"],
         top_k=settings.rag_top_k,
@@ -63,9 +63,23 @@ async def stream_chat(
         model=user_settings["embedding_model"],
     )
 
-    # Build system prompt — inject RAG context when available
-    if chunks:
-        context_text = "\n\n---\n\n".join(chunks)
+    # Build system prompt — inject RAG context with document metadata when available
+    if chunk_results:
+        context_parts = []
+        for row in chunk_results:
+            meta = row.get("doc_metadata") or {}
+            tags = meta.get("tags") or []
+            tag_str = ", ".join(tags[:5]) if tags else ""
+            category = meta.get("category", "")
+            filename = row.get("doc_filename", "")
+            header_parts = [f'"{filename}"']
+            if category:
+                header_parts.append(f"Category: {category}")
+            if tag_str:
+                header_parts.append(f"Tags: {tag_str}")
+            header = f"[Source: {' | '.join(header_parts)}]"
+            context_parts.append(f"{header}\n{row['content']}")
+        context_text = "\n\n---\n\n".join(context_parts)
         system_content = (
             f"{SYSTEM_PROMPT} Use the following context to answer when relevant:\n\n"
             f"{context_text}\n\n---"

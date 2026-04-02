@@ -97,6 +97,7 @@ async def upload_document(
         file_path=storage_path,
         mime_type=file.content_type,
         embedding_model=user_settings["embedding_model"],
+        llm_model=user_settings["llm_model"],
     )
 
     return {"id": doc["id"], "filename": doc["filename"], "status": "pending", "duplicate": False}
@@ -107,12 +108,28 @@ async def list_documents(user: dict = Depends(get_current_user)):
     client = get_supabase_client()
     result = (
         client.table("documents")
-        .select("id, filename, file_size, mime_type, status, chunk_count, error_msg, content_hash, created_at")
+        .select("id, filename, file_size, mime_type, status, chunk_count, error_msg, content_hash, metadata, created_at")
         .eq("user_id", user["id"])
         .order("created_at", desc=True)
         .execute()
     )
     return result.data
+
+
+@router.get("/{doc_id}/metadata")
+async def get_document_metadata(doc_id: str, user: dict = Depends(get_current_user)):
+    client = get_supabase_client()
+    result = (
+        client.table("documents")
+        .select("metadata")
+        .eq("id", doc_id)
+        .eq("user_id", user["id"])
+        .limit(1)
+        .execute()
+    )
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Document not found")
+    return result.data[0]["metadata"]
 
 
 @router.delete("/{doc_id}", status_code=204)

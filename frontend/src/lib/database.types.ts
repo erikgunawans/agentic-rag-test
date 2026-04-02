@@ -17,6 +17,15 @@ export interface Message {
   created_at: string
 }
 
+export interface DocumentMetadata {
+  title: string
+  author: string | null
+  date_period: string | null
+  category: 'technical' | 'legal' | 'business' | 'academic' | 'personal' | 'other'
+  tags: string[]
+  summary: string
+}
+
 export interface Document {
   id: string
   user_id: string
@@ -27,5 +36,6 @@ export interface Document {
   chunk_count: number | null
   error_msg: string | null
   content_hash: string | null
+  metadata: DocumentMetadata | null
   created_at: string
 }

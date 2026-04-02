@@ -203,3 +203,99 @@ class TestDocumentDedup:
         resp2 = self._upload_content(authed_client, content)
         assert resp2.status_code == 202
         assert resp2.json()["id"] != doc_id1
+
+
+VALID_CATEGORIES = {"technical", "legal", "business", "academic", "personal", "other"}
+
+
+class TestDocumentMetadata:
+    """Module 4: Metadata Extraction (META-01 through META-06)."""
+
+    def _upload_content(self, client, content: bytes, filename: str = "meta-test.txt"):
+        return client.post(
+            "/documents/upload",
+            files={"file": (filename, content, "text/plain")},
+        )
+
+    def _wait_completed(self, client, doc_id: str, timeout: int = 60):
+        """Poll until document reaches completed or failed status."""
+        for _ in range(timeout):
+            docs = client.get("/documents").json()
+            doc = next((d for d in docs if d["id"] == doc_id), None)
+            if doc and doc["status"] in ("completed", "failed"):
+                return doc
+            time.sleep(1)
+        return None
+
+    def test_completed_document_has_metadata(self, authed_client):
+        """META-01: After ingestion completes, metadata field is a dict (not null)."""
+        content = f"Introduction to Python Programming\n\nPython is a versatile programming language used for web development, data science, and automation. This guide covers the basics. {uuid.uuid4()}".encode()
+        resp = self._upload_content(authed_client, content)
+        assert resp.status_code == 202
+        doc_id = resp.json()["id"]
+
+        doc = self._wait_completed(authed_client, doc_id)
+        assert doc is not None, "Document did not reach terminal status"
+        assert doc["status"] == "completed", f"Expected completed, got: {doc['status']}"
+        assert doc.get("metadata") is not None, "metadata field should be populated after completion"
+        assert isinstance(doc["metadata"], dict), "metadata should be a dict"
+
+    def test_metadata_has_required_fields(self, authed_client):
+        """META-02: Metadata contains required keys."""
+        content = f"Quarterly Business Report Q3 2024\n\nRevenue increased by 15% compared to last quarter. Key metrics show growth across all departments. {uuid.uuid4()}".encode()
+        resp = self._upload_content(authed_client, content)
+        assert resp.status_code == 202
+        doc_id = resp.json()["id"]
+
+        doc = self._wait_completed(authed_client, doc_id)
+        assert doc is not None and doc["status"] == "completed"
+        meta = doc["metadata"]
+        assert meta is not None
+        for field in ("title", "category", "tags", "summary"):
+            assert field in meta, f"Missing metadata field: {field}"
+
+    def test_metadata_tags_is_nonempty_list(self, authed_client):
+        """META-03: tags is a list with at least 1 item."""
+        content = f"Legal Contract Terms and Conditions\n\nThis agreement governs the use of services provided. All parties must comply with applicable law. {uuid.uuid4()}".encode()
+        resp = self._upload_content(authed_client, content)
+        assert resp.status_code == 202
+        doc_id = resp.json()["id"]
+
+        doc = self._wait_completed(authed_client, doc_id)
+        assert doc is not None and doc["status"] == "completed"
+        tags = doc["metadata"]["tags"]
+        assert isinstance(tags, list), "tags must be a list"
+        assert len(tags) >= 1, "tags must have at least 1 item"
+
+    def test_metadata_category_is_valid(self, authed_client):
+        """META-04: category is one of the allowed values."""
+        content = f"Academic Research Paper: Transformer Neural Networks\n\nThis paper presents a novel approach to attention mechanisms in deep learning. {uuid.uuid4()}".encode()
+        resp = self._upload_content(authed_client, content)
+        assert resp.status_code == 202
+        doc_id = resp.json()["id"]
+
+        doc = self._wait_completed(authed_client, doc_id)
+        assert doc is not None and doc["status"] == "completed"
+        category = doc["metadata"]["category"]
+        assert category in VALID_CATEGORIES, f"Invalid category: {category}"
+
+    def test_get_metadata_endpoint(self, authed_client):
+        """META-05: GET /documents/{id}/metadata returns the metadata object."""
+        content = f"Personal Journal Entry\n\nToday was a great day. I learned about RAG systems and vector databases. {uuid.uuid4()}".encode()
+        resp = self._upload_content(authed_client, content)
+        assert resp.status_code == 202
+        doc_id = resp.json()["id"]
+
+        doc = self._wait_completed(authed_client, doc_id)
+        assert doc is not None and doc["status"] == "completed"
+
+        meta_resp = authed_client.get(f"/documents/{doc_id}/metadata")
+        assert meta_resp.status_code == 200
+        meta = meta_resp.json()
+        assert meta is not None
+        assert "title" in meta
+
+    def test_get_metadata_nonexistent_returns_404(self, authed_client):
+        """META-06: GET /documents/{nonexistent}/metadata returns 404."""
+        resp = authed_client.get("/documents/00000000-0000-0000-0000-000000000000/metadata")
+        assert resp.status_code == 404
