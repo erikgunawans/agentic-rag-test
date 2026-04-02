@@ -1,0 +1,40 @@
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from app.routers import threads, chat, documents, user_settings
+from app.services.langsmith_service import configure_langsmith
+from app.database import get_supabase_client
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    configure_langsmith()
+    # Recover any docs stalled in 'processing' from a previous crash
+    try:
+        get_supabase_client().table("documents").update(
+            {"status": "pending"}
+        ).eq("status", "processing").execute()
+    except Exception:
+        pass
+    yield
+
+
+app = FastAPI(title="RAG Masterclass API", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(threads.router)
+app.include_router(chat.router)
+app.include_router(documents.router)
+app.include_router(user_settings.router)
+
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}

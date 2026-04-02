@@ -1,0 +1,39 @@
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from functools import lru_cache
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    # Supabase
+    supabase_url: str
+    supabase_anon_key: str
+    supabase_service_role_key: str
+
+    # OpenAI (used for embeddings)
+    openai_api_key: str
+    openai_vector_store_id: str = ""
+    openai_embedding_model: str = "text-embedding-3-small"
+
+    # OpenRouter (used for chat completions — Module 2+)
+    openrouter_api_key: str = ""
+    openrouter_model: str = "openai/gpt-4o-mini"
+
+    # RAG tuning
+    rag_top_k: int = 5
+    rag_similarity_threshold: float = 0.3
+    rag_chunk_size: int = 500
+    rag_chunk_overlap: int = 50
+
+    # Supabase Storage
+    storage_bucket: str = "documents"
+
+    # LangSmith (optional)
+    langsmith_api_key: str = ""
+    langsmith_project: str = "rag-masterclass"
+    langchain_tracing_v2: str = "false"
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()

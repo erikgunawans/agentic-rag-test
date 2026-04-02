@@ -36,5 +36,17 @@ RAG app with chat (default) and document ingestion interfaces. Config via env va
 3. **Validate** - Test and verify the implementation works correctly. Use browser testing where applicable via an appropriate MCP
 4. **Iterate** - Fix any issues found during validation
 
+## Testing
+
+Use these credentials whenever Playwright or manual browser testing requires login:
+
+- **Email**: `test@test.com`
+- **Password**: `!*-3-3?3uZ?b$v&`
+- **Frontend URL**: `http://localhost:5173`
+- **Backend URL**: `http://localhost:8000`
+
+> Note: test account only — do not use for production or public deployments.
+
 ## Progress
+
 Check PROGRESS.md for current module status. Update it as you complete tasks.
