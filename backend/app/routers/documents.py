@@ -10,7 +10,7 @@ from app.config import get_settings
 from app.services.ingestion_service import process_document
 from app.services.embedding_service import EmbeddingService
 from app.services.hybrid_retrieval_service import HybridRetrievalService
-from app.routers.user_settings import get_or_create_settings
+from app.services.system_settings_service import get_system_settings
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 settings = get_settings()
@@ -99,8 +99,8 @@ async def upload_document(
         "content_hash": content_hash,
     }).execute().data[0]
 
-    # Load user's embedding model preference before handing off to background task
-    user_settings = get_or_create_settings(client, user["id"])
+    # Load system-level model config
+    sys_settings = get_system_settings()
 
     # Kick off background ingestion
     background_tasks.add_task(
@@ -109,8 +109,8 @@ async def upload_document(
         user_id=user["id"],
         file_path=storage_path,
         mime_type=file.content_type,
-        embedding_model=user_settings["embedding_model"],
-        llm_model=user_settings["llm_model"],
+        embedding_model=sys_settings["embedding_model"],
+        llm_model=sys_settings["llm_model"],
     )
 
     return {"id": doc["id"], "filename": doc["filename"], "status": "pending", "duplicate": False}
@@ -181,7 +181,7 @@ async def search_documents(
     body: SearchRequest,
     user: dict = Depends(get_current_user),
 ):
-    user_settings = get_or_create_settings(get_supabase_client(), user["id"])
+    sys_settings = get_system_settings()
 
     if body.mode == "vector":
         results = await embedding_service.retrieve_chunks_with_metadata(
@@ -211,8 +211,8 @@ async def search_documents(
             user_id=user["id"],
             top_k=body.top_k,
             threshold=settings.rag_similarity_threshold,
-            embedding_model=user_settings["embedding_model"],
-            llm_model=user_settings["llm_model"],
+            embedding_model=sys_settings["embedding_model"],
+            llm_model=sys_settings["llm_model"],
         )
 
     return {"results": results, "count": len(results), "mode": body.mode}

@@ -6,12 +6,14 @@ import { MessageView } from '@/components/chat/MessageView'
 import { MessageInput } from '@/components/chat/MessageInput'
 import { useNavigate } from 'react-router-dom'
 import { Separator } from '@/components/ui/separator'
-import { LogOut, FileText, Settings } from 'lucide-react'
+import { LogOut, FileText, Settings, Shield } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { useAuth } from '@/contexts/AuthContext'
 import type { Thread, Message, SSEEvent, ToolStartEvent, ToolResultEvent } from '@/lib/database.types'
 
 export function ChatPage() {
   const navigate = useNavigate()
+  const { isAdmin } = useAuth()
   const [threads, setThreads] = useState<Thread[]>([])
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
@@ -175,6 +177,11 @@ export function ChatPage() {
             <Button variant="ghost" size="icon" onClick={() => navigate('/documents')} aria-label="Documents">
               <FileText className="h-4 w-4" />
             </Button>
+            {isAdmin && (
+              <Button variant="ghost" size="icon" onClick={() => navigate('/admin/settings')} aria-label="Admin Settings">
+                <Shield className="h-4 w-4 text-amber-600" />
+              </Button>
+            )}
             <Button variant="ghost" size="icon" onClick={() => navigate('/settings')} aria-label="Settings">
               <Settings className="h-4 w-4" />
             </Button>
