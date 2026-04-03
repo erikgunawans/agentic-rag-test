@@ -12,7 +12,15 @@ from app.routers.user_settings import get_or_create_settings
 router = APIRouter(prefix="/documents", tags=["documents"])
 settings = get_settings()
 
-ALLOWED_MIME_TYPES = {"application/pdf", "text/plain", "text/markdown"}
+ALLOWED_MIME_TYPES = {
+    "application/pdf",
+    "text/plain",
+    "text/markdown",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "text/csv",
+    "text/html",
+    "application/json",
+}
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50 MB
 
 
@@ -25,7 +33,7 @@ async def upload_document(
     if file.content_type not in ALLOWED_MIME_TYPES:
         raise HTTPException(
             status_code=400,
-            detail=f"Unsupported file type '{file.content_type}'. Use PDF, TXT, or Markdown.",
+            detail=f"Unsupported file type '{file.content_type}'. Use PDF, TXT, Markdown, DOCX, CSV, HTML, or JSON.",
         )
 
     file_bytes = await file.read()

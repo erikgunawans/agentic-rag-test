@@ -102,9 +102,26 @@ Track your progress through the masterclass. Update this file as you complete mo
 
 - `.agent/plans/13.m4-metadata-extraction.md`
 
-### Module 5: Multi-Format Support
+### Module 5: Multi-Format Support ✅ COMPLETE
 
-- [ ] Not started
+- [x] Backend dependencies — `python-docx>=1.1.0`, `beautifulsoup4>=4.12.0` added to `requirements.txt`
+- [x] Backend MIME whitelist — expanded `ALLOWED_MIME_TYPES` in `documents.py` to include DOCX, CSV, HTML, JSON
+- [x] Format parsers — added `_parse_docx`, `_parse_csv`, `_parse_html`, `_parse_json` in `ingestion_service.py`
+- [x] Frontend validation — expanded `ACCEPTED_TYPES` and UI text in `FileUpload.tsx`
+- [x] Test fixtures — `sample.docx`, `sample.csv`, `sample.html`, `sample.json` in `tests/fixtures/`
+- [x] API tests — `TestMultiFormatUpload` class with FMT-01 through FMT-08
+
+#### Module 5 Architecture Summary
+
+- **New formats**: DOCX (python-docx), CSV (stdlib csv), HTML (beautifulsoup4 + html.parser), JSON (stdlib json)
+- **Pattern**: Each format has a `_parse_<format>(file_bytes) -> str` helper; `parse_text()` dispatches by MIME type
+- **No schema changes**: Existing `documents` table and ingestion pipeline handle all formats generically
+- **Backward compatible**: PDF, TXT, Markdown handling unchanged
+- **Accepted MIME types**: `application/pdf`, `text/plain`, `text/markdown`, `application/vnd.openxmlformats-officedocument.wordprocessingml.document`, `text/csv`, `text/html`, `application/json`
+
+#### Sub-Plan Files
+
+- `.agent/plans/14.m5-multi-format.md` (plan saved to `.claude/plans/fuzzy-frolicking-flute.md`)
 
 ### Module 6: Hybrid Search & Reranking
 
