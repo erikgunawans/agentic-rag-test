@@ -7,6 +7,7 @@ tool_start/tool_result SSE events, delta streaming, tool_calls persistence,
 SQL safety, backward compatibility, and graceful error handling.
 """
 import json
+import os
 import uuid
 import pytest
 
@@ -34,6 +35,7 @@ def collect_sse_events(client, thread_id, message, timeout=90):
 def upload_txt(client, content=None):
     """Upload a text file and wait for ingestion to complete."""
     import time
+    import httpx as hx
     if content is None:
         content = f"The capital of France is Paris. Unique marker: {uuid.uuid4().hex}"
     resp = client.post(
@@ -43,10 +45,18 @@ def upload_txt(client, content=None):
     assert resp.status_code == 202
     doc_id = resp.json()["id"]
 
-    # Poll until completed
+    # Poll via Supabase REST (no single-doc GET endpoint)
+    supabase_url = os.getenv("SUPABASE_URL")
+    supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
     for _ in range(45):
-        check = client.get(f"/documents/{doc_id}")
-        if check.json()["status"] in ("completed", "failed"):
+        check = hx.get(
+            f"{supabase_url}/rest/v1/documents",
+            params={"id": f"eq.{doc_id}", "select": "status", "limit": "1"},
+            headers={"apikey": supabase_key, "Authorization": f"Bearer {supabase_key}"},
+            timeout=10,
+        )
+        rows = check.json()
+        if rows and rows[0].get("status") in ("completed", "failed"):
             break
         time.sleep(1)
 

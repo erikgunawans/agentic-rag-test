@@ -179,6 +179,27 @@ Track your progress through the masterclass. Update this file as you complete mo
 
 - `.claude/plans/expressive-tinkering-avalanche.md`
 
-### Module 8: Sub-Agents
+### Module 8: Sub-Agents ✅ COMPLETE
 
-- [ ] Not started
+- [x] Config additions — `agents_enabled`, `agents_orchestrator_model` in `backend/app/config.py`
+- [x] Pydantic models — `AgentDefinition`, `OrchestratorResult` in `backend/app/models/agents.py`; `agent` field added to `ToolCallSummary`
+- [x] OpenRouter service — `complete_with_tools()` updated with optional `tools` and `response_format` params
+- [x] Agent service — `backend/app/services/agent_service.py` with registry (research, data_analyst, general), `classify_intent()`, `get_agent_tools()`
+- [x] Chat router refactor — conditional orchestrator + sub-agent dispatch when `agents_enabled=true`; Module 7 behavior preserved as default
+- [x] Frontend types — `AgentStartEvent`, `AgentDoneEvent` in `database.types.ts`; `agent` field on `tool_calls`
+- [x] AgentBadge component — `frontend/src/components/chat/AgentBadge.tsx` with active and badge modes
+- [x] ChatPage SSE parsing — `activeAgent` state, handles `agent_start`/`agent_done` events
+- [x] MessageView updated — renders AgentBadge during streaming and on persisted messages
+- [x] API tests — `TestOrchestratorRouting`, `TestSubAgentExecution`, `TestAgentSSEProtocol`, `TestAgentPersistence` (AGENT-01 through AGENT-12)
+
+#### Module 8 Architecture Summary
+
+- **Multi-agent routing**: Orchestrator classifies intent via single non-streaming LLM call with `json_object` response format, routes to specialist sub-agent
+- **Three agents**: Research Agent (search_documents, 5 iterations), Data Analyst (query_database, 5 iterations), General Assistant (web_search, 3 iterations)
+- **Tool isolation**: Each sub-agent only sees its assigned tools — LLM can't call tools outside its definition
+- **SSE protocol**: Extended with `agent_start` (agent name + display name) and `agent_done` events wrapping the tool loop + delta stream
+- **Persistence**: Agent name stored in `tool_calls.agent` JSONB field — no migration needed
+- **Backward compatible**: `AGENTS_ENABLED=false` (default) preserves exact Module 7 single-agent behavior
+- **Fallback**: Invalid orchestrator response gracefully falls back to general agent
+- **No new dependencies**: Reuses existing OpenRouter, tool service, and httpx
+- **New env vars**: `AGENTS_ENABLED` (default false), `AGENTS_ORCHESTRATOR_MODEL` (optional, defaults to user's model)
