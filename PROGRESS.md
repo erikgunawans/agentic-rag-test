@@ -203,3 +203,34 @@ Track your progress through the masterclass. Update this file as you complete mo
 - **Fallback**: Invalid orchestrator response gracefully falls back to general agent
 - **No new dependencies**: Reuses existing OpenRouter, tool service, and httpx
 - **New env vars**: `AGENTS_ENABLED` (default false), `AGENTS_ORCHESTRATOR_MODEL` (optional, defaults to user's model)
+- **PR**: #2 merged to master via squash merge (commit `c1561fe`)
+
+#### Sub-Plan Files
+
+- `.claude/plans/expressive-tinkering-avalanche.md`
+
+---
+
+## Deployment Status
+
+### Frontend (Vercel) — ✅ DEPLOYED
+
+- **URL**: https://frontend-one-rho-88.vercel.app
+- **Platform**: Vercel (auto-detected Vite)
+- **Env vars**: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_API_BASE_URL` (points to Railway backend)
+- **Redeploy**: `cd frontend && npx vercel --prod`
+
+### Backend (Railway) — ✅ DEPLOYED
+
+- **URL**: https://api-production-cde1.up.railway.app
+- **Platform**: Railway (Dockerized FastAPI)
+- **Health check**: `GET /health` → `{"status": "ok"}`
+- **CORS**: Configured via `FRONTEND_URL` env var (comma-separated origins)
+- **Redeploy**: `cd backend && railway up`
+
+### Git History
+
+| PR | Branch | Description | Status |
+|----|--------|-------------|--------|
+| #1 | `feat/module-6-7` | Modules 6+7 — Hybrid Search + Tool Calling | Merged |
+| #2 | `feat/module-8-sub-agents` | Module 8 — Sub-Agent Architecture | Merged |

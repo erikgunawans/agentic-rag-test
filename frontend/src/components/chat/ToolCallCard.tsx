@@ -86,8 +86,8 @@ export function ToolCallCard({ tool, input, output, isLoading }: ToolCallCardPro
             </div>
           )}
 
-          {typeof output === 'object' && 'error' in output && output.error && (
-            <div className="mt-1.5 text-red-500">Error: {output.error as string}</div>
+          {typeof output === 'object' && output !== null && 'error' in output && Boolean(output.error) && (
+            <div className="mt-1.5 text-red-500">Error: {String(output.error)}</div>
           )}
         </div>
       )}
