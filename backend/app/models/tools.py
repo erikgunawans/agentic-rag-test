@@ -11,4 +11,5 @@ class ToolCallRecord(BaseModel):
 
 class ToolCallSummary(BaseModel):
     """Stored in messages.tool_calls JSONB."""
+    agent: str | None = None
     calls: list[ToolCallRecord]
