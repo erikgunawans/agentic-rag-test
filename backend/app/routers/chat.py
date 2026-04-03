@@ -5,16 +5,25 @@ from pydantic import BaseModel
 from app.dependencies import get_current_user
 from app.database import get_supabase_client
 from app.services.openrouter_service import OpenRouterService
-from app.services.embedding_service import EmbeddingService
+from app.services.tool_service import ToolService
 from app.config import get_settings
 from app.routers.user_settings import get_or_create_settings
+from app.models.tools import ToolCallRecord, ToolCallSummary
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 openrouter_service = OpenRouterService()
-embedding_service = EmbeddingService()
+tool_service = ToolService()
 settings = get_settings()
 
-SYSTEM_PROMPT = "You are a helpful assistant."
+SYSTEM_PROMPT = """You are a helpful assistant with access to tools.
+
+When the user asks a question:
+1. If it's about the content of their uploaded documents, use the search_documents tool.
+2. If it's about document metadata (counts, categories, file sizes, titles), use the query_database tool.
+3. If your documents don't have the answer, or the question is about current events or general knowledge, use the web_search tool.
+4. For general conversation (greetings, simple questions), respond directly without tools.
+
+Always cite your sources. For document searches, mention the source filename. For web searches, include the source URLs."""
 
 
 class SendMessageRequest(BaseModel):
@@ -53,46 +62,7 @@ async def stream_chat(
 
     # Load user's model preferences
     user_settings = get_or_create_settings(client, user["id"])
-
-    # Retrieve relevant document chunks with document metadata via pgvector
-    chunk_results = await embedding_service.retrieve_chunks_with_metadata(
-        query=body.message,
-        user_id=user["id"],
-        top_k=settings.rag_top_k,
-        threshold=settings.rag_similarity_threshold,
-        model=user_settings["embedding_model"],
-    )
-
-    # Build system prompt — inject RAG context with document metadata when available
-    if chunk_results:
-        context_parts = []
-        for row in chunk_results:
-            meta = row.get("doc_metadata") or {}
-            tags = meta.get("tags") or []
-            tag_str = ", ".join(tags[:5]) if tags else ""
-            category = meta.get("category", "")
-            filename = row.get("doc_filename", "")
-            header_parts = [f'"{filename}"']
-            if category:
-                header_parts.append(f"Category: {category}")
-            if tag_str:
-                header_parts.append(f"Tags: {tag_str}")
-            header = f"[Source: {' | '.join(header_parts)}]"
-            context_parts.append(f"{header}\n{row['content']}")
-        context_text = "\n\n---\n\n".join(context_parts)
-        system_content = (
-            f"{SYSTEM_PROMPT} Use the following context to answer when relevant:\n\n"
-            f"{context_text}\n\n---"
-        )
-    else:
-        system_content = SYSTEM_PROMPT
-
-    # Assemble messages: [system] + history + current user message
-    messages = (
-        [{"role": "system", "content": system_content}]
-        + [{"role": m["role"], "content": m["content"]} for m in history]
-        + [{"role": "user", "content": body.message}]
-    )
+    llm_model = user_settings["llm_model"]
 
     # Persist user message before streaming
     client.table("messages").insert({
@@ -102,27 +72,99 @@ async def stream_chat(
         "content": body.message,
     }).execute()
 
+    # Tool execution context (passed to search_documents tool)
+    tool_context = {
+        "top_k": settings.rag_top_k,
+        "threshold": settings.rag_similarity_threshold,
+        "embedding_model": user_settings["embedding_model"],
+        "llm_model": llm_model,
+    }
+
     async def event_generator():
+        # Assemble messages: [system] + history + current user message
+        messages = (
+            [{"role": "system", "content": SYSTEM_PROMPT}]
+            + [{"role": m["role"], "content": m["content"]} for m in history]
+            + [{"role": "user", "content": body.message}]
+        )
+
+        tools = tool_service.get_available_tools() if settings.tools_enabled else []
+        tool_records = []
         full_response = ""
 
         try:
-            async for chunk in openrouter_service.stream_response(messages, model=user_settings["llm_model"]):
+            # Agentic tool-calling loop
+            if tools:
+                for _iteration in range(settings.tools_max_iterations):
+                    result = await openrouter_service.complete_with_tools(
+                        messages, tools, model=llm_model
+                    )
+
+                    if not result["tool_calls"]:
+                        # LLM chose to respond with text — break to stream final response
+                        break
+
+                    # Process each tool call
+                    for tc in result["tool_calls"]:
+                        func_name = tc["function"]["name"]
+                        try:
+                            func_args = json.loads(tc["function"]["arguments"])
+                        except json.JSONDecodeError:
+                            func_args = {}
+
+                        # Send tool_start SSE event
+                        yield f"data: {json.dumps({'type': 'tool_start', 'tool': func_name, 'input': func_args})}\n\n"
+
+                        # Execute the tool
+                        try:
+                            tool_output = await tool_service.execute_tool(
+                                func_name, func_args, user["id"], tool_context
+                            )
+                            tool_records.append(ToolCallRecord(
+                                tool=func_name, input=func_args, output=tool_output
+                            ))
+                        except Exception as e:
+                            tool_output = {"error": str(e)}
+                            tool_records.append(ToolCallRecord(
+                                tool=func_name, input=func_args, output={}, error=str(e)
+                            ))
+
+                        # Send tool_result SSE event
+                        yield f"data: {json.dumps({'type': 'tool_result', 'tool': func_name, 'output': tool_output})}\n\n"
+
+                        # Append assistant tool call + tool result to messages for next LLM call
+                        messages.append({
+                            "role": "assistant",
+                            "content": None,
+                            "tool_calls": [tc],
+                        })
+                        messages.append({
+                            "role": "tool",
+                            "tool_call_id": tc["id"],
+                            "content": json.dumps(tool_output),
+                        })
+
+            # Stream final text response
+            async for chunk in openrouter_service.stream_response(messages, model=llm_model):
                 if not chunk["done"]:
                     full_response += chunk["delta"]
-                    yield f"data: {json.dumps({'delta': chunk['delta'], 'done': False})}\n\n"
+                    yield f"data: {json.dumps({'type': 'delta', 'delta': chunk['delta'], 'done': False})}\n\n"
         except Exception:
             pass
 
         # Persist assistant message after streaming completes (only if we got a response)
         if full_response:
-            client.table("messages").insert({
+            insert_data = {
                 "thread_id": body.thread_id,
                 "user_id": user["id"],
                 "role": "assistant",
                 "content": full_response,
-            }).execute()
+            }
+            if tool_records:
+                insert_data["tool_calls"] = ToolCallSummary(calls=tool_records).model_dump()
+            client.table("messages").insert(insert_data).execute()
 
-        yield f"data: {json.dumps({'delta': '', 'done': True})}\n\n"
+        yield f"data: {json.dumps({'type': 'delta', 'delta': '', 'done': True})}\n\n"
 
     return StreamingResponse(
         event_generator(),
