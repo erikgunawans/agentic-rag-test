@@ -8,7 +8,7 @@ from app.services.openrouter_service import OpenRouterService
 from app.services.tool_service import ToolService
 from app.services import agent_service
 from app.config import get_settings
-from app.routers.user_settings import get_or_create_settings
+from app.services.system_settings_service import get_system_settings
 from app.models.tools import ToolCallRecord, ToolCallSummary
 
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -61,9 +61,9 @@ async def stream_chat(
         .execute()
     ).data or []
 
-    # Load user's model preferences
-    user_settings = get_or_create_settings(client, user["id"])
-    llm_model = user_settings["llm_model"]
+    # Load system-level model config
+    sys_settings = get_system_settings()
+    llm_model = sys_settings["llm_model"]
 
     # Persist user message before streaming
     client.table("messages").insert({
@@ -77,7 +77,7 @@ async def stream_chat(
     tool_context = {
         "top_k": settings.rag_top_k,
         "threshold": settings.rag_similarity_threshold,
-        "embedding_model": user_settings["embedding_model"],
+        "embedding_model": sys_settings["embedding_model"],
         "llm_model": llm_model,
     }
 
