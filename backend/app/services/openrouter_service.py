@@ -31,15 +31,23 @@ class OpenRouterService:
 
     @traceable(name="tool_calling_completion")
     async def complete_with_tools(
-        self, messages: list[dict], tools: list[dict], model: str | None = None
+        self,
+        messages: list[dict],
+        tools: list[dict] | None = None,
+        model: str | None = None,
+        response_format: dict | None = None,
     ) -> dict:
         """Non-streaming completion that may return tool_calls."""
-        response = await self.client.chat.completions.create(
-            model=model or self.model,
-            messages=messages,
-            tools=tools,
-            stream=False,
-        )
+        kwargs: dict = {
+            "model": model or self.model,
+            "messages": messages,
+            "stream": False,
+        }
+        if tools:
+            kwargs["tools"] = tools
+        if response_format:
+            kwargs["response_format"] = response_format
+        response = await self.client.chat.completions.create(**kwargs)
         choice = response.choices[0]
         return {
             "role": choice.message.role,
@@ -47,6 +55,7 @@ class OpenRouterService:
             "tool_calls": [
                 {
                     "id": tc.id,
+                    "type": "function",
                     "function": {
                         "name": tc.function.name,
                         "arguments": tc.function.arguments,
