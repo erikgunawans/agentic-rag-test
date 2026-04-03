@@ -1,7 +1,8 @@
 """
 Document Upload / Ingestion API tests.
-Covers: DOC-01 through DOC-06, SEC-05, DEDUP-01 through DEDUP-05
+Covers: DOC-01 through DOC-06, SEC-05, DEDUP-01 through DEDUP-05, FMT-01 through FMT-08
 """
+import json
 import os
 import time
 import uuid
@@ -40,7 +41,7 @@ class TestDocumentUpload:
         """DOC-03: Unsupported file type."""
         resp = authed_client.post(
             "/documents/upload",
-            files={"file": ("doc.docx", b"fake content", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")},
+            files={"file": ("archive.zip", b"fake content", "application/zip")},
         )
         assert resp.status_code == 400
 
@@ -299,3 +300,125 @@ class TestDocumentMetadata:
         """META-06: GET /documents/{nonexistent}/metadata returns 404."""
         resp = authed_client.get("/documents/00000000-0000-0000-0000-000000000000/metadata")
         assert resp.status_code == 404
+
+
+# ── Module 5: Multi-Format Support ───────────────────────────────────────────
+
+def upload_docx(client, filename="sample.docx"):
+    """Upload a DOCX file with a unique filename prefix to avoid dedup collisions."""
+    path = os.path.join(FIXTURES, filename)
+    with open(path, "rb") as f:
+        content = f.read()
+    resp = client.post(
+        "/documents/upload",
+        files={"file": (f"{uuid.uuid4()}-{filename}", content,
+                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document")},
+    )
+    return resp
+
+
+def upload_csv(client, filename="sample.csv"):
+    """Upload a CSV file with a unique suffix to avoid dedup collisions."""
+    path = os.path.join(FIXTURES, filename)
+    with open(path, "rb") as f:
+        content = f.read() + f"\n# {uuid.uuid4()}".encode()
+    resp = client.post(
+        "/documents/upload",
+        files={"file": (filename, content, "text/csv")},
+    )
+    return resp
+
+
+def upload_html(client, filename="sample.html"):
+    """Upload an HTML file with a unique comment to avoid dedup collisions."""
+    path = os.path.join(FIXTURES, filename)
+    with open(path, "rb") as f:
+        content = f.read() + f"\n<!-- {uuid.uuid4()} -->".encode()
+    resp = client.post(
+        "/documents/upload",
+        files={"file": (filename, content, "text/html")},
+    )
+    return resp
+
+
+def upload_json(client, filename="sample.json"):
+    """Upload a JSON file with a unique field to avoid dedup collisions."""
+    path = os.path.join(FIXTURES, filename)
+    with open(path, "rb") as f:
+        data = json.loads(f.read())
+    data["_dedup"] = str(uuid.uuid4())
+    content = json.dumps(data).encode()
+    resp = client.post(
+        "/documents/upload",
+        files={"file": (filename, content, "application/json")},
+    )
+    return resp
+
+
+class TestMultiFormatUpload:
+    """Module 5: Multi-Format Support (FMT-01 through FMT-08)."""
+
+    def _wait_completed(self, client, doc_id: str, timeout: int = 45):
+        for _ in range(timeout):
+            docs = client.get("/documents").json()
+            doc = next((d for d in docs if d["id"] == doc_id), None)
+            if doc and doc["status"] in ("completed", "failed"):
+                return doc
+            time.sleep(1)
+        return None
+
+    def test_docx_upload_accepted(self, authed_client):
+        """FMT-01: DOCX upload returns 202."""
+        resp = upload_docx(authed_client)
+        assert resp.status_code == 202
+
+    def test_docx_ingestion_completes(self, authed_client):
+        """FMT-02: DOCX ingestion completes with chunks."""
+        resp = upload_docx(authed_client)
+        doc_id = resp.json()["id"]
+        doc = self._wait_completed(authed_client, doc_id)
+        assert doc is not None, "Document did not reach terminal status"
+        assert doc["status"] == "completed", f"Got: {doc['status']} — {doc.get('error_msg')}"
+        assert (doc["chunk_count"] or 0) >= 1
+
+    def test_csv_upload_accepted(self, authed_client):
+        """FMT-03: CSV upload returns 202."""
+        resp = upload_csv(authed_client)
+        assert resp.status_code == 202
+
+    def test_csv_ingestion_completes(self, authed_client):
+        """FMT-04: CSV ingestion completes with chunks."""
+        resp = upload_csv(authed_client)
+        doc_id = resp.json()["id"]
+        doc = self._wait_completed(authed_client, doc_id)
+        assert doc is not None
+        assert doc["status"] == "completed", f"Got: {doc['status']} — {doc.get('error_msg')}"
+        assert (doc["chunk_count"] or 0) >= 1
+
+    def test_html_upload_accepted(self, authed_client):
+        """FMT-05: HTML upload returns 202."""
+        resp = upload_html(authed_client)
+        assert resp.status_code == 202
+
+    def test_html_ingestion_completes(self, authed_client):
+        """FMT-06: HTML ingestion completes with chunks."""
+        resp = upload_html(authed_client)
+        doc_id = resp.json()["id"]
+        doc = self._wait_completed(authed_client, doc_id)
+        assert doc is not None
+        assert doc["status"] == "completed", f"Got: {doc['status']} — {doc.get('error_msg')}"
+        assert (doc["chunk_count"] or 0) >= 1
+
+    def test_json_upload_accepted(self, authed_client):
+        """FMT-07: JSON upload returns 202."""
+        resp = upload_json(authed_client)
+        assert resp.status_code == 202
+
+    def test_json_ingestion_completes(self, authed_client):
+        """FMT-08: JSON ingestion completes with chunks."""
+        resp = upload_json(authed_client)
+        doc_id = resp.json()["id"]
+        doc = self._wait_completed(authed_client, doc_id)
+        assert doc is not None
+        assert doc["status"] == "completed", f"Got: {doc['status']} — {doc.get('error_msg')}"
+        assert (doc["chunk_count"] or 0) >= 1

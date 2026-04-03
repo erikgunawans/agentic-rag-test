@@ -1,0 +1,8 @@
+{
+  "title": "RAG Test Document",
+  "facts": [
+    "The capital of France is Paris.",
+    "This document tests JSON ingestion support."
+  ],
+  "format": "json"
+}

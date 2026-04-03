@@ -2,8 +2,16 @@ import { useRef, useState } from 'react'
 import { Upload } from 'lucide-react'
 import { apiFetch } from '@/lib/api'
 
-const ACCEPTED = '.pdf,.txt,.md'
-const ACCEPTED_TYPES = new Set(['application/pdf', 'text/plain', 'text/markdown'])
+const ACCEPTED = '.pdf,.txt,.md,.docx,.csv,.html,.htm,.json'
+const ACCEPTED_TYPES = new Set([
+  'application/pdf',
+  'text/plain',
+  'text/markdown',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'text/csv',
+  'text/html',
+  'application/json',
+])
 
 interface FileUploadProps {
   onUploaded: () => void
@@ -17,7 +25,7 @@ export function FileUpload({ onUploaded }: FileUploadProps) {
 
   async function handleFile(file: File) {
     if (!ACCEPTED_TYPES.has(file.type)) {
-      setError('Only PDF, TXT, and Markdown files are supported.')
+      setError('Only PDF, TXT, Markdown, DOCX, CSV, HTML, and JSON files are supported.')
       return
     }
     setError(null)
@@ -70,7 +78,7 @@ export function FileUpload({ onUploaded }: FileUploadProps) {
       <p className="text-sm font-medium">
         {uploading ? 'Uploading…' : 'Drop a file or click to upload'}
       </p>
-      <p className="text-xs text-muted-foreground mt-1">PDF, TXT, or Markdown · Max 50 MB</p>
+      <p className="text-xs text-muted-foreground mt-1">PDF, TXT, Markdown, DOCX, CSV, HTML, or JSON · Max 50 MB</p>
       {error && <p className="text-xs text-destructive mt-2">{error}</p>}
       {info && <p className="text-xs text-blue-600 mt-2">{info}</p>}
     </div>

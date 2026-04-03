@@ -1,6 +1,11 @@
+import csv
+import io
+import json
 import logging
 import fitz  # PyMuPDF
 import tiktoken
+from docx import Document as DocxDocument
+from bs4 import BeautifulSoup
 from langsmith import traceable
 from app.config import get_settings
 from app.database import get_supabase_client
@@ -20,8 +25,51 @@ def parse_text(file_bytes: bytes, mime_type: str) -> str:
         text = "".join(page.get_text() for page in doc)
         doc.close()
         return text
+    if mime_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+        return _parse_docx(file_bytes)
+    if mime_type == "text/csv":
+        return _parse_csv(file_bytes)
+    if mime_type == "text/html":
+        return _parse_html(file_bytes)
+    if mime_type == "application/json":
+        return _parse_json(file_bytes)
     # TXT or Markdown
     return file_bytes.decode("utf-8", errors="ignore")
+
+
+def _parse_docx(file_bytes: bytes) -> str:
+    doc = DocxDocument(io.BytesIO(file_bytes))
+    parts = []
+    for para in doc.paragraphs:
+        text = para.text.strip()
+        if text:
+            parts.append(text)
+    for table in doc.tables:
+        for row in table.rows:
+            cells = [cell.text.strip() for cell in row.cells if cell.text.strip()]
+            if cells:
+                parts.append(" | ".join(cells))
+    return "\n".join(parts)
+
+
+def _parse_csv(file_bytes: bytes) -> str:
+    text = file_bytes.decode("utf-8", errors="ignore")
+    reader = csv.reader(io.StringIO(text))
+    return "\n".join(" | ".join(row) for row in reader)
+
+
+def _parse_html(file_bytes: bytes) -> str:
+    text = file_bytes.decode("utf-8", errors="ignore")
+    soup = BeautifulSoup(text, "html.parser")
+    for element in soup(["script", "style"]):
+        element.decompose()
+    return soup.get_text(separator="\n", strip=True)
+
+
+def _parse_json(file_bytes: bytes) -> str:
+    text = file_bytes.decode("utf-8", errors="ignore")
+    data = json.loads(text)
+    return json.dumps(data, indent=2, ensure_ascii=False)
 
 
 def chunk_text(text: str, chunk_size: int, chunk_overlap: int) -> list[str]:
