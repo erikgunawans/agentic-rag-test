@@ -23,7 +23,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="RAG Masterclass API", lifespan=lifespan)
 
 settings = get_settings()
-origins = [o.strip() for o in settings.frontend_url.split(",")]
+origins = [o.strip() for o in settings.frontend_url.split(",") if o.strip()]
 
 app.add_middleware(
     CORSMiddleware,

@@ -4,3 +4,9 @@ __pycache__/
 .env
 .env.*
 run.sh
+.agent/
+.git/
+tests/
+*.md
+Dockerfile
+.dockerignore
