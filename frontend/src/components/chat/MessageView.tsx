@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { StreamingMessage } from './StreamingMessage'
 import { ToolCallCard, ToolCallList } from './ToolCallCard'
+import { AgentBadge } from './AgentBadge'
 import type { Message, ToolStartEvent, ToolResultEvent } from '@/lib/database.types'
 
 interface MessageViewProps {
@@ -9,6 +10,7 @@ interface MessageViewProps {
   isStreaming: boolean
   activeTools?: ToolStartEvent[]
   toolResults?: ToolResultEvent[]
+  activeAgent?: { agent: string; display_name: string } | null
 }
 
 export function MessageView({
@@ -17,12 +19,13 @@ export function MessageView({
   isStreaming,
   activeTools = [],
   toolResults = [],
+  activeAgent = null,
 }: MessageViewProps) {
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, streamingContent, activeTools, toolResults])
+  }, [messages, streamingContent, activeTools, toolResults, activeAgent])
 
   if (messages.length === 0 && !isStreaming) {
     return (
@@ -40,6 +43,9 @@ export function MessageView({
           className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
         >
           <div className={`max-w-[75%] ${msg.role === 'user' ? '' : 'space-y-1'}`}>
+            {msg.role === 'assistant' && msg.tool_calls?.agent && (
+              <AgentBadge agent={msg.tool_calls.agent} />
+            )}
             {msg.role === 'assistant' && msg.tool_calls?.calls && msg.tool_calls.calls.length > 0 && (
               <ToolCallList toolCalls={msg.tool_calls.calls} />
             )}
@@ -59,6 +65,11 @@ export function MessageView({
       {isStreaming && (
         <div className="flex justify-start">
           <div className="max-w-[75%] space-y-1">
+            {/* Active agent indicator */}
+            {activeAgent && (
+              <AgentBadge agent={activeAgent.agent} displayName={activeAgent.display_name} active />
+            )}
+
             {/* Completed tool results */}
             {toolResults.map((tr, i) => (
               <ToolCallCard
@@ -87,7 +98,7 @@ export function MessageView({
             )}
 
             {/* Show loading state when no content yet and no active tools */}
-            {!streamingContent && activeTools.length === 0 && toolResults.length === 0 && (
+            {!streamingContent && activeTools.length === 0 && toolResults.length === 0 && !activeAgent && (
               <div className="rounded-lg px-4 py-2 bg-muted text-foreground">
                 <StreamingMessage content="" isStreaming={true} />
               </div>

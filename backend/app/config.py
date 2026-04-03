@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     tools_enabled: bool = True
     tools_max_iterations: int = 5
 
+    # Sub-agents (Module 8)
+    agents_enabled: bool = False
+    agents_orchestrator_model: str = ""
+
     # Supabase Storage
     storage_bucket: str = "documents"
 
