@@ -21,7 +21,7 @@ export interface Message {
   user_id: string
   role: 'user' | 'assistant'
   content: string
-  tool_calls?: { calls: ToolCallRecord[] } | null
+  tool_calls?: { agent?: string | null; calls: ToolCallRecord[] } | null
   created_at: string
 }
 
@@ -43,7 +43,18 @@ export interface ToolResultEvent {
   output: Record<string, unknown>
 }
 
-export type SSEEvent = DeltaEvent | ToolStartEvent | ToolResultEvent
+export interface AgentStartEvent {
+  type: 'agent_start'
+  agent: string
+  display_name: string
+}
+
+export interface AgentDoneEvent {
+  type: 'agent_done'
+  agent: string
+}
+
+export type SSEEvent = DeltaEvent | ToolStartEvent | ToolResultEvent | AgentStartEvent | AgentDoneEvent
 
 export interface DocumentMetadata {
   title: string

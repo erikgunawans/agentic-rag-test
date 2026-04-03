@@ -19,6 +19,7 @@ export function ChatPage() {
   const [streamingContent, setStreamingContent] = useState('')
   const [activeTools, setActiveTools] = useState<ToolStartEvent[]>([])
   const [toolResults, setToolResults] = useState<ToolResultEvent[]>([])
+  const [activeAgent, setActiveAgent] = useState<{ agent: string; display_name: string } | null>(null)
   const [loadingThreads, setLoadingThreads] = useState(false)
 
   const loadThreads = useCallback(async () => {
@@ -89,6 +90,7 @@ export function ChatPage() {
     setStreamingContent('')
     setActiveTools([])
     setToolResults([])
+    setActiveAgent(null)
 
     try {
       const response = await apiFetch('/chat/stream', {
@@ -113,7 +115,11 @@ export function ChatPage() {
           if (!line.startsWith('data: ')) continue
           const event = JSON.parse(line.slice(6)) as SSEEvent
 
-          if (event.type === 'tool_start') {
+          if (event.type === 'agent_start') {
+            setActiveAgent({ agent: event.agent, display_name: event.display_name })
+          } else if (event.type === 'agent_done') {
+            setActiveAgent(null)
+          } else if (event.type === 'tool_start') {
             setActiveTools((prev) => [...prev, event])
           } else if (event.type === 'tool_result') {
             // Move from active to completed — match by tool name
@@ -151,6 +157,7 @@ export function ChatPage() {
       setStreamingContent('')
       setActiveTools([])
       setToolResults([])
+      setActiveAgent(null)
     }
   }
 
@@ -200,6 +207,7 @@ export function ChatPage() {
               isStreaming={isStreaming}
               activeTools={activeTools}
               toolResults={toolResults}
+              activeAgent={activeAgent}
             />
             <MessageInput onSend={handleSendMessage} disabled={isStreaming} />
           </>
