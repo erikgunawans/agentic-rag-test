@@ -305,13 +305,19 @@ class TestDocumentMetadata:
 # ── Module 5: Multi-Format Support ───────────────────────────────────────────
 
 def upload_docx(client, filename="sample.docx"):
-    """Upload a DOCX file with a unique filename prefix to avoid dedup collisions."""
-    path = os.path.join(FIXTURES, filename)
-    with open(path, "rb") as f:
-        content = f.read()
+    """Generate a unique DOCX in-memory to avoid content-hash dedup collisions."""
+    from docx import Document as DocxDocument
+    import io
+    doc = DocxDocument()
+    doc.add_paragraph("RAG Test Document - DOCX Format")
+    doc.add_paragraph("The capital of France is Paris.")
+    doc.add_paragraph(f"Unique ID: {uuid.uuid4()}")
+    buf = io.BytesIO()
+    doc.save(buf)
+    content = buf.getvalue()
     resp = client.post(
         "/documents/upload",
-        files={"file": (f"{uuid.uuid4()}-{filename}", content,
+        files={"file": (filename, content,
                         "application/vnd.openxmlformats-officedocument.wordprocessingml.document")},
     )
     return resp
