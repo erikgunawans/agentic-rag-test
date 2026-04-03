@@ -40,6 +40,9 @@ class Settings(BaseSettings):
     agents_enabled: bool = False
     agents_orchestrator_model: str = ""
 
+    # Deployment
+    frontend_url: str = "http://localhost:5173"
+
     # Supabase Storage
     storage_bucket: str = "documents"
 
