@@ -6,6 +6,7 @@ from app.dependencies import get_current_user
 from app.database import get_supabase_client
 from app.services.openrouter_service import OpenRouterService
 from app.services.tool_service import ToolService
+from app.services import agent_service
 from app.config import get_settings
 from app.routers.user_settings import get_or_create_settings
 from app.models.tools import ToolCallRecord, ToolCallSummary
@@ -80,79 +81,145 @@ async def stream_chat(
         "llm_model": llm_model,
     }
 
-    async def event_generator():
-        # Assemble messages: [system] + history + current user message
-        messages = (
-            [{"role": "system", "content": SYSTEM_PROMPT}]
-            + [{"role": m["role"], "content": m["content"]} for m in history]
-            + [{"role": "user", "content": body.message}]
-        )
+    async def _run_tool_loop(messages, tools, max_iterations, user_id, tool_context):
+        """Shared tool-calling loop used by both agent and non-agent paths."""
+        tool_records = []
+        for _iteration in range(max_iterations):
+            if not tools:
+                break
+            result = await openrouter_service.complete_with_tools(
+                messages, tools, model=llm_model
+            )
 
-        tools = tool_service.get_available_tools() if settings.tools_enabled else []
+            if not result["tool_calls"]:
+                break
+
+            for tc in result["tool_calls"]:
+                func_name = tc["function"]["name"]
+                try:
+                    func_args = json.loads(tc["function"]["arguments"])
+                except json.JSONDecodeError:
+                    func_args = {}
+
+                yield "tool_start", {
+                    "type": "tool_start", "tool": func_name, "input": func_args,
+                }
+
+                try:
+                    tool_output = await tool_service.execute_tool(
+                        func_name, func_args, user_id, tool_context
+                    )
+                    tool_records.append(ToolCallRecord(
+                        tool=func_name, input=func_args, output=tool_output
+                    ))
+                except Exception as e:
+                    tool_output = {"error": str(e)}
+                    tool_records.append(ToolCallRecord(
+                        tool=func_name, input=func_args, output={}, error=str(e)
+                    ))
+
+                yield "tool_result", {
+                    "type": "tool_result", "tool": func_name, "output": tool_output,
+                }
+
+                messages.append({
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [tc],
+                })
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tc["id"],
+                    "content": json.dumps(tool_output),
+                })
+
+        # Expose collected records for persistence
+        yield "records", tool_records
+
+    async def event_generator():
         tool_records = []
         full_response = ""
+        agent_name = None
 
         try:
-            # Agentic tool-calling loop
-            if tools:
-                for _iteration in range(settings.tools_max_iterations):
-                    result = await openrouter_service.complete_with_tools(
-                        messages, tools, model=llm_model
+            if settings.agents_enabled:
+                # --- Multi-agent path ---
+                # 1. Orchestrator classification
+                try:
+                    orch_model = settings.agents_orchestrator_model or llm_model
+                    classification = await agent_service.classify_intent(
+                        body.message, history, openrouter_service, orch_model
                     )
+                    agent_name = classification.agent
+                except Exception:
+                    agent_name = "general"
 
-                    if not result["tool_calls"]:
-                        # LLM chose to respond with text — break to stream final response
-                        break
+                agent_def = agent_service.get_agent(agent_name)
 
-                    # Process each tool call
-                    for tc in result["tool_calls"]:
-                        func_name = tc["function"]["name"]
-                        try:
-                            func_args = json.loads(tc["function"]["arguments"])
-                        except json.JSONDecodeError:
-                            func_args = {}
+                # 2. SSE: agent_start
+                yield f"data: {json.dumps({'type': 'agent_start', 'agent': agent_name, 'display_name': agent_def.display_name})}\n\n"
 
-                        # Send tool_start SSE event
-                        yield f"data: {json.dumps({'type': 'tool_start', 'tool': func_name, 'input': func_args})}\n\n"
+                # 3. Build messages with agent's system prompt
+                messages = (
+                    [{"role": "system", "content": agent_def.system_prompt}]
+                    + [{"role": m["role"], "content": m["content"]} for m in history]
+                    + [{"role": "user", "content": body.message}]
+                )
 
-                        # Execute the tool
-                        try:
-                            tool_output = await tool_service.execute_tool(
-                                func_name, func_args, user["id"], tool_context
-                            )
-                            tool_records.append(ToolCallRecord(
-                                tool=func_name, input=func_args, output=tool_output
-                            ))
-                        except Exception as e:
-                            tool_output = {"error": str(e)}
-                            tool_records.append(ToolCallRecord(
-                                tool=func_name, input=func_args, output={}, error=str(e)
-                            ))
+                # 4. Get agent's tool subset
+                all_tools = tool_service.get_available_tools() if settings.tools_enabled else []
+                agent_tools = agent_service.get_agent_tools(agent_def, all_tools)
 
-                        # Send tool_result SSE event
-                        yield f"data: {json.dumps({'type': 'tool_result', 'tool': func_name, 'output': tool_output})}\n\n"
+                # 5. Sub-agent tool loop
+                async for event_type, data in _run_tool_loop(
+                    messages, agent_tools, agent_def.max_iterations,
+                    user["id"], tool_context,
+                ):
+                    if event_type == "records":
+                        tool_records = data
+                    else:
+                        yield f"data: {json.dumps(data)}\n\n"
 
-                        # Append assistant tool call + tool result to messages for next LLM call
-                        messages.append({
-                            "role": "assistant",
-                            "content": None,
-                            "tool_calls": [tc],
-                        })
-                        messages.append({
-                            "role": "tool",
-                            "tool_call_id": tc["id"],
-                            "content": json.dumps(tool_output),
-                        })
+                # 6. Stream final text response
+                async for chunk in openrouter_service.stream_response(messages, model=llm_model):
+                    if not chunk["done"]:
+                        full_response += chunk["delta"]
+                        yield f"data: {json.dumps({'type': 'delta', 'delta': chunk['delta'], 'done': False})}\n\n"
 
-            # Stream final text response
-            async for chunk in openrouter_service.stream_response(messages, model=llm_model):
-                if not chunk["done"]:
-                    full_response += chunk["delta"]
-                    yield f"data: {json.dumps({'type': 'delta', 'delta': chunk['delta'], 'done': False})}\n\n"
-        except Exception:
-            pass
+            else:
+                # --- Single-agent path (Module 7 behavior) ---
+                messages = (
+                    [{"role": "system", "content": SYSTEM_PROMPT}]
+                    + [{"role": m["role"], "content": m["content"]} for m in history]
+                    + [{"role": "user", "content": body.message}]
+                )
 
-        # Persist assistant message after streaming completes (only if we got a response)
+                tools = tool_service.get_available_tools() if settings.tools_enabled else []
+
+                # Agentic tool-calling loop
+                async for event_type, data in _run_tool_loop(
+                    messages, tools, settings.tools_max_iterations,
+                    user["id"], tool_context,
+                ):
+                    if event_type == "records":
+                        tool_records = data
+                    else:
+                        yield f"data: {json.dumps(data)}\n\n"
+
+                # Stream final text response
+                async for chunk in openrouter_service.stream_response(messages, model=llm_model):
+                    if not chunk["done"]:
+                        full_response += chunk["delta"]
+                        yield f"data: {json.dumps({'type': 'delta', 'delta': chunk['delta'], 'done': False})}\n\n"
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).error("event_generator error: %s", exc, exc_info=True)
+
+        # SSE: agent_done (always emitted if agent was started)
+        if agent_name:
+            yield f"data: {json.dumps({'type': 'agent_done', 'agent': agent_name})}\n\n"
+
+        # Persist assistant message after streaming completes
         if full_response:
             insert_data = {
                 "thread_id": body.thread_id,
@@ -160,8 +227,11 @@ async def stream_chat(
                 "role": "assistant",
                 "content": full_response,
             }
-            if tool_records:
-                insert_data["tool_calls"] = ToolCallSummary(calls=tool_records).model_dump()
+            if tool_records or agent_name:
+                insert_data["tool_calls"] = ToolCallSummary(
+                    agent=agent_name,
+                    calls=tool_records,
+                ).model_dump()
             client.table("messages").insert(insert_data).execute()
 
         yield f"data: {json.dumps({'type': 'delta', 'delta': '', 'done': True})}\n\n"
