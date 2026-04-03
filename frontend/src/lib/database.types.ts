@@ -8,14 +8,42 @@ export interface Thread {
   updated_at: string
 }
 
+export interface ToolCallRecord {
+  tool: string
+  input: Record<string, unknown>
+  output: Record<string, unknown> | string
+  error?: string | null
+}
+
 export interface Message {
   id: string
   thread_id: string
   user_id: string
   role: 'user' | 'assistant'
   content: string
+  tool_calls?: { calls: ToolCallRecord[] } | null
   created_at: string
 }
+
+export interface DeltaEvent {
+  type?: 'delta'
+  delta: string
+  done: boolean
+}
+
+export interface ToolStartEvent {
+  type: 'tool_start'
+  tool: string
+  input: Record<string, unknown>
+}
+
+export interface ToolResultEvent {
+  type: 'tool_result'
+  tool: string
+  output: Record<string, unknown>
+}
+
+export type SSEEvent = DeltaEvent | ToolStartEvent | ToolResultEvent
 
 export interface DocumentMetadata {
   title: string

@@ -109,7 +109,8 @@ Track your progress through the masterclass. Update this file as you complete mo
 - [x] Format parsers — added `_parse_docx`, `_parse_csv`, `_parse_html`, `_parse_json` in `ingestion_service.py`
 - [x] Frontend validation — expanded `ACCEPTED_TYPES` and UI text in `FileUpload.tsx`
 - [x] Test fixtures — `sample.docx`, `sample.csv`, `sample.html`, `sample.json` in `tests/fixtures/`
-- [x] API tests — `TestMultiFormatUpload` class with FMT-01 through FMT-08
+- [x] API tests — `TestMultiFormatUpload` class with FMT-01 through FMT-08, all 31 tests passing
+- [x] End-to-end validated — all formats ingested to `completed` status with chunks verified
 
 #### Module 5 Architecture Summary
 
@@ -118,18 +119,65 @@ Track your progress through the masterclass. Update this file as you complete mo
 - **No schema changes**: Existing `documents` table and ingestion pipeline handle all formats generically
 - **Backward compatible**: PDF, TXT, Markdown handling unchanged
 - **Accepted MIME types**: `application/pdf`, `text/plain`, `text/markdown`, `application/vnd.openxmlformats-officedocument.wordprocessingml.document`, `text/csv`, `text/html`, `application/json`
+- **Test note**: `upload_docx` helper generates DOCX in-memory with a UUID paragraph per call (avoids content-hash dedup collisions); requires `python-docx` in the test runner's Python env (`pip3 install python-docx`)
+
+### Module 6: Hybrid Search & Reranking ✅ COMPLETE
+
+- [x] Migration `supabase/migrations/006_hybrid_search.sql` — add `fts tsvector` column, GIN index, auto-populate trigger, `match_document_chunks_fulltext` RPC
+- [x] Config additions — `rag_hybrid_enabled`, `rag_rrf_k`, `rag_rerank_enabled`, `rag_rerank_model` in `backend/app/config.py`
+- [x] Rerank model — `backend/app/models/rerank.py` with `RerankScore` and `RerankResponse`
+- [x] Hybrid retrieval service — `backend/app/services/hybrid_retrieval_service.py` with vector search, full-text search, RRF fusion, optional LLM reranker
+- [x] Chat router updated — `backend/app/routers/chat.py` uses `HybridRetrievalService` instead of `EmbeddingService`
+- [x] Search diagnostics endpoint — `POST /documents/search` with `hybrid`, `vector`, `fulltext` modes
+- [x] API tests — `TestHybridSearch` class with HYB-01 through HYB-08, all 75 tests passing
+
+#### Module 6 Architecture Summary
+
+- **Hybrid search**: Combines pgvector cosine similarity (semantic) + Postgres `tsvector`/`tsquery` full-text search (lexical)
+- **Fusion**: Reciprocal Rank Fusion (RRF) merges rankings from both methods; formula: `score = sum(1 / (k + rank + 1))`, default `k=60`
+- **Pipeline**: Over-fetch `top_k * 3` candidates from each method concurrently (`asyncio.gather`), fuse via RRF, return top-k
+- **Reranking**: Optional LLM-based reranker via OpenRouter (gated by `RAG_RERANK_ENABLED=true`), uses `json_object` response format, best-effort fallback
+- **Full-text search**: `websearch_to_tsquery` for natural query support (quoted phrases, boolean operators)
+- **Trigger**: Postgres trigger auto-populates `fts` column on chunk INSERT/UPDATE — no ingestion pipeline changes needed
+- **Fallback**: When `RAG_HYBRID_ENABLED=false`, delegates to vector-only search (existing behavior)
+- **No new dependencies**: Uses existing OpenAI SDK + Supabase client + Postgres built-in full-text search
+- **No frontend changes**: Hybrid search is transparent — same response shape as vector-only
 
 #### Sub-Plan Files
 
-- `.agent/plans/14.m5-multi-format.md` (plan saved to `.claude/plans/fuzzy-frolicking-flute.md`)
+- `.claude/plans/polymorphic-watching-codd.md`
 
-### Module 6: Hybrid Search & Reranking
+### Module 7: Additional Tools ✅ COMPLETE
 
-- [ ] Not started
+- [x] Migration `supabase/migrations/007_tool_calls.sql` — add `tool_calls` JSONB to messages, `execute_user_document_query` RPC
+- [x] Config additions — `tavily_api_key`, `tools_enabled`, `tools_max_iterations` in `backend/app/config.py`
+- [x] Pydantic models — `ToolCallRecord`, `ToolCallSummary` in `backend/app/models/tools.py`
+- [x] Tool service — `backend/app/services/tool_service.py` with `search_documents`, `query_database`, `web_search` tools
+- [x] OpenRouter service — `complete_with_tools()` method for non-streaming tool-calling completions
+- [x] Chat router refactor — agentic tool-calling loop with extended SSE protocol (`tool_start`, `tool_result`, `delta` events)
+- [x] Frontend types — `ToolCallRecord`, `SSEEvent` types in `database.types.ts`
+- [x] Frontend SSE parsing — `ChatPage.tsx` handles `tool_start`, `tool_result`, `delta` events
+- [x] ToolCallCard component — collapsible tool execution display with icons and attribution
+- [x] MessageView updated — renders tool cards inline (streaming and persisted)
+- [x] API tests — `TestToolCalling`, `TestSQLSafety`, `TestToolPersistence`, `TestSSECompat`, `TestToolErrorHandling` (TOOL-01 through TOOL-09)
 
-### Module 7: Additional Tools
+#### Module 7 Architecture Summary
 
-- [ ] Not started
+- **Agentic loop**: Chat endpoint now uses a tool-calling loop — LLM decides which tools to invoke, backend executes them, results feed back to LLM, final text response is streamed
+- **Three tools**: `search_documents` (hybrid RAG retrieval), `query_database` (text-to-SQL with safety), `web_search` (Tavily API fallback)
+- **Non-streaming iterations**: Tool-calling rounds use regular completions (fast); only the final text response is streamed via SSE
+- **SQL safety**: Postgres RPC `execute_user_document_query` with `SECURITY DEFINER` + `STABLE`, SELECT-only validation, mandatory user_id scoping, write-keyword rejection
+- **Web search**: Tavily API via httpx; optional — gated by `TAVILY_API_KEY` env var; tool hidden if not configured
+- **SSE protocol**: Extended with `type` field — `tool_start`, `tool_result`, `delta` events; backward compatible (delta events still have `done` field)
+- **Attribution**: Every tool call visible in UI via collapsible ToolCallCard; web search shows source URLs, SQL shows query, doc search shows chunk count
+- **Persistence**: Tool execution records stored in `messages.tool_calls` JSONB; rendered on page reload
+- **Fallback**: `TOOLS_ENABLED=false` → identical to Module 6 behavior; tool errors caught and reported to LLM gracefully
+- **No new dependencies**: Uses existing `httpx` for Tavily; no LangChain/LangGraph
+- **New env vars**: `TAVILY_API_KEY` (optional), `TOOLS_ENABLED` (default true), `TOOLS_MAX_ITERATIONS` (default 5)
+
+#### Sub-Plan Files
+
+- `.claude/plans/expressive-tinkering-avalanche.md`
 
 ### Module 8: Sub-Agents
 

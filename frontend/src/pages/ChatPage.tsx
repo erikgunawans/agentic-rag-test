@@ -8,7 +8,7 @@ import { useNavigate } from 'react-router-dom'
 import { Separator } from '@/components/ui/separator'
 import { LogOut, FileText, Settings } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import type { Thread, Message } from '@/lib/database.types'
+import type { Thread, Message, SSEEvent, ToolStartEvent, ToolResultEvent } from '@/lib/database.types'
 
 export function ChatPage() {
   const navigate = useNavigate()
@@ -17,6 +17,8 @@ export function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([])
   const [isStreaming, setIsStreaming] = useState(false)
   const [streamingContent, setStreamingContent] = useState('')
+  const [activeTools, setActiveTools] = useState<ToolStartEvent[]>([])
+  const [toolResults, setToolResults] = useState<ToolResultEvent[]>([])
   const [loadingThreads, setLoadingThreads] = useState(false)
 
   const loadThreads = useCallback(async () => {
@@ -85,6 +87,8 @@ export function ChatPage() {
     setMessages((prev) => [...prev, optimisticMsg])
     setIsStreaming(true)
     setStreamingContent('')
+    setActiveTools([])
+    setToolResults([])
 
     try {
       const response = await apiFetch('/chat/stream', {
@@ -107,10 +111,26 @@ export function ChatPage() {
 
         for (const line of lines) {
           if (!line.startsWith('data: ')) continue
-          const event = JSON.parse(line.slice(6)) as { delta: string; done: boolean }
-          if (!event.done) {
-            assistantContent += event.delta
-            setStreamingContent(assistantContent)
+          const event = JSON.parse(line.slice(6)) as SSEEvent
+
+          if (event.type === 'tool_start') {
+            setActiveTools((prev) => [...prev, event])
+          } else if (event.type === 'tool_result') {
+            // Move from active to completed — match by tool name
+            setActiveTools((prev) => {
+              const idx = prev.findIndex((t) => t.tool === event.tool)
+              if (idx >= 0) return [...prev.slice(0, idx), ...prev.slice(idx + 1)]
+              return prev
+            })
+            setToolResults((prev) => [...prev, event])
+          } else {
+            // Delta event (type === 'delta' or missing type for backward compat)
+            const delta = 'delta' in event ? event.delta : ''
+            const isDone = 'done' in event ? event.done : false
+            if (!isDone && delta) {
+              assistantContent += delta
+              setStreamingContent(assistantContent)
+            }
           }
         }
       }
@@ -129,6 +149,8 @@ export function ChatPage() {
     } finally {
       setIsStreaming(false)
       setStreamingContent('')
+      setActiveTools([])
+      setToolResults([])
     }
   }
 
@@ -176,6 +198,8 @@ export function ChatPage() {
               messages={messages}
               streamingContent={streamingContent}
               isStreaming={isStreaming}
+              activeTools={activeTools}
+              toolResults={toolResults}
             />
             <MessageInput onSend={handleSendMessage} disabled={isStreaming} />
           </>

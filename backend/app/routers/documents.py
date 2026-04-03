@@ -3,14 +3,19 @@ import re
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 from app.dependencies import get_current_user
 from app.database import get_supabase_client
 from app.config import get_settings
 from app.services.ingestion_service import process_document
+from app.services.embedding_service import EmbeddingService
+from app.services.hybrid_retrieval_service import HybridRetrievalService
 from app.routers.user_settings import get_or_create_settings
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 settings = get_settings()
+embedding_service = EmbeddingService()
+hybrid_service = HybridRetrievalService()
 
 ALLOWED_MIME_TYPES = {
     "application/pdf",
@@ -163,3 +168,51 @@ async def delete_document(doc_id: str, user: dict = Depends(get_current_user)):
 
     # Delete DB record — chunks cascade automatically
     client.table("documents").delete().eq("id", doc_id).eq("user_id", user["id"]).execute()
+
+
+class SearchRequest(BaseModel):
+    query: str
+    top_k: int = 5
+    mode: str = "hybrid"  # "hybrid", "vector", "fulltext"
+
+
+@router.post("/search")
+async def search_documents(
+    body: SearchRequest,
+    user: dict = Depends(get_current_user),
+):
+    user_settings = get_or_create_settings(get_supabase_client(), user["id"])
+
+    if body.mode == "vector":
+        results = await embedding_service.retrieve_chunks_with_metadata(
+            query=body.query,
+            user_id=user["id"],
+            top_k=body.top_k,
+            threshold=settings.rag_similarity_threshold,
+            model=user_settings["embedding_model"],
+        )
+    elif body.mode == "fulltext":
+        try:
+            result = get_supabase_client().rpc(
+                "match_document_chunks_fulltext",
+                {
+                    "search_query": body.query,
+                    "match_user_id": user["id"],
+                    "match_count": body.top_k,
+                    "filter_category": None,
+                },
+            ).execute()
+            results = result.data or []
+        except Exception:
+            results = []
+    else:
+        results = await hybrid_service.retrieve(
+            query=body.query,
+            user_id=user["id"],
+            top_k=body.top_k,
+            threshold=settings.rag_similarity_threshold,
+            embedding_model=user_settings["embedding_model"],
+            llm_model=user_settings["llm_model"],
+        )
+
+    return {"results": results, "count": len(results), "mode": body.mode}

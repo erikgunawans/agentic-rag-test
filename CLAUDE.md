@@ -39,9 +39,15 @@ RAG app with chat (default) and document ingestion interfaces. Config via env va
 ## Testing
 
 Use these credentials whenever Playwright or manual browser testing requires login:
-
+User 1:
 - **Email**: `test@test.com`
 - **Password**: `!*-3-3?3uZ?b$v&`
+- **Frontend URL**: `http://localhost:5173`
+- **Backend URL**: `http://localhost:8000`
+
+User 2:
+- **Email**: `test-2@test.com`
+- **Password**: `fK4$Wd?HGKmb#A2`
 - **Frontend URL**: `http://localhost:5173`
 - **Backend URL**: `http://localhost:8000`
 
