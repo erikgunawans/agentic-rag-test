@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { StreamingMessage } from './StreamingMessage'
+import { ThinkingIndicator } from './ThinkingIndicator'
 import { ToolCallCard, ToolCallList } from './ToolCallCard'
 import { AgentBadge } from './AgentBadge'
 import type { Message, ToolStartEvent, ToolResultEvent } from '@/lib/database.types'
@@ -97,10 +98,10 @@ export function MessageView({
               </div>
             )}
 
-            {/* Show loading state when no content yet and no active tools */}
+            {/* Show animated thinking indicator when waiting for response */}
             {!streamingContent && activeTools.length === 0 && toolResults.length === 0 && !activeAgent && (
               <div className="rounded-lg px-4 py-2 bg-muted text-foreground">
-                <StreamingMessage content="" isStreaming={true} />
+                <ThinkingIndicator />
               </div>
             )}
           </div>
