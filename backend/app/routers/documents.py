@@ -1,15 +1,31 @@
+import hashlib
+import re
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 from app.dependencies import get_current_user
 from app.database import get_supabase_client
 from app.config import get_settings
 from app.services.ingestion_service import process_document
-from app.routers.user_settings import get_or_create_settings
+from app.services.embedding_service import EmbeddingService
+from app.services.hybrid_retrieval_service import HybridRetrievalService
+from app.services.system_settings_service import get_system_settings
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 settings = get_settings()
+embedding_service = EmbeddingService()
+hybrid_service = HybridRetrievalService()
 
-ALLOWED_MIME_TYPES = {"application/pdf", "text/plain", "text/markdown"}
+ALLOWED_MIME_TYPES = {
+    "application/pdf",
+    "text/plain",
+    "text/markdown",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "text/csv",
+    "text/html",
+    "application/json",
+}
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50 MB
 
 
@@ -22,7 +38,7 @@ async def upload_document(
     if file.content_type not in ALLOWED_MIME_TYPES:
         raise HTTPException(
             status_code=400,
-            detail=f"Unsupported file type '{file.content_type}'. Use PDF, TXT, or Markdown.",
+            detail=f"Unsupported file type '{file.content_type}'. Use PDF, TXT, Markdown, DOCX, CSV, HTML, or JSON.",
         )
 
     file_bytes = await file.read()
@@ -32,8 +48,38 @@ async def upload_document(
     if not file_bytes:
         raise HTTPException(status_code=400, detail="Empty file.")
 
+    content_hash = hashlib.sha256(file_bytes).hexdigest()
+
     client = get_supabase_client()
-    storage_path = f"{user['id']}/{uuid.uuid4()}-{file.filename}"
+
+    # Check for existing document with same content hash for this user
+    existing = (
+        client.table("documents")
+        .select("id, filename, status, file_path")
+        .eq("user_id", user["id"])
+        .eq("content_hash", content_hash)
+        .execute()
+    ).data
+
+    for doc in existing:
+        if doc["status"] == "completed":
+            # Already processed — skip storage upload, DB insert, and background task
+            return JSONResponse(
+                status_code=200,
+                content={"id": doc["id"], "filename": doc["filename"], "status": "completed", "duplicate": True},
+            )
+        if doc["status"] in ("pending", "processing"):
+            raise HTTPException(status_code=409, detail="This document is already being processed.")
+        if doc["status"] == "failed":
+            # Clean up failed record so we can retry with fresh state
+            try:
+                client.storage.from_(settings.storage_bucket).remove([doc["file_path"]])
+            except Exception:
+                pass
+            client.table("documents").delete().eq("id", doc["id"]).eq("user_id", user["id"]).execute()
+
+    safe_filename = re.sub(r"[^a-zA-Z0-9._-]", "_", file.filename or "upload")
+    storage_path = f"{user['id']}/{uuid.uuid4()}-{safe_filename}"
 
     # Upload raw file to Supabase Storage
     client.storage.from_(settings.storage_bucket).upload(
@@ -50,10 +96,11 @@ async def upload_document(
         "file_size": len(file_bytes),
         "mime_type": file.content_type,
         "status": "pending",
+        "content_hash": content_hash,
     }).execute().data[0]
 
-    # Load user's embedding model preference before handing off to background task
-    user_settings = get_or_create_settings(client, user["id"])
+    # Load system-level model config
+    sys_settings = get_system_settings()
 
     # Kick off background ingestion
     background_tasks.add_task(
@@ -62,10 +109,11 @@ async def upload_document(
         user_id=user["id"],
         file_path=storage_path,
         mime_type=file.content_type,
-        embedding_model=user_settings["embedding_model"],
+        embedding_model=sys_settings["embedding_model"],
+        llm_model=sys_settings["llm_model"],
     )
 
-    return {"id": doc["id"], "filename": doc["filename"], "status": "pending"}
+    return {"id": doc["id"], "filename": doc["filename"], "status": "pending", "duplicate": False}
 
 
 @router.get("")
@@ -73,12 +121,28 @@ async def list_documents(user: dict = Depends(get_current_user)):
     client = get_supabase_client()
     result = (
         client.table("documents")
-        .select("id, filename, file_size, mime_type, status, chunk_count, error_msg, created_at")
+        .select("id, filename, file_size, mime_type, status, chunk_count, error_msg, content_hash, metadata, created_at")
         .eq("user_id", user["id"])
         .order("created_at", desc=True)
         .execute()
     )
     return result.data
+
+
+@router.get("/{doc_id}/metadata")
+async def get_document_metadata(doc_id: str, user: dict = Depends(get_current_user)):
+    client = get_supabase_client()
+    result = (
+        client.table("documents")
+        .select("metadata")
+        .eq("id", doc_id)
+        .eq("user_id", user["id"])
+        .limit(1)
+        .execute()
+    )
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Document not found")
+    return result.data[0]["metadata"]
 
 
 @router.delete("/{doc_id}", status_code=204)
@@ -90,7 +154,7 @@ async def delete_document(doc_id: str, user: dict = Depends(get_current_user)):
         .select("file_path")
         .eq("id", doc_id)
         .eq("user_id", user["id"])
-        .single()
+        .limit(1)
         .execute()
     )
     if not doc.data:
@@ -98,9 +162,57 @@ async def delete_document(doc_id: str, user: dict = Depends(get_current_user)):
 
     # Remove from Storage (best-effort)
     try:
-        client.storage.from_(settings.storage_bucket).remove([doc.data["file_path"]])
+        client.storage.from_(settings.storage_bucket).remove([doc.data[0]["file_path"]])
     except Exception:
         pass
 
     # Delete DB record — chunks cascade automatically
     client.table("documents").delete().eq("id", doc_id).eq("user_id", user["id"]).execute()
+
+
+class SearchRequest(BaseModel):
+    query: str
+    top_k: int = 5
+    mode: str = "hybrid"  # "hybrid", "vector", "fulltext"
+
+
+@router.post("/search")
+async def search_documents(
+    body: SearchRequest,
+    user: dict = Depends(get_current_user),
+):
+    sys_settings = get_system_settings()
+
+    if body.mode == "vector":
+        results = await embedding_service.retrieve_chunks_with_metadata(
+            query=body.query,
+            user_id=user["id"],
+            top_k=body.top_k,
+            threshold=settings.rag_similarity_threshold,
+            model=user_settings["embedding_model"],
+        )
+    elif body.mode == "fulltext":
+        try:
+            result = get_supabase_client().rpc(
+                "match_document_chunks_fulltext",
+                {
+                    "search_query": body.query,
+                    "match_user_id": user["id"],
+                    "match_count": body.top_k,
+                    "filter_category": None,
+                },
+            ).execute()
+            results = result.data or []
+        except Exception:
+            results = []
+    else:
+        results = await hybrid_service.retrieve(
+            query=body.query,
+            user_id=user["id"],
+            top_k=body.top_k,
+            threshold=settings.rag_similarity_threshold,
+            embedding_model=sys_settings["embedding_model"],
+            llm_model=sys_settings["llm_model"],
+        )
+
+    return {"results": results, "count": len(results), "mode": body.mode}

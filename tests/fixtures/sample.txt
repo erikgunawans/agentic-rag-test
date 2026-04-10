@@ -1,0 +1,13 @@
+RAG Test Document
+
+This document is used by the automated test suite.
+
+Key facts for retrieval tests:
+- The capital of France is Paris.
+- The author of this test document is the RAG Masterclass test suite.
+- The sky is blue on a clear day.
+- Water boils at 100 degrees Celsius at sea level.
+- The test suite validates the RAG pipeline end-to-end.
+
+This content is intentionally simple so that similarity search reliably retrieves it
+when asked questions about France, Paris, or the test document.

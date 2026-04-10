@@ -1,63 +1,67 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Lock, Save } from 'lucide-react'
+import { ArrowLeft, Save } from 'lucide-react'
 import { apiFetch } from '@/lib/api'
-import { LLM_MODELS, EMBEDDING_MODELS } from '@/lib/models'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 
-interface UserSettings {
-  llm_model: string
-  embedding_model: string
-  embedding_locked: boolean
+interface UserPreferences {
+  theme: string
+  notifications_enabled: boolean
 }
+
+const THEMES = [
+  { value: 'system', label: 'System', description: 'Follow your OS preference' },
+  { value: 'light', label: 'Light', description: 'Always use light mode' },
+  { value: 'dark', label: 'Dark', description: 'Always use dark mode' },
+]
 
 export function SettingsPage() {
   const navigate = useNavigate()
-  const [settings, setSettings] = useState<UserSettings | null>(null)
-  const [llmModel, setLlmModel] = useState('')
-  const [embeddingModel, setEmbeddingModel] = useState('')
+  const [prefs, setPrefs] = useState<UserPreferences | null>(null)
+  const [theme, setTheme] = useState('system')
+  const [notifications, setNotifications] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const loadSettings = useCallback(async () => {
-    const res = await apiFetch('/settings')
-    const data: UserSettings = await res.json()
-    setSettings(data)
-    setLlmModel(data.llm_model)
-    setEmbeddingModel(data.embedding_model)
+  const loadPrefs = useCallback(async () => {
+    const res = await apiFetch('/preferences')
+    const data: UserPreferences = await res.json()
+    setPrefs(data)
+    setTheme(data.theme)
+    setNotifications(data.notifications_enabled)
   }, [])
 
   useEffect(() => {
-    loadSettings()
-  }, [loadSettings])
+    loadPrefs()
+  }, [loadPrefs])
 
   async function handleSave() {
     setSaving(true)
     setError(null)
     setSaved(false)
     try {
-      await apiFetch('/settings', {
+      await apiFetch('/preferences', {
         method: 'PATCH',
         body: JSON.stringify({
-          llm_model: llmModel,
-          embedding_model: embeddingModel,
+          theme,
+          notifications_enabled: notifications,
         }),
       })
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
-      await loadSettings()
+      await loadPrefs()
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to save settings')
+      setError(e instanceof Error ? e.message : 'Failed to save preferences')
     } finally {
       setSaving(false)
     }
   }
 
   const isDirty =
-    settings !== null &&
-    (llmModel !== settings.llm_model || embeddingModel !== settings.embedding_model)
+    prefs !== null &&
+    (theme !== prefs.theme || notifications !== prefs.notifications_enabled)
 
   return (
     <div className="flex h-screen flex-col bg-background">
@@ -65,7 +69,7 @@ export function SettingsPage() {
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)} aria-label="Back">
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <h1 className="text-sm font-semibold">Settings</h1>
+        <h1 className="text-sm font-semibold">Preferences</h1>
       </div>
 
       <Separator />
@@ -73,33 +77,33 @@ export function SettingsPage() {
       <div className="flex-1 overflow-y-auto p-6">
         <div className="mx-auto max-w-2xl space-y-8">
 
-          {/* LLM Model */}
+          {/* Theme */}
           <section className="space-y-3">
             <div>
-              <h2 className="text-sm font-semibold">LLM Model</h2>
+              <h2 className="text-sm font-semibold">Theme</h2>
               <p className="text-xs text-muted-foreground mt-0.5">
-                The model used to generate chat responses via OpenRouter.
+                Choose your preferred appearance.
               </p>
             </div>
             <div className="space-y-2">
-              {LLM_MODELS.map((m) => (
+              {THEMES.map((t) => (
                 <label
-                  key={m.value}
+                  key={t.value}
                   className={`flex items-start gap-3 rounded-lg border p-3 cursor-pointer transition-colors ${
-                    llmModel === m.value ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'
+                    theme === t.value ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'
                   }`}
                 >
                   <input
                     type="radio"
-                    name="llm_model"
-                    value={m.value}
-                    checked={llmModel === m.value}
-                    onChange={() => setLlmModel(m.value)}
+                    name="theme"
+                    value={t.value}
+                    checked={theme === t.value}
+                    onChange={() => setTheme(t.value)}
                     className="mt-0.5"
                   />
                   <div>
-                    <p className="text-sm font-medium">{m.label}</p>
-                    <p className="text-xs text-muted-foreground">{m.value} · {m.description}</p>
+                    <p className="text-sm font-medium">{t.label}</p>
+                    <p className="text-xs text-muted-foreground">{t.description}</p>
                   </div>
                 </label>
               ))}
@@ -108,65 +112,35 @@ export function SettingsPage() {
 
           <Separator />
 
-          {/* Embedding Model */}
+          {/* Notifications */}
           <section className="space-y-3">
             <div>
-              <h2 className="text-sm font-semibold flex items-center gap-2">
-                Embedding Model
-                {settings?.embedding_locked && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
-                    <Lock className="h-3 w-3" />
-                    Locked
-                  </span>
-                )}
-              </h2>
+              <h2 className="text-sm font-semibold">Notifications</h2>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Used to embed documents and queries for similarity search.{' '}
-                {settings?.embedding_locked ? (
-                  <span className="text-amber-700 font-medium">
-                    Delete all documents to switch models — mixing models corrupts similarity search.
-                  </span>
-                ) : (
-                  'Only 1536-dimension models are supported.'
-                )}
+                Control notification preferences.
               </p>
             </div>
-            <div className="space-y-2">
-              {EMBEDDING_MODELS.map((m) => (
-                <label
-                  key={m.value}
-                  className={`flex items-start gap-3 rounded-lg border p-3 transition-colors ${
-                    settings?.embedding_locked
-                      ? 'opacity-60 cursor-not-allowed'
-                      : 'cursor-pointer hover:bg-muted/50'
-                  } ${embeddingModel === m.value ? 'border-primary bg-primary/5' : ''}`}
-                >
-                  <input
-                    type="radio"
-                    name="embedding_model"
-                    value={m.value}
-                    checked={embeddingModel === m.value}
-                    onChange={() => !settings?.embedding_locked && setEmbeddingModel(m.value)}
-                    disabled={settings?.embedding_locked}
-                    className="mt-0.5"
-                  />
-                  <div>
-                    <p className="text-sm font-medium">{m.label}</p>
-                    <p className="text-xs text-muted-foreground">{m.description}</p>
-                  </div>
-                </label>
-              ))}
-            </div>
+            <label className="flex items-center gap-3 rounded-lg border p-3 cursor-pointer hover:bg-muted/50">
+              <input
+                type="checkbox"
+                checked={notifications}
+                onChange={(e) => setNotifications(e.target.checked)}
+              />
+              <div>
+                <p className="text-sm font-medium">Enable Notifications</p>
+                <p className="text-xs text-muted-foreground">
+                  Receive notifications about document processing and system updates.
+                </p>
+              </div>
+            </label>
           </section>
 
           {/* Save */}
-          {error && (
-            <p className="text-sm text-destructive">{error}</p>
-          )}
+          {error && <p className="text-sm text-destructive">{error}</p>}
 
           <Button onClick={handleSave} disabled={!isDirty || saving} className="w-full">
             <Save className="mr-2 h-4 w-4" />
-            {saving ? 'Saving…' : saved ? 'Saved!' : 'Save Settings'}
+            {saving ? 'Saving...' : saved ? 'Saved!' : 'Save Preferences'}
           </Button>
 
         </div>

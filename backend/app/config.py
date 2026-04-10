@@ -25,6 +25,24 @@ class Settings(BaseSettings):
     rag_chunk_size: int = 500
     rag_chunk_overlap: int = 50
 
+    # Hybrid search (Module 6)
+    rag_hybrid_enabled: bool = True
+    rag_rrf_k: int = 60
+    rag_rerank_enabled: bool = False
+    rag_rerank_model: str = ""
+
+    # Tool calling (Module 7)
+    tavily_api_key: str = ""
+    tools_enabled: bool = True
+    tools_max_iterations: int = 5
+
+    # Sub-agents (Module 8)
+    agents_enabled: bool = False
+    agents_orchestrator_model: str = ""
+
+    # Deployment
+    frontend_url: str = "http://localhost:5173"
+
     # Supabase Storage
     storage_bucket: str = "documents"
 

@@ -49,3 +49,27 @@ class EmbeddingService:
             },
         ).execute()
         return [row["content"] for row in (result.data or [])]
+
+    @traceable
+    async def retrieve_chunks_with_metadata(
+        self,
+        query: str,
+        user_id: str,
+        top_k: int,
+        threshold: float,
+        model: str | None = None,
+        category: str | None = None,
+    ) -> list[dict]:
+        """Embed query and return top-k chunks with document metadata via pgvector RPC."""
+        embedding = await self.embed_text(query, model=model)
+        result = get_supabase_client().rpc(
+            "match_document_chunks_with_metadata",
+            {
+                "query_embedding": embedding,
+                "match_user_id": user_id,
+                "match_count": top_k,
+                "match_threshold": threshold,
+                "filter_category": category,
+            },
+        ).execute()
+        return result.data or []

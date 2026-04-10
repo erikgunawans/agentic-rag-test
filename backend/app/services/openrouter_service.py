@@ -28,3 +28,40 @@ class OpenRouterService:
             if delta:
                 yield {"delta": delta, "done": False}
         yield {"delta": "", "done": True}
+
+    @traceable(name="tool_calling_completion")
+    async def complete_with_tools(
+        self,
+        messages: list[dict],
+        tools: list[dict] | None = None,
+        model: str | None = None,
+        response_format: dict | None = None,
+    ) -> dict:
+        """Non-streaming completion that may return tool_calls."""
+        kwargs: dict = {
+            "model": model or self.model,
+            "messages": messages,
+            "stream": False,
+        }
+        if tools:
+            kwargs["tools"] = tools
+        if response_format:
+            kwargs["response_format"] = response_format
+        response = await self.client.chat.completions.create(**kwargs)
+        choice = response.choices[0]
+        return {
+            "role": choice.message.role,
+            "content": choice.message.content,
+            "tool_calls": [
+                {
+                    "id": tc.id,
+                    "type": "function",
+                    "function": {
+                        "name": tc.function.name,
+                        "arguments": tc.function.arguments,
+                    },
+                }
+                for tc in (choice.message.tool_calls or [])
+            ] if choice.message.tool_calls else None,
+            "finish_reason": choice.finish_reason,
+        }

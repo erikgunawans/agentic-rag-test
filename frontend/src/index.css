@@ -46,6 +46,23 @@
     --radius-2xl: calc(var(--radius) * 1.8);
     --radius-3xl: calc(var(--radius) * 2.2);
     --radius-4xl: calc(var(--radius) * 2.6);
+    /* Knowledge Hub design tokens */
+    --color-bg-deep: var(--bg-deep);
+    --color-bg-surface: var(--bg-surface);
+    --color-bg-elevated: var(--bg-elevated);
+    --color-bg-hover: var(--bg-hover);
+    --color-accent-primary: var(--accent-primary);
+    --color-accent-glow: var(--accent-glow);
+    --color-accent-gradient-start: var(--accent-gradient-start);
+    --color-accent-gradient-mid: var(--accent-gradient-mid);
+    --color-accent-gradient-end: var(--accent-gradient-end);
+    --color-text-faint: var(--text-faint);
+    --color-border-subtle: var(--border-subtle);
+    --color-border-accent: var(--border-accent);
+    --color-success: var(--success);
+    --color-warning: var(--warning);
+    --color-info: var(--info);
+    --color-danger: var(--danger);
 }
 
 :root {
@@ -81,6 +98,23 @@
     --sidebar-accent-foreground: oklch(0.205 0 0);
     --sidebar-border: oklch(0.922 0 0);
     --sidebar-ring: oklch(0.708 0 0);
+    /* Knowledge Hub tokens (fallbacks) */
+    --bg-deep: #080C14;
+    --bg-surface: #0F1829;
+    --bg-elevated: #162033;
+    --bg-hover: #1C2840;
+    --accent-primary: #7C5CFC;
+    --accent-glow: rgba(124, 92, 252, 0.15);
+    --accent-gradient-start: #7C5CFC;
+    --accent-gradient-mid: #A78BFA;
+    --accent-gradient-end: #60A5FA;
+    --text-faint: #475569;
+    --border-subtle: #1E2D45;
+    --border-accent: rgba(124, 92, 252, 0.4);
+    --success: #34D399;
+    --warning: #F59E0B;
+    --info: #22D3EE;
+    --danger: #F87171;
 }
 
 .dark {
@@ -115,6 +149,23 @@
     --sidebar-accent-foreground: oklch(0.985 0 0);
     --sidebar-border: oklch(1 0 0 / 10%);
     --sidebar-ring: oklch(0.556 0 0);
+    /* Knowledge Hub extended tokens */
+    --bg-deep: #080C14;
+    --bg-surface: #0F1829;
+    --bg-elevated: #162033;
+    --bg-hover: #1C2840;
+    --accent-primary: #7C5CFC;
+    --accent-glow: rgba(124, 92, 252, 0.15);
+    --accent-gradient-start: #7C5CFC;
+    --accent-gradient-mid: #A78BFA;
+    --accent-gradient-end: #60A5FA;
+    --text-faint: #475569;
+    --border-subtle: #1E2D45;
+    --border-accent: rgba(124, 92, 252, 0.4);
+    --success: #34D399;
+    --warning: #F59E0B;
+    --info: #22D3EE;
+    --danger: #F87171;
 }
 
 @layer base {
@@ -127,4 +178,23 @@
   html {
     @apply font-sans;
     }
+
+  /* Knowledge Hub custom scrollbar */
+  .scrollbar-kh::-webkit-scrollbar { width: 4px; }
+  .scrollbar-kh::-webkit-scrollbar-track { background: transparent; }
+  .scrollbar-kh::-webkit-scrollbar-thumb {
+    background: rgba(124, 92, 252, 0.25);
+    border-radius: 4px;
+  }
+  .scrollbar-kh::-webkit-scrollbar-thumb:hover {
+    background: rgba(124, 92, 252, 0.45);
+  }
+
+  /* Knowledge Hub mesh gradient background */
+  .bg-mesh-gradient {
+    background-color: var(--background);
+    background-image:
+      radial-gradient(ellipse at 10% 10%, rgba(26, 15, 58, 0.6) 0%, transparent 600px),
+      radial-gradient(ellipse at 90% 90%, rgba(10, 31, 61, 0.6) 0%, transparent 500px);
+  }
 }

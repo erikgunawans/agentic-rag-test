@@ -1,7 +1,8 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import threads, chat, documents, user_settings
+from app.config import get_settings
+from app.routers import threads, chat, documents, admin_settings, user_preferences
 from app.services.langsmith_service import configure_langsmith
 from app.database import get_supabase_client
 
@@ -21,9 +22,12 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="RAG Masterclass API", lifespan=lifespan)
 
+settings = get_settings()
+origins = [o.strip() for o in settings.frontend_url.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -32,7 +36,8 @@ app.add_middleware(
 app.include_router(threads.router)
 app.include_router(chat.router)
 app.include_router(documents.router)
-app.include_router(user_settings.router)
+app.include_router(admin_settings.router)
+app.include_router(user_preferences.router)
 
 
 @app.get("/health")
