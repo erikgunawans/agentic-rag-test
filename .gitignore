@@ -28,3 +28,6 @@ Thumbs.db
 
 # Worktrees
 .worktrees/
+
+# Figma export zip (extracted source kept in frontend/src/design-reference/_figma-source/)
+new-ui-figma.zip
