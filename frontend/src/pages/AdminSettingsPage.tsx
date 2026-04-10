@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Save, Shield } from 'lucide-react'
+import { Save, Shield } from 'lucide-react'
 import { apiFetch } from '@/lib/api'
 import { LLM_MODELS, EMBEDDING_MODELS } from '@/lib/models'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
+import { ColumnHeader } from '@/components/shared/ColumnHeader'
+import { useSidebar } from '@/layouts/SidebarContext'
 
 interface SystemSettings {
   llm_model: string
@@ -20,8 +21,16 @@ interface SystemSettings {
   agents_enabled: boolean
 }
 
+function AdminSidebar() {
+  return (
+    <div className="flex flex-col h-full">
+      <ColumnHeader title="Admin" subtitle="Configuration" rightIcon="none" />
+    </div>
+  )
+}
+
 export function AdminSettingsPage() {
-  const navigate = useNavigate()
+  const { setSidebar, clearSidebar } = useSidebar()
   const [settings, setSettings] = useState<SystemSettings | null>(null)
   const [form, setForm] = useState<Partial<SystemSettings>>({})
   const [saving, setSaving] = useState(false)
@@ -63,6 +72,11 @@ export function AdminSettingsPage() {
     }
   }
 
+  useEffect(() => {
+    setSidebar(<AdminSidebar />, 260)
+    return () => clearSidebar()
+  }, [setSidebar, clearSidebar])
+
   const isDirty = settings !== null && JSON.stringify(form) !== JSON.stringify(settings)
 
   function updateField<K extends keyof SystemSettings>(key: K, value: SystemSettings[K]) {
@@ -70,21 +84,14 @@ export function AdminSettingsPage() {
   }
 
   return (
-    <div className="flex h-screen flex-col bg-background">
-      <div className="flex items-center gap-3 border-b px-6 py-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate(-1)} aria-label="Back">
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
+    <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex items-center gap-3 mb-6">
         <Shield className="h-4 w-4 text-amber-600" />
         <h1 className="text-sm font-semibold">Global Configuration</h1>
         <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
           Admin Only
         </span>
       </div>
-
-      <Separator />
-
-      <div className="flex-1 overflow-y-auto p-6">
         <div className="mx-auto max-w-2xl space-y-8">
 
           {/* LLM Model */}
@@ -295,7 +302,6 @@ export function AdminSettingsPage() {
           </Button>
 
         </div>
-      </div>
     </div>
   )
 }

@@ -1,13 +1,13 @@
 import { useState } from 'react'
-import { Send, Plus, FileText } from 'lucide-react'
+import { Plus, FileText, Send } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-interface MessageInputProps {
+interface ChatInputCardProps {
   onSend: (message: string) => void
-  disabled: boolean
+  disabled?: boolean
 }
 
-export function MessageInput({ onSend, disabled }: MessageInputProps) {
+export function ChatInputCard({ onSend, disabled }: ChatInputCardProps) {
   const [value, setValue] = useState('')
   const [isFocused, setIsFocused] = useState(false)
 
@@ -25,44 +25,42 @@ export function MessageInput({ onSend, disabled }: MessageInputProps) {
     }
   }
 
-  const canSend = !disabled && !!value.trim()
+  const isSendDisabled = disabled || !value.trim()
 
   return (
-    <div className="px-4 pb-4 pt-2">
+    <div className="w-full max-w-[820px]">
       <div
         className={cn(
-          'rounded-[20px] p-4 transition-all duration-200',
-          'bg-bg-elevated border',
+          'bg-bg-elevated rounded-[20px] p-5 border transition-all duration-200',
           isFocused
             ? 'border-border-accent shadow-[0_0_0_1px_var(--border-accent),0_0_40px_var(--accent-glow)]'
-            : 'border-border-subtle shadow-[0_4px_24px_rgba(0,0,0,0.3)]',
+            : 'border-border-subtle shadow-[0_4px_24px_rgba(0,0,0,0.3)]'
         )}
       >
         <textarea
-          className="w-full bg-transparent border-none outline-none resize-none text-[15px] text-foreground leading-relaxed placeholder:text-text-faint min-h-[40px] max-h-[200px]"
-          placeholder="Send a message… (Enter to send, Shift+Enter for newline)"
+          className="w-full bg-transparent border-none outline-none resize-none text-[15px] text-foreground leading-relaxed min-h-[50px] placeholder:text-text-faint"
+          placeholder="What would you like to know?"
           value={value}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={handleKeyDown}
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
           disabled={disabled}
-          rows={1}
         />
 
-        {/* Toolbar */}
+        {/* Bottom toolbar */}
         <div className="flex items-center justify-between mt-3">
           {/* Left buttons */}
           <div className="flex items-center gap-2">
             <button
               type="button"
-              className="flex items-center justify-center size-9 rounded-[10px] bg-bg-surface text-muted-foreground hover:bg-bg-hover hover:text-foreground transition-colors"
+              className="flex items-center justify-center w-9 h-9 bg-bg-surface rounded-[10px] text-muted-foreground hover:bg-bg-hover hover:text-foreground transition-colors"
             >
               <Plus size={18} />
             </button>
             <button
               type="button"
-              className="flex items-center justify-center size-9 rounded-[10px] bg-bg-surface text-muted-foreground hover:bg-bg-hover hover:text-foreground transition-colors"
+              className="flex items-center justify-center w-9 h-9 bg-bg-surface rounded-[10px] text-muted-foreground hover:bg-bg-hover hover:text-foreground transition-colors"
             >
               <FileText size={18} />
             </button>
@@ -76,14 +74,13 @@ export function MessageInput({ onSend, disabled }: MessageInputProps) {
             <button
               type="button"
               onClick={handleSend}
-              disabled={!canSend}
+              disabled={isSendDisabled}
               className={cn(
-                'flex items-center justify-center size-9 rounded-[10px] transition-all',
-                canSend
-                  ? 'bg-accent-primary text-white hover:bg-[#8B6EFD] hover:shadow-[0_4px_16px_rgba(124,92,252,0.5)]'
-                  : 'bg-accent-primary/50 text-white/50 cursor-not-allowed',
+                'flex items-center justify-center w-9 h-9 rounded-[10px] text-white transition-all',
+                isSendDisabled
+                  ? 'bg-accent-primary/50 cursor-not-allowed'
+                  : 'bg-accent-primary hover:bg-[#8B6EFD] hover:shadow-[0_4px_16px_rgba(124,92,252,0.5)]'
               )}
-              aria-label="Send message"
             >
               <Send size={18} />
             </button>

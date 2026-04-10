@@ -31,13 +31,13 @@ export function MessageView({
   if (messages.length === 0 && !isStreaming) {
     return (
       <div className="flex flex-1 items-center justify-center">
-        <p className="text-sm text-muted-foreground">Send a message to start the conversation</p>
+        <p className="text-[15px] text-text-faint">Send a message to start the conversation</p>
       </div>
     )
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-4 p-4 overflow-y-auto">
+    <div className="flex flex-1 flex-col gap-4 p-4 overflow-y-auto scrollbar-kh">
       {messages.map((msg) => (
         <div
           key={msg.id}
@@ -51,11 +51,11 @@ export function MessageView({
               <ToolCallList toolCalls={msg.tool_calls.calls} />
             )}
             <div
-              className={`rounded-lg px-4 py-2 text-sm ${
+              className={
                 msg.role === 'user'
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted text-foreground'
-              }`}
+                  ? 'rounded-2xl px-4 py-3 text-[15px] bg-accent-primary text-white'
+                  : 'rounded-2xl px-4 py-3 text-[15px] bg-bg-elevated text-foreground border border-border-subtle'
+              }
             >
               <div className="whitespace-pre-wrap break-words">{msg.content}</div>
             </div>
@@ -66,12 +66,10 @@ export function MessageView({
       {isStreaming && (
         <div className="flex justify-start">
           <div className="max-w-[75%] space-y-1">
-            {/* Active agent indicator */}
             {activeAgent && (
               <AgentBadge agent={activeAgent.agent} displayName={activeAgent.display_name} active />
             )}
 
-            {/* Completed tool results */}
             {toolResults.map((tr, i) => (
               <ToolCallCard
                 key={`result-${i}`}
@@ -81,7 +79,6 @@ export function MessageView({
               />
             ))}
 
-            {/* Currently running tools */}
             {activeTools.map((at, i) => (
               <ToolCallCard
                 key={`active-${i}`}
@@ -91,16 +88,14 @@ export function MessageView({
               />
             ))}
 
-            {/* Streaming text response */}
             {streamingContent && (
-              <div className="rounded-lg px-4 py-2 bg-muted text-foreground">
+              <div className="rounded-2xl px-4 py-3 bg-bg-elevated text-foreground border border-border-subtle">
                 <StreamingMessage content={streamingContent} isStreaming={true} />
               </div>
             )}
 
-            {/* Show animated thinking indicator when waiting for response */}
             {!streamingContent && activeTools.length === 0 && toolResults.length === 0 && !activeAgent && (
-              <div className="rounded-lg px-4 py-2 bg-muted text-foreground">
+              <div className="rounded-2xl px-4 py-3 bg-bg-elevated text-foreground border border-border-subtle">
                 <ThinkingIndicator />
               </div>
             )}

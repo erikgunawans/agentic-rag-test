@@ -7,6 +7,7 @@ import { SettingsPage } from '@/pages/SettingsPage'
 import { AdminSettingsPage } from '@/pages/AdminSettingsPage'
 import { AuthGuard } from '@/components/auth/AuthGuard'
 import { AdminGuard } from '@/components/auth/AdminGuard'
+import AppLayout from '@/layouts/AppLayout'
 
 export default function App() {
   return (
@@ -14,40 +15,12 @@ export default function App() {
       <AuthProvider>
         <Routes>
           <Route path="/auth" element={<AuthPage />} />
-          <Route
-            path="/"
-            element={
-              <AuthGuard>
-                <ChatPage />
-              </AuthGuard>
-            }
-          />
-          <Route
-            path="/documents"
-            element={
-              <AuthGuard>
-                <DocumentsPage />
-              </AuthGuard>
-            }
-          />
-          <Route
-            path="/settings"
-            element={
-              <AuthGuard>
-                <SettingsPage />
-              </AuthGuard>
-            }
-          />
-          <Route
-            path="/admin/settings"
-            element={
-              <AuthGuard>
-                <AdminGuard>
-                  <AdminSettingsPage />
-                </AdminGuard>
-              </AuthGuard>
-            }
-          />
+          <Route element={<AuthGuard><AppLayout /></AuthGuard>}>
+            <Route index element={<ChatPage />} />
+            <Route path="documents" element={<DocumentsPage />} />
+            <Route path="settings" element={<SettingsPage />} />
+            <Route path="admin/settings" element={<AdminGuard><AdminSettingsPage /></AdminGuard>} />
+          </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AuthProvider>

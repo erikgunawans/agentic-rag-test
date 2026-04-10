@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Save } from 'lucide-react'
+import { Save } from 'lucide-react'
 import { apiFetch } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
+import { ColumnHeader } from '@/components/shared/ColumnHeader'
+import { useSidebar } from '@/layouts/SidebarContext'
 
 interface UserPreferences {
   theme: string
@@ -16,8 +17,16 @@ const THEMES = [
   { value: 'dark', label: 'Dark', description: 'Always use dark mode' },
 ]
 
+function SettingsSidebar() {
+  return (
+    <div className="flex flex-col h-full">
+      <ColumnHeader title="Settings" subtitle="Preferences" rightIcon="none" />
+    </div>
+  )
+}
+
 export function SettingsPage() {
-  const navigate = useNavigate()
+  const { setSidebar, clearSidebar } = useSidebar()
   const [prefs, setPrefs] = useState<UserPreferences | null>(null)
   const [theme, setTheme] = useState('system')
   const [notifications, setNotifications] = useState(true)
@@ -59,22 +68,17 @@ export function SettingsPage() {
     }
   }
 
+  useEffect(() => {
+    setSidebar(<SettingsSidebar />, 260)
+    return () => clearSidebar()
+  }, [setSidebar, clearSidebar])
+
   const isDirty =
     prefs !== null &&
     (theme !== prefs.theme || notifications !== prefs.notifications_enabled)
 
   return (
-    <div className="flex h-screen flex-col bg-background">
-      <div className="flex items-center gap-3 border-b px-6 py-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate(-1)} aria-label="Back">
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <h1 className="text-sm font-semibold">Preferences</h1>
-      </div>
-
-      <Separator />
-
-      <div className="flex-1 overflow-y-auto p-6">
+    <div className="flex-1 overflow-y-auto p-6">
         <div className="mx-auto max-w-2xl space-y-8">
 
           {/* Theme */}
@@ -144,7 +148,6 @@ export function SettingsPage() {
           </Button>
 
         </div>
-      </div>
     </div>
   )
 }
