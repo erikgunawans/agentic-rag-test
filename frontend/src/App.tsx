@@ -6,6 +6,10 @@ import { ChatPage } from '@/pages/ChatPage'
 import { DocumentsPage } from '@/pages/DocumentsPage'
 import { SettingsPage } from '@/pages/SettingsPage'
 import { AdminSettingsPage } from '@/pages/AdminSettingsPage'
+import { DocumentCreationPage } from '@/pages/DocumentCreationPage'
+import { DocumentComparisonPage } from '@/pages/DocumentComparisonPage'
+import { ComplianceCheckPage } from '@/pages/ComplianceCheckPage'
+import { ContractAnalysisPage } from '@/pages/ContractAnalysisPage'
 import { AuthGuard } from '@/components/auth/AuthGuard'
 import { AdminGuard } from '@/components/auth/AdminGuard'
 import { AppLayout } from '@/layouts/AppLayout'
@@ -27,6 +31,10 @@ export default function App() {
             >
               <Route index element={<ChatPage />} />
               <Route path="documents" element={<DocumentsPage />} />
+              <Route path="create" element={<DocumentCreationPage />} />
+              <Route path="compare" element={<DocumentComparisonPage />} />
+              <Route path="compliance" element={<ComplianceCheckPage />} />
+              <Route path="analysis" element={<ContractAnalysisPage />} />
               <Route path="settings" element={<SettingsPage />} />
               <Route
                 path="admin/settings"
