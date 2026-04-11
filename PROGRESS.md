@@ -297,6 +297,24 @@ Track your progress through the masterclass. Update this file as you complete mo
 
 - `.claude/plans/enumerated-hugging-otter.md`
 
+### Figma UI Migration ✅ COMPLETE
+
+- [x] Shared components — `FeaturePageLayout`, `DropZone`, `HistorySection`, `EmptyState`, `SectionLabel` in `components/shared/`
+- [x] IconRail expanded to 6 nav items (Chat, Documents, Create, Compare, Compliance, Analysis) + flyout "More Modules" menu
+- [x] `DocumentCreationPage` — doc type selector, form fields, language toggle, reference/template uploads (static UI)
+- [x] `DocumentComparisonPage` — dual document upload, swap button, comparison focus selector (static UI)
+- [x] `ComplianceCheckPage` — doc upload, framework selector, scope multi-select, context textarea (static UI)
+- [x] `ContractAnalysisPage` — doc upload, analysis type multi-select, governing law, depth selector (static UI)
+- [x] All 4 pages are UI-only (no backend calls) — ready for future backend integration
+- [x] Full i18n support (Indonesian + English) for all new screens (~80 keys per locale)
+- [x] Feature accent colors added (creation/purple, management/cyan, compliance/emerald, analysis/amber)
+- [x] shadcn/ui select, textarea, popover components installed
+- [x] Routes added to `App.tsx` for `/create`, `/compare`, `/compliance`, `/analysis`
+
+#### Sub-Plan Files
+
+- `.agent/plans/11.figma-ui-migration.md`
+
 ---
 
 ## Deployment Status
