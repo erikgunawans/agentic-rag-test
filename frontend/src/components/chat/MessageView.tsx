@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { GitFork, ChevronLeft, ChevronRight } from 'lucide-react'
 import { StreamingMessage } from './StreamingMessage'
 import { ThinkingIndicator } from './ThinkingIndicator'
@@ -21,7 +21,7 @@ function BranchIndicator({ branches, selectedId, onSwitch }: BranchIndicatorProp
     <div className="flex items-center gap-1 text-xs text-muted-foreground">
       <button
         disabled={idx === 0}
-        onClick={() => onSwitch(branches[idx - 1].id)}
+        onClick={() => idx > 0 && onSwitch(branches[idx - 1].id)}
         className="disabled:opacity-30 hover:text-foreground transition-colors"
       >
         <ChevronLeft className="h-3 w-3" />
@@ -29,7 +29,7 @@ function BranchIndicator({ branches, selectedId, onSwitch }: BranchIndicatorProp
       <span className="tabular-nums">{idx + 1}/{branches.length}</span>
       <button
         disabled={idx === branches.length - 1}
-        onClick={() => onSwitch(branches[idx + 1].id)}
+        onClick={() => idx < branches.length - 1 && onSwitch(branches[idx + 1].id)}
         className="disabled:opacity-30 hover:text-foreground transition-colors"
       >
         <ChevronRight className="h-3 w-3" />
@@ -62,7 +62,7 @@ export function MessageView({
   onSwitchBranch,
 }: MessageViewProps) {
   const bottomRef = useRef<HTMLDivElement>(null)
-  const childrenMap = buildChildrenMap(allMessages)
+  const childrenMap = useMemo(() => buildChildrenMap(allMessages), [allMessages])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })

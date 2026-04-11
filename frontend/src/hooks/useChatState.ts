@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { apiFetch } from '@/lib/api'
 import { buildChildrenMap, getActivePath } from '@/lib/messageTree'
@@ -10,6 +10,8 @@ export function useChatState() {
   const [allMessages, setAllMessages] = useState<Message[]>([])
   const [messages, setMessages] = useState<Message[]>([])
   const [branchSelections, setBranchSelections] = useState<Map<string, string>>(new Map())
+  const branchSelectionsRef = useRef(branchSelections)
+  branchSelectionsRef.current = branchSelections
   const [forkParentId, setForkParentId] = useState<string | null>(null)
   const [isStreaming, setIsStreaming] = useState(false)
   const [streamingContent, setStreamingContent] = useState('')
@@ -183,7 +185,7 @@ export function useChatState() {
 
       const all = (data as Message[]) ?? []
       setAllMessages(all)
-      rebuildVisibleMessages(all, branchSelections)
+      rebuildVisibleMessages(all, branchSelectionsRef.current)
       loadThreads()
     } finally {
       setIsStreaming(false)
@@ -210,7 +212,6 @@ export function useChatState() {
     activeThreadId,
     allMessages,
     messages,
-    branchSelections,
     forkParentId,
     isStreaming,
     streamingContent,

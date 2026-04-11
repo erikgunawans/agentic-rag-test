@@ -64,8 +64,10 @@ async def stream_chat(
         ).data or []
         msg_map = {m["id"]: m for m in all_messages}
         chain = []
+        visited: set[str] = set()
         current_id = body.parent_message_id
-        while current_id and current_id in msg_map:
+        while current_id and current_id in msg_map and current_id not in visited:
+            visited.add(current_id)
             chain.append(msg_map[current_id])
             current_id = msg_map[current_id].get("parent_message_id")
         chain.reverse()
