@@ -263,6 +263,31 @@ Track your progress through the masterclass. Update this file as you complete mo
 - **Theme**: Dark-only, oklch color space, custom CSS variables for icon-rail and sidebar colors
 - **Components**: `IconRail` (brand + nav + avatar), `ThreadPanel` (new chat + date-grouped threads), `UserAvatar` (initials + sign-out menu), `WelcomeScreen` (greeting + input + chips)
 
+### Module 10: Conversation Branching ✅ COMPLETE
+
+- [x] Migration `supabase/migrations/009_conversation_branching.sql` — add `parent_message_id` column, index, backfill existing linear chains
+- [x] Backend `chat.py` — accept `parent_message_id`, branch-aware history loading (walk ancestor chain), chain user + assistant message inserts
+- [x] Frontend `messageTree.ts` — `buildChildrenMap`, `getActivePath`, `getForkPoints` utilities
+- [x] Frontend `useChatState.ts` — `allMessages`, `branchSelections`, `forkParentId` state; `handleSwitchBranch`, `handleForkAt`, `handleCancelFork` handlers
+- [x] Frontend `MessageView.tsx` — fork button (GitFork icon on hover), `BranchIndicator` (1/3 with arrows) at fork points
+- [x] Frontend `MessageInput.tsx` — fork-mode banner with cancel button
+- [x] Frontend `ChatPage.tsx` — wire new props from context
+- [x] Frontend `database.types.ts` — `parent_message_id` on Message interface
+- [x] i18n — `branch.forkMode`, `branch.fork`, `branch.cancel` in Indonesian + English
+
+#### Module 10 Architecture Summary
+
+- **Message tree**: `parent_message_id` self-FK on `messages` table; adjacency list pattern
+- **Backfill**: Existing linear conversations auto-linked via `LAG()` window function in migration
+- **History construction**: When `parent_message_id` provided, backend walks ancestor chain from that message to root; only ancestor messages sent to LLM
+- **Frontend tree**: `buildChildrenMap` groups messages by parent; `getActivePath` walks tree following `branchSelections`; only the active branch path is rendered
+- **UI**: Fork icon appears on hover; clicking sets `forkParentId` and shows banner in input area; after send, new branch created; fork points show `BranchIndicator` with left/right arrows to switch
+- **Backward compatible**: Existing flat threads work unchanged (backfill sets parent chains; `parent_message_id=None` falls back to flat mode)
+
+#### Sub-Plan Files
+
+- `.claude/plans/enumerated-hugging-otter.md`
+
 ---
 
 ## Deployment Status
