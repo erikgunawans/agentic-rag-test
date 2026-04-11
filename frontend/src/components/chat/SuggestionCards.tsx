@@ -53,15 +53,16 @@ export function SuggestionCards() {
 
   return (
     <div className="grid grid-cols-2 gap-3 w-full">
-      {cards.map(({ titleKey, descKey, icon: Icon, path, colorVar, borderColor }) => (
+      {cards.map(({ titleKey, descKey, icon: Icon, path, colorVar, borderColor }, index) => (
         <button
           key={path}
           onClick={() => navigate(path)}
-          className={`flex items-center gap-3 rounded-xl border ${borderColor} bg-card p-4 text-left transition-colors hover:bg-accent/50 cursor-pointer`}
+          className={`flex items-center gap-3 rounded-xl border ${borderColor} bg-card p-4 text-left transition-all duration-200 hover:bg-accent/50 hover:scale-[1.02] hover:shadow-[var(--shadow-md)] cursor-pointer animate-fade-in-up`}
+          style={{ animationDelay: `${index * 100}ms` }}
         >
           <div
             className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
-            style={{ backgroundColor: `color-mix(in oklch, ${colorVar} 15%, transparent)`, color: colorVar }}
+            style={{ backgroundColor: `color-mix(in oklch, ${colorVar} 20%, transparent)`, color: colorVar }}
           >
             <Icon className="h-5 w-5" />
           </div>

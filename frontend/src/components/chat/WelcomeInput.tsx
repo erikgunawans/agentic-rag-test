@@ -26,7 +26,7 @@ export function WelcomeInput({ onSend, disabled }: WelcomeInputProps) {
   }
 
   return (
-    <div className="w-full rounded-2xl border border-border bg-card p-4">
+    <div className="w-full rounded-2xl border bg-card glass p-4 shadow-[var(--shadow-md)] transition-shadow focus-within:shadow-[var(--glow-primary)]">
       <textarea
         className="w-full resize-none bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none min-h-[60px]"
         placeholder={t('chat.placeholder')}
@@ -51,7 +51,7 @@ export function WelcomeInput({ onSend, disabled }: WelcomeInputProps) {
         <button
           onClick={handleSend}
           disabled={disabled || !value.trim()}
-          className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground transition-opacity disabled:opacity-50 hover:opacity-90"
+          className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-[oklch(0.55_0.18_250)] text-primary-foreground transition-all disabled:opacity-50 hover:shadow-[var(--glow-sm)]"
         >
           <Send className="h-4 w-4" />
         </button>
