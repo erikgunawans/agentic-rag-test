@@ -1,25 +1,28 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Save } from 'lucide-react'
+import { Save, Shield } from 'lucide-react'
 import { apiFetch } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
+import { useAuth } from '@/contexts/AuthContext'
+import { useI18n } from '@/i18n/I18nContext'
+import type { Locale } from '@/i18n/translations'
 
 interface UserPreferences {
   theme: string
   notifications_enabled: boolean
 }
 
-const THEMES = [
-  { value: 'system', label: 'System', description: 'Follow your OS preference' },
-  { value: 'light', label: 'Light', description: 'Always use light mode' },
-  { value: 'dark', label: 'Dark', description: 'Always use dark mode' },
+const LANGUAGES: { value: Locale; label: string }[] = [
+  { value: 'id', label: 'Bahasa Indonesia' },
+  { value: 'en', label: 'English' },
 ]
 
 export function SettingsPage() {
   const navigate = useNavigate()
+  const { isAdmin } = useAuth()
+  const { t, locale, setLocale } = useI18n()
   const [prefs, setPrefs] = useState<UserPreferences | null>(null)
-  const [theme, setTheme] = useState('system')
   const [notifications, setNotifications] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -29,7 +32,6 @@ export function SettingsPage() {
     const res = await apiFetch('/preferences')
     const data: UserPreferences = await res.json()
     setPrefs(data)
-    setTheme(data.theme)
     setNotifications(data.notifications_enabled)
   }, [])
 
@@ -45,7 +47,7 @@ export function SettingsPage() {
       await apiFetch('/preferences', {
         method: 'PATCH',
         body: JSON.stringify({
-          theme,
+          theme: 'dark',
           notifications_enabled: notifications,
         }),
       })
@@ -59,91 +61,99 @@ export function SettingsPage() {
     }
   }
 
-  const isDirty =
-    prefs !== null &&
-    (theme !== prefs.theme || notifications !== prefs.notifications_enabled)
+  const isDirty = prefs !== null && notifications !== prefs.notifications_enabled
 
   return (
-    <div className="flex h-screen flex-col bg-background">
-      <div className="flex items-center gap-3 border-b px-6 py-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate(-1)} aria-label="Back">
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <h1 className="text-sm font-semibold">Preferences</h1>
-      </div>
+    <div className="flex-1 overflow-y-auto p-6">
+      <div className="mx-auto max-w-2xl space-y-8">
+        <h1 className="text-lg font-semibold">{t('settings.title')}</h1>
 
-      <Separator />
-
-      <div className="flex-1 overflow-y-auto p-6">
-        <div className="mx-auto max-w-2xl space-y-8">
-
-          {/* Theme */}
-          <section className="space-y-3">
-            <div>
-              <h2 className="text-sm font-semibold">Theme</h2>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Choose your preferred appearance.
-              </p>
-            </div>
-            <div className="space-y-2">
-              {THEMES.map((t) => (
-                <label
-                  key={t.value}
-                  className={`flex items-start gap-3 rounded-lg border p-3 cursor-pointer transition-colors ${
-                    theme === t.value ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="theme"
-                    value={t.value}
-                    checked={theme === t.value}
-                    onChange={() => setTheme(t.value)}
-                    className="mt-0.5"
-                  />
-                  <div>
-                    <p className="text-sm font-medium">{t.label}</p>
-                    <p className="text-xs text-muted-foreground">{t.description}</p>
-                  </div>
-                </label>
-              ))}
-            </div>
-          </section>
-
-          <Separator />
-
-          {/* Notifications */}
-          <section className="space-y-3">
-            <div>
-              <h2 className="text-sm font-semibold">Notifications</h2>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Control notification preferences.
-              </p>
-            </div>
-            <label className="flex items-center gap-3 rounded-lg border p-3 cursor-pointer hover:bg-muted/50">
-              <input
-                type="checkbox"
-                checked={notifications}
-                onChange={(e) => setNotifications(e.target.checked)}
-              />
+        {/* Admin link */}
+        {isAdmin && (
+          <>
+            <section className="space-y-3">
               <div>
-                <p className="text-sm font-medium">Enable Notifications</p>
-                <p className="text-xs text-muted-foreground">
-                  Receive notifications about document processing and system updates.
+                <h2 className="text-sm font-semibold">{t('settings.admin')}</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {t('settings.adminDesc')}
                 </p>
               </div>
-            </label>
-          </section>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate('/admin/settings')}
+                className="gap-2"
+              >
+                <Shield className="h-4 w-4 text-amber-500" />
+                {t('settings.admin')}
+              </Button>
+            </section>
+            <Separator />
+          </>
+        )}
 
-          {/* Save */}
-          {error && <p className="text-sm text-destructive">{error}</p>}
+        {/* Language */}
+        <section className="space-y-3">
+          <div>
+            <h2 className="text-sm font-semibold">{t('settings.language')}</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {t('settings.languageDesc')}
+            </p>
+          </div>
+          <div className="space-y-2">
+            {LANGUAGES.map((lang) => (
+              <label
+                key={lang.value}
+                className={`flex items-start gap-3 rounded-lg border p-3 cursor-pointer transition-colors ${
+                  locale === lang.value ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="language"
+                  value={lang.value}
+                  checked={locale === lang.value}
+                  onChange={() => setLocale(lang.value)}
+                  className="mt-0.5"
+                />
+                <p className="text-sm font-medium">{lang.label}</p>
+              </label>
+            ))}
+          </div>
+        </section>
 
-          <Button onClick={handleSave} disabled={!isDirty || saving} className="w-full">
-            <Save className="mr-2 h-4 w-4" />
-            {saving ? 'Saving...' : saved ? 'Saved!' : 'Save Preferences'}
-          </Button>
+        <Separator />
 
-        </div>
+        {/* Notifications */}
+        <section className="space-y-3">
+          <div>
+            <h2 className="text-sm font-semibold">{t('settings.notifications')}</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {t('settings.notificationsDesc')}
+            </p>
+          </div>
+          <label className="flex items-center gap-3 rounded-lg border p-3 cursor-pointer hover:bg-muted/50">
+            <input
+              type="checkbox"
+              checked={notifications}
+              onChange={(e) => setNotifications(e.target.checked)}
+            />
+            <div>
+              <p className="text-sm font-medium">{t('settings.enableNotifications')}</p>
+              <p className="text-xs text-muted-foreground">
+                {t('settings.enableNotificationsDesc')}
+              </p>
+            </div>
+          </label>
+        </section>
+
+        {/* Save */}
+        {error && <p className="text-sm text-destructive">{error}</p>}
+
+        <Button onClick={handleSave} disabled={!isDirty || saving} className="w-full">
+          <Save className="mr-2 h-4 w-4" />
+          {saving ? t('settings.saving') : saved ? t('settings.saved') : t('settings.save')}
+        </Button>
       </div>
     </div>
   )

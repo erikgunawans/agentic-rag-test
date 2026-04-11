@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Save, Shield } from 'lucide-react'
+import { Save, Shield } from 'lucide-react'
 import { apiFetch } from '@/lib/api'
 import { LLM_MODELS, EMBEDDING_MODELS } from '@/lib/models'
 import { Button } from '@/components/ui/button'
@@ -21,7 +20,6 @@ interface SystemSettings {
 }
 
 export function AdminSettingsPage() {
-  const navigate = useNavigate()
   const [settings, setSettings] = useState<SystemSettings | null>(null)
   const [form, setForm] = useState<Partial<SystemSettings>>({})
   const [saving, setSaving] = useState(false)
@@ -70,22 +68,15 @@ export function AdminSettingsPage() {
   }
 
   return (
-    <div className="flex h-screen flex-col bg-background">
-      <div className="flex items-center gap-3 border-b px-6 py-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate(-1)} aria-label="Back">
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <Shield className="h-4 w-4 text-amber-600" />
-        <h1 className="text-sm font-semibold">Global Configuration</h1>
-        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
-          Admin Only
-        </span>
-      </div>
-
-      <Separator />
-
-      <div className="flex-1 overflow-y-auto p-6">
-        <div className="mx-auto max-w-2xl space-y-8">
+    <div className="flex-1 overflow-y-auto p-6">
+      <div className="mx-auto max-w-2xl space-y-8">
+        <div className="flex items-center gap-2">
+          <Shield className="h-5 w-5 text-amber-500" />
+          <h1 className="text-lg font-semibold">Global Configuration</h1>
+          <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-400">
+            Admin Only
+          </span>
+        </div>
 
           {/* LLM Model */}
           <section className="space-y-3">
@@ -172,7 +163,7 @@ export function AdminSettingsPage() {
                   type="number"
                   value={form.rag_top_k ?? 5}
                   onChange={(e) => updateField('rag_top_k', parseInt(e.target.value) || 5)}
-                  className="w-full rounded-md border px-3 py-2 text-sm"
+                  className="w-full rounded-md border bg-secondary text-foreground px-3 py-2 text-sm"
                   min={1}
                   max={20}
                 />
@@ -184,7 +175,7 @@ export function AdminSettingsPage() {
                   step="0.05"
                   value={form.rag_similarity_threshold ?? 0.3}
                   onChange={(e) => updateField('rag_similarity_threshold', parseFloat(e.target.value) || 0.3)}
-                  className="w-full rounded-md border px-3 py-2 text-sm"
+                  className="w-full rounded-md border bg-secondary text-foreground px-3 py-2 text-sm"
                   min={0}
                   max={1}
                 />
@@ -195,7 +186,7 @@ export function AdminSettingsPage() {
                   type="number"
                   value={form.rag_chunk_size ?? 500}
                   onChange={(e) => updateField('rag_chunk_size', parseInt(e.target.value) || 500)}
-                  className="w-full rounded-md border px-3 py-2 text-sm"
+                  className="w-full rounded-md border bg-secondary text-foreground px-3 py-2 text-sm"
                   min={100}
                   max={4000}
                 />
@@ -206,7 +197,7 @@ export function AdminSettingsPage() {
                   type="number"
                   value={form.rag_chunk_overlap ?? 50}
                   onChange={(e) => updateField('rag_chunk_overlap', parseInt(e.target.value) || 50)}
-                  className="w-full rounded-md border px-3 py-2 text-sm"
+                  className="w-full rounded-md border bg-secondary text-foreground px-3 py-2 text-sm"
                   min={0}
                   max={500}
                 />
@@ -231,7 +222,7 @@ export function AdminSettingsPage() {
                     type="number"
                     value={form.rag_rrf_k ?? 60}
                     onChange={(e) => updateField('rag_rrf_k', parseInt(e.target.value) || 60)}
-                    className="w-32 rounded-md border px-3 py-2 text-sm"
+                    className="w-32 rounded-md border bg-secondary text-foreground px-3 py-2 text-sm"
                     min={1}
                   />
                 </div>
@@ -267,7 +258,7 @@ export function AdminSettingsPage() {
                   type="number"
                   value={form.tools_max_iterations ?? 5}
                   onChange={(e) => updateField('tools_max_iterations', parseInt(e.target.value) || 5)}
-                  className="w-32 rounded-md border px-3 py-2 text-sm"
+                  className="w-32 rounded-md border bg-secondary text-foreground px-3 py-2 text-sm"
                   min={1}
                   max={20}
                 />
@@ -294,7 +285,6 @@ export function AdminSettingsPage() {
             {saving ? 'Saving...' : saved ? 'Saved!' : 'Save Configuration'}
           </Button>
 
-        </div>
       </div>
     </div>
   )

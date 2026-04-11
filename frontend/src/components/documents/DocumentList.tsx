@@ -1,5 +1,6 @@
 import { Trash2, FileText, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { useI18n } from '@/i18n/I18nContext'
 import type { Document } from '@/lib/database.types'
 
 interface DocumentListProps {
@@ -9,18 +10,18 @@ interface DocumentListProps {
 
 const STATUS_STYLES: Record<Document['status'], string> = {
   pending: 'bg-muted text-muted-foreground',
-  processing: 'bg-yellow-100 text-yellow-800',
-  completed: 'bg-green-100 text-green-800',
-  failed: 'bg-red-100 text-red-800',
+  processing: 'bg-yellow-500/10 text-yellow-400',
+  completed: 'bg-green-500/10 text-green-400',
+  failed: 'bg-red-500/10 text-red-400',
 }
 
 const CATEGORY_STYLES: Record<string, string> = {
-  technical: 'bg-blue-100 text-blue-700',
-  legal: 'bg-purple-100 text-purple-700',
-  business: 'bg-orange-100 text-orange-700',
-  academic: 'bg-teal-100 text-teal-700',
-  personal: 'bg-pink-100 text-pink-700',
-  other: 'bg-gray-100 text-gray-600',
+  technical: 'bg-blue-500/10 text-blue-400',
+  legal: 'bg-purple-500/10 text-purple-400',
+  business: 'bg-orange-500/10 text-orange-400',
+  academic: 'bg-teal-500/10 text-teal-400',
+  personal: 'bg-pink-500/10 text-pink-400',
+  other: 'bg-gray-500/10 text-gray-400',
 }
 
 function formatBytes(bytes: number): string {
@@ -30,10 +31,12 @@ function formatBytes(bytes: number): string {
 }
 
 export function DocumentList({ documents, onDelete }: DocumentListProps) {
+  const { t } = useI18n()
+
   if (documents.length === 0) {
     return (
       <p className="text-sm text-muted-foreground text-center py-8">
-        No documents yet. Upload one above.
+        {t('docList.empty')}
       </p>
     )
   }
@@ -60,7 +63,7 @@ export function DocumentList({ documents, onDelete }: DocumentListProps) {
                 <p className="text-xs text-muted-foreground mt-0.5">
                   {formatBytes(doc.file_size)}
                   {doc.status === 'completed' && doc.chunk_count != null
-                    ? ` · ${doc.chunk_count} chunks`
+                    ? ` · ${t('docList.chunks', { count: String(doc.chunk_count) })}`
                     : ''}
                   {doc.status === 'failed' && doc.error_msg
                     ? ` · ${doc.error_msg}`
@@ -78,7 +81,7 @@ export function DocumentList({ documents, onDelete }: DocumentListProps) {
                     ))}
                     {extraTags > 0 && (
                       <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                        +{extraTags} more
+                        {t('docList.more', { count: String(extraTags) })}
                       </span>
                     )}
                   </div>
@@ -108,7 +111,7 @@ export function DocumentList({ documents, onDelete }: DocumentListProps) {
                   size="icon"
                   className="h-7 w-7"
                   onClick={() => onDelete(doc.id)}
-                  aria-label="Delete document"
+                  aria-label={t('docList.delete')}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>

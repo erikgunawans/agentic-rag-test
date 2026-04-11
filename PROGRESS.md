@@ -209,6 +209,60 @@ Track your progress through the masterclass. Update this file as you complete mo
 
 - `.claude/plans/expressive-tinkering-avalanche.md`
 
+### Module 9: RBAC Settings Architecture ✅ COMPLETE
+
+- [x] Migration `backend/migrations/008_rbac_settings.sql` — `system_settings` (single-row, admin-only RLS), `user_preferences` (per-user RLS), `is_super_admin()` SQL helper
+- [x] Admin promotion script `backend/scripts/set_admin_role.py` — CLI to set `app_metadata.role = super_admin` via Supabase Admin API
+- [x] Backend `dependencies.py` — extract `role` from JWT `app_metadata`, add `require_admin` FastAPI dependency (403 for non-admins)
+- [x] System settings service `backend/app/services/system_settings_service.py` — cached reader with 60s TTL, service-role client
+- [x] Admin settings router `backend/app/routers/admin_settings.py` — `GET/PATCH /admin/settings` (admin-only)
+- [x] User preferences router `backend/app/routers/user_preferences.py` — `GET/PATCH /preferences` (per-user)
+- [x] Refactored `chat.py` + `documents.py` — replaced `get_or_create_settings` with `get_system_settings()`
+- [x] Removed deprecated `user_settings.py` router and registration
+- [x] Frontend `AuthContext` — provides `user`, `role`, `isAdmin` from JWT `app_metadata`
+- [x] Frontend `AdminGuard` component — redirects non-admins away from admin routes
+- [x] Frontend `AdminSettingsPage` — Global Configuration Dashboard (LLM, embedding, RAG tuning, tools, agents)
+- [x] Frontend `SettingsPage` refactored — converted to user preferences (theme picker + notification toggle)
+- [x] Frontend routing — `/admin/settings` with `AuthGuard` + `AdminGuard`, `AuthProvider` wrapping all routes
+- [x] Frontend `ChatPage` — conditional Shield icon in sidebar nav for admins
+
+#### Module 9 Architecture Summary
+
+- **3-layer enforcement**: Database RLS (`is_super_admin()` checks JWT claim), Backend (`require_admin` dependency), Frontend (`AdminGuard` component)
+- **Role storage**: Supabase `auth.users.raw_app_meta_data.role` — embedded in JWT, only writable via service-role key
+- **System settings**: Single-row table (`CHECK (id = 1)`), stores LLM model, embedding model, RAG params, tool/agent config
+- **User preferences**: Per-user table with theme and notifications_enabled
+- **Settings decoupled**: System config (admin-only, DB table) vs user preferences (per-user, personal)
+- **Cache**: 60s TTL on system settings to avoid DB hit per request
+- **Promotion**: `python -m scripts.set_admin_role <email>` — user must sign out/in for JWT refresh
+- **Backward compatible**: `chat.py` and `documents.py` read from `system_settings` instead of per-user `user_settings`
+- **PR**: #4 merged to master
+
+### UI Improvements ✅ COMPLETE
+
+- [x] Animated thinking indicator — bouncing dots animation (`ThinkingIndicator.tsx`) while waiting for LLM response, replaces static blinking cursor
+- [x] Collapsible thread groups — threads grouped by date (Today, Yesterday, Previous 7 Days, Older) with expand/collapse chevrons and count badges
+- **PR**: #5 merged to master
+
+### UI Redesign ✅ COMPLETE
+
+- [x] Dark navy theme — oklch color palette, purple accent, removed light mode
+- [x] Layout system — Icon rail (vertical nav) + collapsible ThreadPanel + content area via `AppLayout.tsx`
+- [x] ChatPage refactor — 231 → 35 lines, state extracted to `useChatState.ts` hook + `ChatContext.tsx`
+- [x] Welcome screen — brand icon, greeting, `MessageInput`, `SuggestionChips` (interactive, pre-fills chat input on click)
+- [x] Full i18n — Indonesian (default) + English, `I18nProvider` with localStorage persistence
+- [x] i18n coverage — AuthPage, FileUpload, DocumentList all use `useI18n()` translations
+- [x] Admin input styling — number inputs use `bg-secondary text-foreground` for dark theme
+- [x] Deleted `App.css` — styles consolidated into `index.css` with CSS variables
+
+#### UI Redesign Architecture Summary
+
+- **Layout**: `AppLayout` wraps `<Outlet>` with `IconRail` (60px) + conditional `ThreadPanel` (240px); thread panel shown only on chat routes
+- **State**: `useChatState` hook manages threads, messages, streaming, tool/agent events; exposed via `ChatContext`
+- **i18n**: `I18nProvider` → `useI18n()` → `t(key, params?)` with `{param}` interpolation; 2 locales (id, en); persisted to localStorage
+- **Theme**: Dark-only, oklch color space, custom CSS variables for icon-rail and sidebar colors
+- **Components**: `IconRail` (brand + nav + avatar), `ThreadPanel` (new chat + date-grouped threads), `UserAvatar` (initials + sign-out menu), `WelcomeScreen` (greeting + input + chips)
+
 ---
 
 ## Deployment Status
@@ -234,3 +288,6 @@ Track your progress through the masterclass. Update this file as you complete mo
 |----|--------|-------------|--------|
 | #1 | `feat/module-6-7` | Modules 6+7 — Hybrid Search + Tool Calling | Merged |
 | #2 | `feat/module-8-sub-agents` | Module 8 — Sub-Agent Architecture | Merged |
+| #3 | `feat/deploy` | Deploy backend (Railway) + frontend (Vercel) | Merged |
+| #4 | `feat/rbac-settings` | Module 9 — RBAC Settings Architecture | Merged |
+| #5 | `feat/ui-improvements` | Animated thinking indicator + collapsible thread groups | Merged |

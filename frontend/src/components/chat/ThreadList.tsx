@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { Plus, Trash2, MessageSquare, ChevronDown, ChevronRight } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Trash2, MessageSquare, ChevronDown, ChevronRight } from 'lucide-react'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { useI18n } from '@/i18n/I18nContext'
 import type { Thread } from '@/lib/database.types'
 
 interface ThreadListProps {
@@ -14,7 +14,7 @@ interface ThreadListProps {
 }
 
 interface ThreadGroup {
-  label: string
+  labelKey: string
   threads: Thread[]
 }
 
@@ -25,28 +25,28 @@ function groupThreadsByDate(threads: Thread[]): ThreadGroup[] {
   const weekAgo = new Date(today.getTime() - 7 * 86400000)
 
   const groups: Record<string, Thread[]> = {
-    Today: [],
-    Yesterday: [],
-    'Previous 7 Days': [],
-    Older: [],
+    'thread.today': [],
+    'thread.yesterday': [],
+    'thread.previous7': [],
+    'thread.older': [],
   }
 
   for (const thread of threads) {
     const d = new Date(thread.updated_at || thread.created_at)
     if (d >= today) {
-      groups['Today'].push(thread)
+      groups['thread.today'].push(thread)
     } else if (d >= yesterday) {
-      groups['Yesterday'].push(thread)
+      groups['thread.yesterday'].push(thread)
     } else if (d >= weekAgo) {
-      groups['Previous 7 Days'].push(thread)
+      groups['thread.previous7'].push(thread)
     } else {
-      groups['Older'].push(thread)
+      groups['thread.older'].push(thread)
     }
   }
 
   return Object.entries(groups)
     .filter(([, threads]) => threads.length > 0)
-    .map(([label, threads]) => ({ label, threads }))
+    .map(([labelKey, threads]) => ({ labelKey, threads }))
 }
 
 function CollapsibleGroup({
@@ -63,6 +63,7 @@ function CollapsibleGroup({
   defaultOpen?: boolean
 }) {
   const [open, setOpen] = useState(defaultOpen)
+  const { t } = useI18n()
 
   return (
     <div>
@@ -75,7 +76,7 @@ function CollapsibleGroup({
         ) : (
           <ChevronRight className="h-3 w-3" />
         )}
-        <span>{group.label}</span>
+        <span>{t(group.labelKey)}</span>
         <span className="ml-auto text-[10px] tabular-nums">{group.threads.length}</span>
       </button>
       {open && (
@@ -114,37 +115,27 @@ export function ThreadList({
   threads,
   activeThreadId,
   onSelect,
-  onCreate,
   onDelete,
-  loading,
 }: ThreadListProps) {
   const groups = groupThreadsByDate(threads)
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="p-3 border-b">
-        <Button onClick={onCreate} className="w-full gap-2" size="sm" disabled={loading}>
-          <Plus className="h-4 w-4" />
-          New Thread
-        </Button>
-      </div>
-      <ScrollArea className="flex-1">
-        {threads.length === 0 ? (
-          <div className="p-4 text-center text-sm text-muted-foreground">No threads yet</div>
-        ) : (
-          <div className="py-2 space-y-1">
-            {groups.map((group) => (
-              <CollapsibleGroup
-                key={group.label}
-                group={group}
-                activeThreadId={activeThreadId}
-                onSelect={onSelect}
-                onDelete={onDelete}
-              />
-            ))}
-          </div>
-        )}
-      </ScrollArea>
-    </div>
+    <ScrollArea className="h-full">
+      {threads.length === 0 ? (
+        <div className="p-4 text-center text-sm text-muted-foreground">—</div>
+      ) : (
+        <div className="py-2 space-y-1">
+          {groups.map((group) => (
+            <CollapsibleGroup
+              key={group.labelKey}
+              group={group}
+              activeThreadId={activeThreadId}
+              onSelect={onSelect}
+              onDelete={onDelete}
+            />
+          ))}
+        </div>
+      )}
+    </ScrollArea>
   )
 }

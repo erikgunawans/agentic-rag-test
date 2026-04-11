@@ -68,7 +68,7 @@ export function ToolCallCard({ tool, input, output, isLoading }: ToolCallCardPro
                     href={r.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-blue-600 hover:underline"
+                    className="text-blue-400 hover:underline"
                   >
                     {r.title || r.url}
                   </a>
@@ -87,7 +87,7 @@ export function ToolCallCard({ tool, input, output, isLoading }: ToolCallCardPro
           )}
 
           {typeof output === 'object' && output !== null && 'error' in output && Boolean(output.error) && (
-            <div className="mt-1.5 text-red-500">Error: {String(output.error)}</div>
+            <div className="mt-1.5 text-red-400">Error: {String(output.error)}</div>
           )}
         </div>
       )}

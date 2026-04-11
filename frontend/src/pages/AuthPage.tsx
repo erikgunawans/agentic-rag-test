@@ -3,11 +3,13 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { useI18n } from '@/i18n/I18nContext'
 
 type Tab = 'login' | 'signup'
 
 export function AuthPage() {
   const navigate = useNavigate()
+  const { t } = useI18n()
   const [tab, setTab] = useState<Tab>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -29,10 +31,10 @@ export function AuthPage() {
       } else {
         const { error } = await supabase.auth.signUp({ email, password })
         if (error) throw error
-        setMessage('Check your email for a confirmation link.')
+        setMessage(t('auth.confirmEmail'))
       }
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Something went wrong')
+      setError(err instanceof Error ? err.message : t('auth.error'))
     } finally {
       setLoading(false)
     }
@@ -42,28 +44,28 @@ export function AuthPage() {
     <div className="flex h-screen items-center justify-center bg-background">
       <div className="w-full max-w-sm space-y-6 rounded-lg border p-8 shadow-sm">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">RAG Chat</h1>
-          <p className="text-sm text-muted-foreground mt-1">Powered by OpenAI + Supabase</p>
+          <h1 className="text-2xl font-semibold tracking-tight">{t('auth.title')}</h1>
+          <p className="text-sm text-muted-foreground mt-1">{t('auth.subtitle')}</p>
         </div>
 
         {/* Tabs */}
         <div className="flex rounded-md border p-1 gap-1">
-          {(['login', 'signup'] as Tab[]).map((t) => (
+          {(['login', 'signup'] as Tab[]).map((tabKey) => (
             <button
-              key={t}
-              onClick={() => setTab(t)}
+              key={tabKey}
+              onClick={() => setTab(tabKey)}
               className={`flex-1 rounded py-1.5 text-sm font-medium transition-colors ${
-                tab === t ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
+                tab === tabKey ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              {t === 'login' ? 'Log In' : 'Sign Up'}
+              {tabKey === 'login' ? t('auth.login') : t('auth.signup')}
             </button>
           ))}
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <label className="text-sm font-medium" htmlFor="email">Email</label>
+            <label className="text-sm font-medium" htmlFor="email">{t('auth.email')}</label>
             <Input
               id="email"
               type="email"
@@ -74,7 +76,7 @@ export function AuthPage() {
             />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium" htmlFor="password">Password</label>
+            <label className="text-sm font-medium" htmlFor="password">{t('auth.password')}</label>
             <Input
               id="password"
               type="password"
@@ -87,10 +89,10 @@ export function AuthPage() {
           </div>
 
           {error && <p className="text-sm text-destructive">{error}</p>}
-          {message && <p className="text-sm text-green-600">{message}</p>}
+          {message && <p className="text-sm text-green-400">{message}</p>}
 
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? 'Please wait…' : tab === 'login' ? 'Log In' : 'Sign Up'}
+            {loading ? t('auth.loading') : tab === 'login' ? t('auth.login') : t('auth.signup')}
           </Button>
         </form>
       </div>
