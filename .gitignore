@@ -28,3 +28,9 @@ Thumbs.db
 
 # Worktrees
 .worktrees/
+
+# Design assets & screenshots
+*.png
+*.zip
+excalidraw.log
+.playwright-mcp/

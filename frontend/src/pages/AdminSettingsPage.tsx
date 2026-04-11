@@ -4,6 +4,7 @@ import { apiFetch } from '@/lib/api'
 import { LLM_MODELS, EMBEDDING_MODELS } from '@/lib/models'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
+import { useI18n } from '@/i18n/I18nContext'
 
 interface SystemSettings {
   llm_model: string
@@ -20,6 +21,7 @@ interface SystemSettings {
 }
 
 export function AdminSettingsPage() {
+  const { t } = useI18n()
   const [settings, setSettings] = useState<SystemSettings | null>(null)
   const [form, setForm] = useState<Partial<SystemSettings>>({})
   const [saving, setSaving] = useState(false)
@@ -29,13 +31,13 @@ export function AdminSettingsPage() {
   const loadSettings = useCallback(async () => {
     const res = await apiFetch('/admin/settings')
     if (!res.ok) {
-      setError('Failed to load settings. Are you an admin?')
+      setError(t('admin.error.load'))
       return
     }
     const data: SystemSettings = await res.json()
     setSettings(data)
     setForm(data)
-  }, [])
+  }, [t])
 
   useEffect(() => {
     loadSettings()
@@ -50,12 +52,12 @@ export function AdminSettingsPage() {
         method: 'PATCH',
         body: JSON.stringify(form),
       })
-      if (!res.ok) throw new Error('Save failed')
+      if (!res.ok) throw new Error(t('admin.error.save'))
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
       await loadSettings()
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to save')
+      setError(e instanceof Error ? e.message : t('admin.error.save'))
     } finally {
       setSaving(false)
     }
@@ -72,18 +74,17 @@ export function AdminSettingsPage() {
       <div className="mx-auto max-w-2xl space-y-8">
         <div className="flex items-center gap-2">
           <Shield className="h-5 w-5 text-amber-500" />
-          <h1 className="text-lg font-semibold">Global Configuration</h1>
+          <h1 className="text-lg font-semibold">{t('admin.title')}</h1>
           <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-400">
-            Admin Only
+            {t('admin.badge')}
           </span>
         </div>
 
-          {/* LLM Model */}
           <section className="space-y-3">
             <div>
-              <h2 className="text-sm font-semibold">LLM Model</h2>
+              <h2 className="text-sm font-semibold">{t('admin.llm.title')}</h2>
               <p className="text-xs text-muted-foreground mt-0.5">
-                The model used for chat responses (via OpenRouter).
+                {t('admin.llm.description')}
               </p>
             </div>
             <div className="space-y-2">
@@ -113,12 +114,11 @@ export function AdminSettingsPage() {
 
           <Separator />
 
-          {/* Embedding Model */}
           <section className="space-y-3">
             <div>
-              <h2 className="text-sm font-semibold">Embedding Model</h2>
+              <h2 className="text-sm font-semibold">{t('admin.embedding.title')}</h2>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Used to embed documents and queries for similarity search.
+                {t('admin.embedding.description')}
               </p>
             </div>
             <div className="space-y-2">
@@ -148,17 +148,16 @@ export function AdminSettingsPage() {
 
           <Separator />
 
-          {/* RAG Tuning */}
           <section className="space-y-4">
             <div>
-              <h2 className="text-sm font-semibold">RAG Configuration</h2>
+              <h2 className="text-sm font-semibold">{t('admin.rag.title')}</h2>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Controls retrieval-augmented generation behavior.
+                {t('admin.rag.description')}
               </p>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1">
-                <label className="text-xs font-medium">Top K Results</label>
+                <label className="text-xs font-medium">{t('admin.rag.topK')}</label>
                 <input
                   type="number"
                   value={form.rag_top_k ?? 5}
@@ -169,7 +168,7 @@ export function AdminSettingsPage() {
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-xs font-medium">Similarity Threshold</label>
+                <label className="text-xs font-medium">{t('admin.rag.threshold')}</label>
                 <input
                   type="number"
                   step="0.05"
@@ -181,7 +180,7 @@ export function AdminSettingsPage() {
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-xs font-medium">Chunk Size</label>
+                <label className="text-xs font-medium">{t('admin.rag.chunkSize')}</label>
                 <input
                   type="number"
                   value={form.rag_chunk_size ?? 500}
@@ -192,7 +191,7 @@ export function AdminSettingsPage() {
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-xs font-medium">Chunk Overlap</label>
+                <label className="text-xs font-medium">{t('admin.rag.chunkOverlap')}</label>
                 <input
                   type="number"
                   value={form.rag_chunk_overlap ?? 50}
@@ -211,13 +210,13 @@ export function AdminSettingsPage() {
                   onChange={(e) => updateField('rag_hybrid_enabled', e.target.checked)}
                 />
                 <div>
-                  <p className="text-sm font-medium">Hybrid Search</p>
-                  <p className="text-xs text-muted-foreground">Combine vector + full-text search with RRF</p>
+                  <p className="text-sm font-medium">{t('admin.rag.hybrid')}</p>
+                  <p className="text-xs text-muted-foreground">{t('admin.rag.hybridDesc')}</p>
                 </div>
               </label>
               {form.rag_hybrid_enabled && (
                 <div className="space-y-1 pl-7">
-                  <label className="text-xs font-medium">RRF K Constant</label>
+                  <label className="text-xs font-medium">{t('admin.rag.rrfK')}</label>
                   <input
                     type="number"
                     value={form.rag_rrf_k ?? 60}
@@ -232,12 +231,11 @@ export function AdminSettingsPage() {
 
           <Separator />
 
-          {/* Tool Calling */}
           <section className="space-y-4">
             <div>
-              <h2 className="text-sm font-semibold">Tool Calling</h2>
+              <h2 className="text-sm font-semibold">{t('admin.tools.title')}</h2>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Controls web search, database queries, and document search tools.
+                {t('admin.tools.description')}
               </p>
             </div>
             <label className="flex items-center gap-3">
@@ -247,13 +245,13 @@ export function AdminSettingsPage() {
                 onChange={(e) => updateField('tools_enabled', e.target.checked)}
               />
               <div>
-                <p className="text-sm font-medium">Enable Tools</p>
-                <p className="text-xs text-muted-foreground">Allow the LLM to call tools during chat</p>
+                <p className="text-sm font-medium">{t('admin.tools.enable')}</p>
+                <p className="text-xs text-muted-foreground">{t('admin.tools.enableDesc')}</p>
               </div>
             </label>
             {form.tools_enabled && (
               <div className="space-y-1 pl-7">
-                <label className="text-xs font-medium">Max Tool Iterations</label>
+                <label className="text-xs font-medium">{t('admin.tools.maxIterations')}</label>
                 <input
                   type="number"
                   value={form.tools_max_iterations ?? 5}
@@ -271,18 +269,17 @@ export function AdminSettingsPage() {
                 onChange={(e) => updateField('agents_enabled', e.target.checked)}
               />
               <div>
-                <p className="text-sm font-medium">Enable Sub-Agents</p>
-                <p className="text-xs text-muted-foreground">Route queries to specialized agents via orchestrator</p>
+                <p className="text-sm font-medium">{t('admin.tools.agents')}</p>
+                <p className="text-xs text-muted-foreground">{t('admin.tools.agentsDesc')}</p>
               </div>
             </label>
           </section>
 
-          {/* Error & Save */}
           {error && <p className="text-sm text-destructive">{error}</p>}
 
           <Button onClick={handleSave} disabled={!isDirty || saving} className="w-full">
             <Save className="mr-2 h-4 w-4" />
-            {saving ? 'Saving...' : saved ? 'Saved!' : 'Save Configuration'}
+            {saving ? t('admin.save.saving') : saved ? t('admin.save.saved') : t('admin.save.button')}
           </Button>
 
       </div>
