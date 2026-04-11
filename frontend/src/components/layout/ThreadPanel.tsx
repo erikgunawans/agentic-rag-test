@@ -29,7 +29,7 @@ export function ThreadPanel() {
   const initials = user?.email ? getInitials(user.email) : ''
 
   return (
-    <div className="flex h-full w-60 shrink-0 flex-col border-r border-border bg-sidebar">
+    <div className="flex h-full w-60 shrink-0 flex-col border-r border-border glass">
       <div className="flex items-center justify-between p-4">
         <div>
           <h1 className="text-sm font-bold text-sidebar-foreground">{t('sidebar.title')}</h1>
@@ -48,7 +48,7 @@ export function ThreadPanel() {
       </div>
 
       <div className="px-3 pb-3">
-        <div className="flex items-center gap-2 rounded-md border border-border bg-secondary px-2 py-1.5">
+        <div className="flex items-center gap-2 rounded-md border border-border bg-secondary px-2 py-1.5 shadow-[var(--shadow-xs)]">
           <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
           <input
             type="text"
@@ -69,7 +69,7 @@ export function ThreadPanel() {
         />
       </div>
 
-      <div className="border-t border-border p-3">
+      <div className="border-t border-border/50 p-3">
         <div className="flex items-center gap-2">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
             {initials}

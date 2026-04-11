@@ -16,9 +16,9 @@ const navItems = [
 ]
 
 function railButtonClass({ isActive }: { isActive: boolean }) {
-  return `flex h-10 w-10 items-center justify-center rounded-lg transition-colors ${
+  return `flex h-10 w-10 items-center justify-center rounded-lg transition-all duration-200 ${
     isActive
-      ? 'bg-primary text-primary-foreground'
+      ? 'bg-primary text-primary-foreground glow-primary'
       : 'text-[var(--icon-rail-foreground)] hover:bg-accent hover:text-accent-foreground'
   }`
 }
@@ -29,7 +29,7 @@ export function IconRail() {
   const [flyoutOpen, setFlyoutOpen] = useState(false)
 
   return (
-    <div className="flex h-full w-[60px] shrink-0 flex-col items-center border-r border-border bg-[var(--icon-rail)] py-4">
+    <div className="flex h-full w-[60px] shrink-0 flex-col items-center border-r border-border bg-[var(--icon-rail)] glass py-4">
       <div className="mb-6 flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-lg font-bold text-primary-foreground">
         K
       </div>
@@ -52,7 +52,7 @@ export function IconRail() {
       <div className="mt-3 flex flex-col items-center">
         <Popover open={flyoutOpen} onOpenChange={setFlyoutOpen}>
           <PopoverTrigger
-            className="flex h-10 w-10 items-center justify-center rounded-lg text-[var(--icon-rail-foreground)] hover:bg-accent hover:text-accent-foreground transition-colors"
+            className="flex h-10 w-10 items-center justify-center rounded-lg text-[var(--icon-rail-foreground)] hover:bg-accent hover:text-accent-foreground transition-all duration-200"
             aria-label={t('nav.moreModules')}
             title={t('nav.moreModules')}
           >
