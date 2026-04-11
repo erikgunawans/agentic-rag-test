@@ -81,6 +81,20 @@ export const translations: Record<Locale, Record<string, string>> = {
     'docList.more': '+{count} lainnya',
     'docList.delete': 'Hapus dokumen',
 
+    // Welcome screen cards
+    'sidebar.chatHistory': 'Riwayat Chat',
+    'sidebar.searchPlaceholder': 'Cari percakapan...',
+    'sidebar.role': 'Konsultan Hukum',
+    'welcome.version': 'Legal AI v1.0',
+    'card.create.title': 'Pembuatan Dokumen',
+    'card.create.desc': 'Draft NDAs, kontrak & perjanjian',
+    'card.compare.title': 'Perbandingan Dokumen',
+    'card.compare.desc': 'Bandingkan versi & temukan perbedaan',
+    'card.compliance.title': 'Kepatuhan Dokumen',
+    'card.compliance.desc': 'Cek regulasi & persyaratan hukum',
+    'card.analysis.title': 'Analisis Kontrak',
+    'card.analysis.desc': 'Identifikasi risiko & klausul kritis',
+
     // Branching
     'branch.forkMode': 'Memulai cabang percakapan dari pesan ini',
     'branch.fork': 'Cabangkan di sini',
@@ -288,6 +302,20 @@ export const translations: Record<Locale, Record<string, string>> = {
     'docList.chunks': '{count} chunks',
     'docList.more': '+{count} more',
     'docList.delete': 'Delete document',
+
+    // Welcome screen cards
+    'sidebar.chatHistory': 'Chat History',
+    'sidebar.searchPlaceholder': 'Search conversations...',
+    'sidebar.role': 'Legal Consultant',
+    'welcome.version': 'Legal AI v1.0',
+    'card.create.title': 'Document Creation',
+    'card.create.desc': 'Draft NDAs, contracts & agreements',
+    'card.compare.title': 'Document Comparison',
+    'card.compare.desc': 'Compare versions & find differences',
+    'card.compliance.title': 'Compliance Check',
+    'card.compliance.desc': 'Check regulations & legal requirements',
+    'card.analysis.title': 'Contract Analysis',
+    'card.analysis.desc': 'Identify risks & critical clauses',
 
     // Branching
     'branch.forkMode': 'Forking conversation from this message',
