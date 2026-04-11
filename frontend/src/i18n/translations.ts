@@ -81,6 +81,11 @@ export const translations: Record<Locale, Record<string, string>> = {
     'docList.more': '+{count} lainnya',
     'docList.delete': 'Hapus dokumen',
 
+    // Branching
+    'branch.forkMode': 'Memulai cabang percakapan dari pesan ini',
+    'branch.fork': 'Cabangkan di sini',
+    'branch.cancel': 'Batal',
+
     // Admin settings
     'admin.title': 'Konfigurasi Global',
     'admin.badge': 'Khusus Admin',
@@ -192,6 +197,11 @@ export const translations: Record<Locale, Record<string, string>> = {
     'docList.chunks': '{count} chunks',
     'docList.more': '+{count} more',
     'docList.delete': 'Delete document',
+
+    // Branching
+    'branch.forkMode': 'Forking conversation from this message',
+    'branch.fork': 'Fork here',
+    'branch.cancel': 'Cancel',
 
     // Admin settings
     'admin.title': 'Global Configuration',
