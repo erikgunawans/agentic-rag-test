@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Trash2, MessageSquare, ChevronDown, ChevronRight } from 'lucide-react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useI18n } from '@/i18n/I18nContext'
@@ -8,9 +8,7 @@ interface ThreadListProps {
   threads: Thread[]
   activeThreadId: string | null
   onSelect: (threadId: string) => void
-  onCreate: () => void
   onDelete: (threadId: string) => void
-  loading: boolean
 }
 
 interface ThreadGroup {
@@ -117,7 +115,7 @@ export function ThreadList({
   onSelect,
   onDelete,
 }: ThreadListProps) {
-  const groups = groupThreadsByDate(threads)
+  const groups = useMemo(() => groupThreadsByDate(threads), [threads])
 
   return (
     <ScrollArea className="h-full">

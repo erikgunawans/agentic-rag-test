@@ -15,12 +15,10 @@ export function WelcomeScreen() {
   return (
     <div className="flex flex-1 flex-col items-center justify-center px-4">
       <div className="flex w-full max-w-2xl flex-col items-center gap-6">
-        {/* Brand icon */}
         <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary text-2xl font-bold text-primary-foreground">
           K
         </div>
 
-        {/* Greeting */}
         <div className="text-center">
           <h1 className="text-2xl font-semibold text-foreground">
             {t('welcome.greeting', { name: displayName })}
@@ -30,12 +28,10 @@ export function WelcomeScreen() {
           </p>
         </div>
 
-        {/* Chat input */}
         <div className="w-full">
           <MessageInput onSend={handleSendFirstMessage} disabled={isStreaming} />
         </div>
 
-        {/* Suggestion chips */}
         <SuggestionChips onSelect={handleSendFirstMessage} />
       </div>
     </div>

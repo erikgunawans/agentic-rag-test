@@ -31,7 +31,6 @@ export function useChatState() {
 
   async function handleSelectThread(threadId: string) {
     setActiveThreadId(threadId)
-    setMessages([])
     setStreamingContent('')
 
     const { data } = await supabase
@@ -102,7 +101,12 @@ export function useChatState() {
 
         for (const line of lines) {
           if (!line.startsWith('data: ')) continue
-          const event = JSON.parse(line.slice(6)) as SSEEvent
+          let event: SSEEvent
+          try {
+            event = JSON.parse(line.slice(6)) as SSEEvent
+          } catch {
+            continue
+          }
 
           if (event.type === 'agent_start') {
             setActiveAgent({ agent: event.agent, display_name: event.display_name })
