@@ -14,7 +14,7 @@ export function FeaturePageLayout({ children, historyTitle, historyItems }: Feat
           {children}
         </div>
       </div>
-      <div className="hidden lg:flex w-[223px] shrink-0 flex-col border-l border-border bg-sidebar">
+      <div className="hidden lg:flex w-[223px] shrink-0 flex-col border-l border-border/50 glass">
         <HistorySection title={historyTitle} items={historyItems} />
       </div>
     </div>

@@ -29,7 +29,7 @@ export function MessageInput({ onSend, disabled, forkParentId, onCancelFork }: M
   }
 
   return (
-    <div className="border-t border-border p-4">
+    <div className="border-t border-border/50 p-4 glass">
       {forkParentId && (
         <div className="flex items-center gap-2 mb-2 rounded-md bg-primary/10 px-3 py-1.5 text-xs text-primary">
           <GitFork className="h-3.5 w-3.5" />

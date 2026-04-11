@@ -42,7 +42,7 @@ export function AuthPage() {
 
   return (
     <div className="flex h-screen items-center justify-center bg-background">
-      <div className="w-full max-w-sm space-y-6 rounded-lg border p-8 shadow-sm">
+      <div className="w-full max-w-sm space-y-6 rounded-2xl border p-8 glass shadow-[var(--shadow-lg)]">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">{t('auth.title')}</h1>
           <p className="text-sm text-muted-foreground mt-1">{t('auth.subtitle')}</p>

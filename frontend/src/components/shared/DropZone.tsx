@@ -51,7 +51,7 @@ export function DropZone({ label, onFileSelect }: DropZoneProps) {
   return (
     <label
       className={`flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-6 cursor-pointer transition-colors ${
-        dragOver ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'
+        dragOver ? 'border-primary bg-primary/5 shadow-[var(--glow-sm)]' : 'border-border hover:border-primary/50'
       }`}
       onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
       onDragLeave={() => setDragOver(false)}

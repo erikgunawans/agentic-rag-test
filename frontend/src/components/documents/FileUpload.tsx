@@ -64,7 +64,7 @@ export function FileUpload({ onUploaded }: FileUploadProps) {
 
   return (
     <div
-      className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:border-primary/50 transition-colors"
+      className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer border-border hover:border-primary/50 hover:shadow-[var(--glow-sm)] transition-colors"
       onDragOver={(e) => e.preventDefault()}
       onDrop={handleDrop}
       onClick={() => inputRef.current?.click()}

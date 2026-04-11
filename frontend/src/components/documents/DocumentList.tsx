@@ -51,7 +51,7 @@ export function DocumentList({ documents, onDelete }: DocumentListProps) {
         return (
           <div
             key={doc.id}
-            className="rounded-lg border p-3 text-sm"
+            className="rounded-lg border p-3 text-sm transition-all duration-200 hover:shadow-[var(--shadow-sm)] hover:border-border/80"
           >
             <div className="flex items-start gap-3">
               <FileText className="h-4 w-4 shrink-0 text-muted-foreground mt-0.5" />
