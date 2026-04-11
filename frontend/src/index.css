@@ -90,6 +90,12 @@
     --icon-rail: oklch(0.10 0.015 260);
     --icon-rail-foreground: oklch(0.55 0 0);
     --icon-rail-active: oklch(0.55 0.20 280);
+
+    /* Feature accent colors */
+    --feature-creation: oklch(0.55 0.24 280);
+    --feature-management: oklch(0.70 0.15 195);
+    --feature-compliance: oklch(0.72 0.17 160);
+    --feature-analysis: oklch(0.70 0.18 85);
 }
 
 @layer base {
