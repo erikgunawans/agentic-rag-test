@@ -4,7 +4,6 @@ import { useNavigate } from 'react-router-dom'
 import { useI18n } from '@/i18n/I18nContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { DropZone } from '@/components/shared/DropZone'
 import { EmptyState } from '@/components/shared/EmptyState'
 
@@ -181,25 +180,23 @@ export function DocumentCreationPage() {
 
   return (
     <div className="flex h-full">
-      {/* Column 2 — Form + History panel */}
-      <div className="flex w-[340px] shrink-0 flex-col border-r border-border/50">
+      {/* Column 2 — Form (top 75%) + History (bottom 25%) */}
+      <div className="flex w-[360px] shrink-0 flex-col border-r border-border/50">
 
-        {/* Top 75% — Form */}
-        <div className="flex flex-col" style={{ height: '75%' }}>
-          {/* Header */}
-          <div className="flex items-center justify-between px-5 py-3 border-b border-border/50 shrink-0">
-            <div>
-              <h1 className="text-sm font-semibold">{t('create.title')}</h1>
-              <p className="text-[10px] text-muted-foreground">Fill in details to generate</p>
-            </div>
-            <button onClick={() => navigate('/')} className="text-muted-foreground hover:text-foreground transition-colors">
-              <X className="h-4 w-4" />
-            </button>
+        {/* Header — fixed */}
+        <div className="flex items-center justify-between px-5 py-3 border-b border-border/50 shrink-0">
+          <div>
+            <h1 className="text-sm font-semibold">{t('create.title')}</h1>
+            <p className="text-[10px] text-muted-foreground">Fill in details to generate</p>
           </div>
+          <button onClick={() => navigate('/')} className="text-muted-foreground hover:text-foreground transition-colors">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
 
-          {/* Scrollable form body */}
-          <ScrollArea className="flex-1">
-            <div className="px-5 py-4 space-y-4">
+        {/* Form area — takes 75% of remaining height, scrolls independently */}
+        <div className="min-h-0 overflow-y-auto" style={{ flex: '3 1 0' }}>
+          <div className="px-5 py-4 space-y-4">
               {/* Document Type — always shown */}
               <FormField label="Document Type" required>
                 <select
@@ -220,15 +217,15 @@ export function DocumentCreationPage() {
               {(docType === 'sales' || docType === 'service') && <SalesServiceForm />}
 
               {/* Output Language */}
-              <div className="space-y-2 pt-2">
+              <div className="space-y-2.5 pt-2">
                 <label className="text-xs font-medium">Output Language</label>
-                <div className="flex items-center gap-5">
+                <div className="flex flex-col gap-2.5">
                   {([
-                    { value: 'both', label: 'English & Indonesian (Side-by-side)' },
+                    { value: 'both', label: 'English & Indonesian' },
                     { value: 'indonesian', label: 'Indonesian Only' },
                   ] as const).map(({ value, label }) => (
                     <button key={value} onClick={() => setOutputLang(value)} className="flex items-center gap-2">
-                      <div className={`h-4 w-4 rounded-full border-2 flex items-center justify-center ${outputLang === value ? 'border-primary' : 'border-muted-foreground'}`}>
+                      <div className={`h-4 w-4 rounded-full border-2 flex items-center justify-center shrink-0 ${outputLang === value ? 'border-primary' : 'border-muted-foreground'}`}>
                         {outputLang === value && <div className="h-2 w-2 rounded-full bg-primary" />}
                       </div>
                       <span className="text-xs text-foreground">{label}</span>
@@ -253,11 +250,10 @@ export function DocumentCreationPage() {
                 {generateLabel}
               </Button>
             </div>
-          </ScrollArea>
         </div>
 
-        {/* Bottom 25% — Recent Documents */}
-        <div className="flex flex-col border-t border-border/50" style={{ height: '25%' }}>
+        {/* History area — takes 25% of remaining height, scrolls independently */}
+        <div className="min-h-0 flex flex-col border-t border-border/50" style={{ flex: '1 1 0' }}>
           <div className="flex items-center justify-between px-5 py-2.5 shrink-0">
             <div className="flex items-center gap-1.5">
               <Clock className="h-3 w-3 text-muted-foreground" />
@@ -265,8 +261,8 @@ export function DocumentCreationPage() {
             </div>
             <span className="text-[10px] text-primary cursor-pointer hover:underline">View all →</span>
           </div>
-          <ScrollArea className="flex-1">
-            <div className="px-3 space-y-0.5">
+          <div className="flex-1 overflow-y-auto min-h-0">
+            <div className="px-3 pb-2 space-y-0.5">
               {MOCK_RECENT.map((doc) => {
                 const StatusIcon = STATUS_ICON[doc.status]
                 return (
@@ -285,7 +281,7 @@ export function DocumentCreationPage() {
                 )
               })}
             </div>
-          </ScrollArea>
+          </div>
         </div>
       </div>
 
