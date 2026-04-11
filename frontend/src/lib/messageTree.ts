@@ -21,12 +21,14 @@ export function getActivePath(
 ): Message[] {
   const path: Message[] = []
   let parentId: string | null = null
+  const visited = new Set<string | null>()
 
   while (true) {
+    if (visited.has(parentId)) break
+    visited.add(parentId)
     const children = childrenMap.get(parentId)
     if (!children || children.length === 0) break
 
-    // At a fork point, use the stored selection; otherwise take the first child
     let selected: Message = children[0]
     if (parentId !== null) {
       const selId = branchSelections.get(parentId)
@@ -40,15 +42,4 @@ export function getActivePath(
   }
 
   return path
-}
-
-/** Returns a Set of message IDs that have more than one child (fork points). */
-export function getForkPoints(childrenMap: Map<string | null, Message[]>): Set<string> {
-  const forks = new Set<string>()
-  for (const [parentId, children] of childrenMap) {
-    if (parentId !== null && children.length > 1) {
-      forks.add(parentId)
-    }
-  }
-  return forks
 }
