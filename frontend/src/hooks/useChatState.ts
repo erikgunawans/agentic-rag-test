@@ -1,12 +1,16 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { apiFetch } from '@/lib/api'
+import { buildChildrenMap, getActivePath } from '@/lib/messageTree'
 import type { Thread, Message, SSEEvent, ToolStartEvent, ToolResultEvent } from '@/lib/database.types'
 
 export function useChatState() {
   const [threads, setThreads] = useState<Thread[]>([])
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null)
+  const [allMessages, setAllMessages] = useState<Message[]>([])
   const [messages, setMessages] = useState<Message[]>([])
+  const [branchSelections, setBranchSelections] = useState<Map<string, string>>(new Map())
+  const [forkParentId, setForkParentId] = useState<string | null>(null)
   const [isStreaming, setIsStreaming] = useState(false)
   const [streamingContent, setStreamingContent] = useState('')
   const [activeTools, setActiveTools] = useState<ToolStartEvent[]>([])
@@ -29,9 +33,17 @@ export function useChatState() {
     loadThreads()
   }, [loadThreads])
 
+  function rebuildVisibleMessages(all: Message[], selections: Map<string, string>) {
+    const childrenMap = buildChildrenMap(all)
+    setMessages(getActivePath(childrenMap, selections))
+  }
+
   async function handleSelectThread(threadId: string) {
     setActiveThreadId(threadId)
     setStreamingContent('')
+    setForkParentId(null)
+    const newSelections = new Map<string, string>()
+    setBranchSelections(newSelections)
 
     const { data } = await supabase
       .from('messages')
@@ -39,7 +51,9 @@ export function useChatState() {
       .eq('thread_id', threadId)
       .order('created_at', { ascending: true })
 
-    setMessages((data as Message[]) ?? [])
+    const all = (data as Message[]) ?? []
+    setAllMessages(all)
+    rebuildVisibleMessages(all, newSelections)
   }
 
   async function handleCreateThread() {
@@ -50,7 +64,10 @@ export function useChatState() {
     const thread: Thread = await res.json()
     setThreads((prev) => [thread, ...prev])
     setActiveThreadId(thread.id)
+    setAllMessages([])
     setMessages([])
+    setBranchSelections(new Map())
+    setForkParentId(null)
     setStreamingContent('')
     return thread
   }
@@ -60,17 +77,37 @@ export function useChatState() {
     setThreads((prev) => prev.filter((t) => t.id !== threadId))
     if (activeThreadId === threadId) {
       setActiveThreadId(null)
+      setAllMessages([])
       setMessages([])
     }
   }
 
+  function handleSwitchBranch(forkPointId: string, selectedChildId: string) {
+    const newSelections = new Map(branchSelections)
+    newSelections.set(forkPointId, selectedChildId)
+    setBranchSelections(newSelections)
+    rebuildVisibleMessages(allMessages, newSelections)
+  }
+
+  function handleForkAt(messageId: string) {
+    setForkParentId(messageId)
+  }
+
+  function handleCancelFork() {
+    setForkParentId(null)
+  }
+
   async function sendMessageToThread(threadId: string, content: string) {
+    // Determine parent: if forking, use forkParentId; otherwise use the last visible message
+    const parentId = forkParentId ?? messages[messages.length - 1]?.id ?? null
+
     const optimisticMsg: Message = {
       id: `optimistic-${Date.now()}`,
       thread_id: threadId,
       user_id: '',
       role: 'user',
       content,
+      parent_message_id: parentId,
       created_at: new Date().toISOString(),
     }
     setMessages((prev) => [...prev, optimisticMsg])
@@ -79,11 +116,16 @@ export function useChatState() {
     setActiveTools([])
     setToolResults([])
     setActiveAgent(null)
+    setForkParentId(null)
 
     try {
       const response = await apiFetch('/chat/stream', {
         method: 'POST',
-        body: JSON.stringify({ thread_id: threadId, message: content }),
+        body: JSON.stringify({
+          thread_id: threadId,
+          message: content,
+          parent_message_id: parentId,
+        }),
       })
 
       const reader = response.body!.getReader()
@@ -132,13 +174,16 @@ export function useChatState() {
         }
       }
 
+      // Refetch all messages and rebuild tree
       const { data } = await supabase
         .from('messages')
         .select('*')
         .eq('thread_id', threadId)
         .order('created_at', { ascending: true })
 
-      setMessages((data as Message[]) ?? [])
+      const all = (data as Message[]) ?? []
+      setAllMessages(all)
+      rebuildVisibleMessages(all, branchSelections)
       loadThreads()
     } finally {
       setIsStreaming(false)
@@ -163,7 +208,10 @@ export function useChatState() {
   return {
     threads,
     activeThreadId,
+    allMessages,
     messages,
+    branchSelections,
+    forkParentId,
     isStreaming,
     streamingContent,
     activeTools,
@@ -175,5 +223,8 @@ export function useChatState() {
     handleDeleteThread,
     handleSendMessage,
     handleSendFirstMessage,
+    handleSwitchBranch,
+    handleForkAt,
+    handleCancelFork,
   }
 }

@@ -30,6 +30,7 @@ Always cite your sources. For document searches, mention the source filename. Fo
 class SendMessageRequest(BaseModel):
     thread_id: str
     message: str
+    parent_message_id: str | None = None
 
 
 @router.post("/stream")
@@ -51,27 +52,48 @@ async def stream_chat(
     if not thread_result.data:
         raise HTTPException(status_code=404, detail="Thread not found")
 
-    # Load full chat history for this thread (stateless — send every time)
-    history = (
-        client.table("messages")
-        .select("role, content")
-        .eq("thread_id", body.thread_id)
-        .eq("user_id", user["id"])
-        .order("created_at")
-        .execute()
-    ).data or []
+    # Load chat history — branch-aware when parent_message_id is provided
+    if body.parent_message_id:
+        # Branch mode: walk ancestor chain from the specified parent
+        all_messages = (
+            client.table("messages")
+            .select("id, role, content, parent_message_id")
+            .eq("thread_id", body.thread_id)
+            .eq("user_id", user["id"])
+            .execute()
+        ).data or []
+        msg_map = {m["id"]: m for m in all_messages}
+        chain = []
+        current_id = body.parent_message_id
+        while current_id and current_id in msg_map:
+            chain.append(msg_map[current_id])
+            current_id = msg_map[current_id].get("parent_message_id")
+        chain.reverse()
+        history = [{"role": m["role"], "content": m["content"]} for m in chain]
+    else:
+        # Flat mode: all messages in order (existing behavior)
+        history = (
+            client.table("messages")
+            .select("role, content")
+            .eq("thread_id", body.thread_id)
+            .eq("user_id", user["id"])
+            .order("created_at")
+            .execute()
+        ).data or []
 
     # Load system-level model config
     sys_settings = get_system_settings()
     llm_model = sys_settings["llm_model"]
 
-    # Persist user message before streaming
-    client.table("messages").insert({
+    # Persist user message before streaming (with parent link for branching)
+    user_msg_result = client.table("messages").insert({
         "thread_id": body.thread_id,
         "user_id": user["id"],
         "role": "user",
         "content": body.message,
+        "parent_message_id": body.parent_message_id,
     }).execute()
+    user_msg_id = user_msg_result.data[0]["id"]
 
     # Tool execution context (passed to search_documents tool)
     tool_context = {
@@ -219,13 +241,14 @@ async def stream_chat(
         if agent_name:
             yield f"data: {json.dumps({'type': 'agent_done', 'agent': agent_name})}\n\n"
 
-        # Persist assistant message after streaming completes
+        # Persist assistant message after streaming completes (chained to user message)
         if full_response:
             insert_data = {
                 "thread_id": body.thread_id,
                 "user_id": user["id"],
                 "role": "assistant",
                 "content": full_response,
+                "parent_message_id": user_msg_id,
             }
             if tool_records or agent_name:
                 insert_data["tool_calls"] = ToolCallSummary(

@@ -22,6 +22,7 @@ export interface Message {
   role: 'user' | 'assistant'
   content: string
   tool_calls?: { agent?: string | null; calls: ToolCallRecord[] } | null
+  parent_message_id?: string | null
   created_at: string
 }
 
