@@ -1,156 +1,278 @@
 import { useState } from 'react'
-import { FilePlus, X, Clock, CheckCircle, Pencil } from 'lucide-react'
+import { FilePlus, X, Clock, CheckCircle, Pencil, XCircle } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useI18n } from '@/i18n/I18nContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { DropZone } from '@/components/shared/DropZone'
 import { EmptyState } from '@/components/shared/EmptyState'
 
 type DocType = 'generic' | 'nda' | 'sales' | 'service'
-type DurationUnit = 'months' | 'years' | 'days'
 
+// --- Form field helper ---
+function FormField({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1.5">
+      <label className="text-xs font-medium">
+        {label} {required && <span className="text-red-400">*</span>}
+      </label>
+      {children}
+    </div>
+  )
+}
+
+const inputClass = "w-full rounded-lg border border-border bg-secondary text-foreground px-3 py-2 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+const textareaClass = `${inputClass} min-h-[80px] resize-none`
+
+// --- Dynamic form renderers ---
+function GenericForm() {
+  return (
+    <>
+      <FormField label="Please specify document type" required>
+        <input className={inputClass} placeholder="e.g., Independent Contractor Agreement" />
+      </FormField>
+      <FormField label="First Party" required>
+        <input className={inputClass} placeholder="e.g., Buyer: John Doe" />
+      </FormField>
+      <FormField label="Second Party">
+        <input className={inputClass} placeholder="e.g., Seller: Jane Smith Inc." />
+      </FormField>
+      <FormField label="Effective Date">
+        <Input type="date" className="text-xs bg-secondary" />
+      </FormField>
+      <div className="grid grid-cols-[1fr_1fr] gap-2.5">
+        <FormField label="Duration Count">
+          <input type="number" className={inputClass} placeholder="e.g., 1" />
+        </FormField>
+        <FormField label="Duration Unit">
+          <select className={inputClass}>
+            <option value="">Select an option</option>
+            <option value="days">Days</option>
+            <option value="months">Months</option>
+            <option value="years">Years</option>
+          </select>
+        </FormField>
+      </div>
+      <FormField label="Purpose of the document" required>
+        <textarea className={textareaClass} placeholder="e.g., To define terms for software development services" />
+      </FormField>
+    </>
+  )
+}
+
+function NDAForm() {
+  return (
+    <>
+      <FormField label="Disclosing Party" required>
+        <input className={inputClass} placeholder="e.g., Company A Inc." />
+      </FormField>
+      <FormField label="Receiving Party" required>
+        <input className={inputClass} placeholder="e.g., Consultant X LLC" />
+      </FormField>
+      <FormField label="Purpose of Disclosure" required>
+        <textarea className={textareaClass} placeholder="e.g., Evaluation of potential business partnership" />
+      </FormField>
+      <FormField label="Definition of Confidential Information" required>
+        <textarea className={textareaClass} />
+      </FormField>
+      <FormField label="Obligations of Receiving Party">
+        <select className={inputClass}>
+          <option value="">Select an option</option>
+          <option value="standard">Standard confidentiality obligations</option>
+          <option value="enhanced">Enhanced confidentiality obligations</option>
+        </select>
+      </FormField>
+      <FormField label="Term of Agreement" required>
+        <input className={inputClass} placeholder="e.g., 5 years from effective date, indefinite" />
+      </FormField>
+      <FormField label="Return/Destruction of Confidential Information" required>
+        <input className={inputClass} placeholder="Upon termination or request" />
+      </FormField>
+      <FormField label="Governing Law" required>
+        <input className={inputClass} defaultValue="Indonesia" />
+      </FormField>
+      <FormField label="Additional Notes or Specific Requirements">
+        <textarea className={`${inputClass} min-h-[64px] resize-none`} />
+      </FormField>
+    </>
+  )
+}
+
+function SalesServiceForm() {
+  return (
+    <>
+      <FormField label="First Party" required>
+        <input className={inputClass} placeholder="e.g., Buyer: John Doe" />
+      </FormField>
+      <FormField label="Second Party" required>
+        <input className={inputClass} placeholder="e.g., Seller: Jane Smith Inc." />
+      </FormField>
+      <FormField label="Effective Date" required>
+        <Input type="date" className="text-xs bg-secondary" />
+      </FormField>
+      <div className="grid grid-cols-[1fr_1fr] gap-2.5">
+        <FormField label="Duration Count" required>
+          <input type="number" className={inputClass} placeholder="e.g., 1" />
+        </FormField>
+        <FormField label="Duration Unit" required>
+          <select className={inputClass}>
+            <option value="">Select an option</option>
+            <option value="days">Days</option>
+            <option value="months">Months</option>
+            <option value="years">Years</option>
+          </select>
+        </FormField>
+      </div>
+      <FormField label="Purpose of the document" required>
+        <textarea className={textareaClass} />
+      </FormField>
+      <FormField label="Scope of Work" required>
+        <textarea className={textareaClass} />
+      </FormField>
+      <FormField label="Deliverables" required>
+        <textarea className={textareaClass} />
+      </FormField>
+      <FormField label="Payment Terms (Optional)">
+        <input className={inputClass} />
+      </FormField>
+      <FormField label="Governing Law" required>
+        <input className={inputClass} defaultValue="Indonesia" />
+      </FormField>
+      <FormField label="Additional Notes or Specific Requirements">
+        <textarea className={`${inputClass} min-h-[64px] resize-none`} />
+      </FormField>
+    </>
+  )
+}
+
+// --- Recent documents data ---
 interface RecentDoc {
   id: string
   title: string
   type: string
   time: string
-  status: 'done' | 'draft' | 'pending'
-  color: string
+  status: 'done' | 'draft' | 'failed'
+  fileExt: 'pdf' | 'docx'
 }
 
 const MOCK_RECENT: RecentDoc[] = [
-  { id: '1', title: 'NDA_Kerahasiaan_PT_Marina.pdf', type: 'NDA', time: 'Just now', status: 'done', color: 'bg-red-500/80' },
-  { id: '2', title: 'Kontrak_Distribusi_Q1.docx', type: 'Sales', time: '2h ago', status: 'done', color: 'bg-blue-500/80' },
-  { id: '3', title: 'Service_Agreement_Draft.docx', type: 'Service', time: 'Yesterday', status: 'draft', color: 'bg-blue-500/80' },
-  { id: '4', title: 'Generic_Compliance_Report.pdf', type: 'Generic', time: '2d ago', status: 'done', color: 'bg-red-500/80' },
+  { id: '1', title: 'NDA_Kerahasiaan_PT_Marina.pdf', type: 'NDA', time: 'Just now', status: 'done', fileExt: 'pdf' },
+  { id: '2', title: 'Kontrak_Distribusi_Q1.docx', type: 'Sales', time: '2h ago', status: 'done', fileExt: 'docx' },
+  { id: '3', title: 'Service_Agreement_Draft.docx', type: 'Service', time: 'Yesterday', status: 'draft', fileExt: 'docx' },
+  { id: '4', title: 'Generic_Compliance_Report.pdf', type: 'Generic', time: '2d ago', status: 'done', fileExt: 'pdf' },
+  { id: '5', title: 'NDA_Proyek_Ekspansi.docx', type: 'NDA', time: '3d ago', status: 'done', fileExt: 'docx' },
+  { id: '6', title: 'Sales_Contract_Retail.pdf', type: 'Sales', time: '4d ago', status: 'failed', fileExt: 'pdf' },
+  { id: '7', title: 'Perjanjian_Lisensi_SW.docx', type: 'Generic', time: '5d ago', status: 'done', fileExt: 'docx' },
 ]
 
-const STATUS_ICON = {
-  done: CheckCircle,
-  draft: Pencil,
-  pending: Clock,
-}
+const STATUS_ICON = { done: CheckCircle, draft: Pencil, failed: XCircle }
+const STATUS_COLOR = { done: 'text-green-400', draft: 'text-muted-foreground', failed: 'text-red-400' }
+const FILE_COLOR = { pdf: 'bg-red-500/15 text-red-400', docx: 'bg-cyan-500/15 text-cyan-400' }
 
+// --- Main page ---
 export function DocumentCreationPage() {
   const { t } = useI18n()
   const navigate = useNavigate()
   const [docType, setDocType] = useState<DocType>('generic')
-  const [durationUnit, setDurationUnit] = useState<DurationUnit>('months')
+  const [outputLang, setOutputLang] = useState<'both' | 'indonesian'>('both')
+
+  const generateLabel = docType === 'nda' ? 'Generate NDA' : 'Generate Draft'
 
   return (
     <div className="flex h-full">
-      {/* Left panel — scrollable form + history */}
-      <div className="flex w-[300px] shrink-0 flex-col border-r border-border/50">
-        <ScrollArea className="flex-1">
-          <div className="p-4 space-y-4">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-sm font-bold">{t('create.title')}</h1>
-                <p className="text-[10px] text-muted-foreground">Fill in details to generate</p>
-              </div>
-              <button
-                onClick={() => navigate('/')}
-                className="text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
+      {/* Column 2 — Form + History panel */}
+      <div className="flex w-[340px] shrink-0 flex-col border-r border-border/50">
 
-            {/* Document Type */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium">
-                {t('create.docType')} <span className="text-red-400">*</span>
-              </label>
-              <select
-                value={docType}
-                onChange={(e) => setDocType(e.target.value as DocType)}
-                className="w-full rounded-lg border border-border bg-secondary text-foreground px-3 py-2 text-xs"
-              >
-                <option value="generic">{t('create.docType.generic')}</option>
-                <option value="nda">{t('create.docType.nda')}</option>
-                <option value="sales">{t('create.docType.sales')}</option>
-                <option value="service">{t('create.docType.service')}</option>
-              </select>
+        {/* Top 75% — Form */}
+        <div className="flex flex-col" style={{ height: '75%' }}>
+          {/* Header */}
+          <div className="flex items-center justify-between px-5 py-3 border-b border-border/50 shrink-0">
+            <div>
+              <h1 className="text-sm font-semibold">{t('create.title')}</h1>
+              <p className="text-[10px] text-muted-foreground">Fill in details to generate</p>
             </div>
-
-            {/* Specify document type */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium">
-                Please specify document type <span className="text-red-400">*</span>
-              </label>
-              <Input className="text-xs" placeholder="e.g., Independent Contractor Agreement" />
-            </div>
-
-            {/* First Party */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium">
-                {t('create.party1')} <span className="text-red-400">*</span>
-              </label>
-              <Input className="text-xs" placeholder="e.g., Buyer: John Doe" />
-            </div>
-
-            {/* Second Party */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium">{t('create.party2')}</label>
-              <Input className="text-xs" placeholder="e.g., Seller: Jane Smith Inc." />
-            </div>
-
-            {/* Effective Date */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium">{t('create.effectiveDate')}</label>
-              <Input type="date" className="text-xs bg-secondary text-foreground" />
-            </div>
-
-            {/* Duration Count + Unit */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium">Duration Count</label>
-                <Input type="number" className="text-xs" placeholder="e.g., 1" />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium">Duration Unit</label>
-                <select
-                  value={durationUnit}
-                  onChange={(e) => setDurationUnit(e.target.value as DurationUnit)}
-                  className="w-full rounded-lg border border-border bg-secondary text-foreground px-3 py-2 text-xs"
-                >
-                  <option value="months">Months</option>
-                  <option value="years">Years</option>
-                  <option value="days">Days</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Purpose */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium">
-                {t('create.purpose')} <span className="text-red-400">*</span>
-              </label>
-              <textarea
-                className="w-full rounded-lg border border-border bg-secondary text-foreground px-3 py-2 text-xs min-h-[70px] resize-none"
-                placeholder="e.g., To define terms for software development services"
-              />
-            </div>
+            <button onClick={() => navigate('/')} className="text-muted-foreground hover:text-foreground transition-colors">
+              <X className="h-4 w-4" />
+            </button>
           </div>
 
-          {/* Recent Documents section */}
-          <div className="border-t border-border/50 p-4">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-1.5">
-                <Clock className="h-3 w-3 text-muted-foreground" />
-                <span className="text-[10px] font-semibold text-muted-foreground">Recent Documents</span>
+          {/* Scrollable form body */}
+          <ScrollArea className="flex-1">
+            <div className="px-5 py-4 space-y-4">
+              {/* Document Type — always shown */}
+              <FormField label="Document Type" required>
+                <select
+                  value={docType}
+                  onChange={(e) => setDocType(e.target.value as DocType)}
+                  className={inputClass}
+                >
+                  <option value="generic">Generic Document</option>
+                  <option value="nda">NDA</option>
+                  <option value="sales">Sales Contract</option>
+                  <option value="service">Service Contract</option>
+                </select>
+              </FormField>
+
+              {/* Dynamic fields per type */}
+              {docType === 'generic' && <GenericForm />}
+              {docType === 'nda' && <NDAForm />}
+              {(docType === 'sales' || docType === 'service') && <SalesServiceForm />}
+
+              {/* Output Language */}
+              <div className="space-y-2 pt-2">
+                <label className="text-xs font-medium">Output Language</label>
+                <div className="flex items-center gap-5">
+                  {([
+                    { value: 'both', label: 'English & Indonesian (Side-by-side)' },
+                    { value: 'indonesian', label: 'Indonesian Only' },
+                  ] as const).map(({ value, label }) => (
+                    <button key={value} onClick={() => setOutputLang(value)} className="flex items-center gap-2">
+                      <div className={`h-4 w-4 rounded-full border-2 flex items-center justify-center ${outputLang === value ? 'border-primary' : 'border-muted-foreground'}`}>
+                        {outputLang === value && <div className="h-2 w-2 rounded-full bg-primary" />}
+                      </div>
+                      <span className="text-xs text-foreground">{label}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
-              <span className="text-[10px] text-primary cursor-pointer hover:underline">View all →</span>
+
+              {/* Reference Document */}
+              <FormField label="Reference Document (Optional)">
+                <DropZone />
+              </FormField>
+
+              {/* Template */}
+              <FormField label="Template Document (Optional)">
+                <DropZone />
+              </FormField>
+
+              {/* Generate button */}
+              <Button className="w-full text-xs" disabled>
+                <FilePlus className="mr-2 h-3.5 w-3.5" />
+                {generateLabel}
+              </Button>
             </div>
-            <div className="space-y-2">
+          </ScrollArea>
+        </div>
+
+        {/* Bottom 25% — Recent Documents */}
+        <div className="flex flex-col border-t border-border/50" style={{ height: '25%' }}>
+          <div className="flex items-center justify-between px-5 py-2.5 shrink-0">
+            <div className="flex items-center gap-1.5">
+              <Clock className="h-3 w-3 text-muted-foreground" />
+              <span className="text-[10px] font-semibold text-muted-foreground">Recent Documents</span>
+            </div>
+            <span className="text-[10px] text-primary cursor-pointer hover:underline">View all →</span>
+          </div>
+          <ScrollArea className="flex-1">
+            <div className="px-3 space-y-0.5">
               {MOCK_RECENT.map((doc) => {
                 const StatusIcon = STATUS_ICON[doc.status]
                 return (
-                  <div key={doc.id} className="flex items-center gap-2 rounded-md p-1.5 hover:bg-muted/50 transition-colors cursor-pointer">
-                    <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded text-[8px] font-bold text-white ${doc.color}`}>
-                      {doc.title.endsWith('.pdf') ? 'PDF' : 'DOC'}
+                  <div key={doc.id} className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-muted/50 transition-colors cursor-pointer">
+                    <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded text-[7px] font-bold ${FILE_COLOR[doc.fileExt]}`}>
+                      {doc.fileExt.toUpperCase()}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-[11px] font-medium truncate">{doc.title}</p>
@@ -158,24 +280,16 @@ export function DocumentCreationPage() {
                         <span className="text-primary/70">{doc.type}</span> · {doc.time}
                       </p>
                     </div>
-                    <StatusIcon className={`h-3.5 w-3.5 shrink-0 ${doc.status === 'done' ? 'text-green-400' : doc.status === 'draft' ? 'text-muted-foreground' : 'text-yellow-400'}`} />
+                    <StatusIcon className={`h-3.5 w-3.5 shrink-0 ${STATUS_COLOR[doc.status]}`} />
                   </div>
                 )
               })}
             </div>
-          </div>
-        </ScrollArea>
-
-        {/* Generate button fixed at bottom */}
-        <div className="p-4 border-t border-border/50">
-          <Button className="w-full text-xs" disabled>
-            <FilePlus className="mr-2 h-3.5 w-3.5" />
-            {t('create.generate')}
-          </Button>
+          </ScrollArea>
         </div>
       </div>
 
-      {/* Right panel — preview / empty state */}
+      {/* Column 3 — Preview / empty state */}
       <div className="flex-1 flex flex-col items-center justify-center">
         <EmptyState
           icon={FilePlus}
@@ -185,7 +299,7 @@ export function DocumentCreationPage() {
         <div className="flex gap-2 mt-4">
           {[
             { label: 'PDF format', color: 'bg-red-400' },
-            { label: 'DOCX format', color: 'bg-blue-400' },
+            { label: 'DOCX format', color: 'bg-cyan-400' },
             { label: 'Bilingual', color: 'bg-purple-400' },
           ].map(({ label, color }) => (
             <span key={label} className="flex items-center gap-1.5 rounded-full border border-border px-3 py-1 text-[10px] text-muted-foreground">
