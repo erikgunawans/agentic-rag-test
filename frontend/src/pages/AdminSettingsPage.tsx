@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Save, Shield, Brain, Database, Settings2, Wrench, ChevronLeft, PanelLeftClose, Menu } from 'lucide-react'
+import { Save, Shield, Brain, Database, Settings2, Wrench, ChevronLeft, PanelLeftClose, Menu, ShieldCheck } from 'lucide-react'
 import { apiFetch } from '@/lib/api'
 import { LLM_MODELS, EMBEDDING_MODELS } from '@/lib/models'
 import { Button } from '@/components/ui/button'
@@ -19,15 +19,17 @@ interface SystemSettings {
   tools_enabled: boolean
   tools_max_iterations: number
   agents_enabled: boolean
+  confidence_threshold: number
 }
 
-type AdminSection = 'llm' | 'embedding' | 'rag' | 'tools'
+type AdminSection = 'llm' | 'embedding' | 'rag' | 'tools' | 'hitl'
 
 const SECTIONS: { id: AdminSection; icon: typeof Brain; labelKey: string }[] = [
   { id: 'llm', icon: Brain, labelKey: 'admin.llm.title' },
   { id: 'embedding', icon: Database, labelKey: 'admin.embedding.title' },
   { id: 'rag', icon: Settings2, labelKey: 'admin.rag.title' },
   { id: 'tools', icon: Wrench, labelKey: 'admin.tools.title' },
+  { id: 'hitl', icon: ShieldCheck, labelKey: 'admin.hitl.title' },
 ]
 
 const inputClass = "w-full rounded-md border bg-secondary text-foreground px-3 py-2 text-sm"
@@ -384,6 +386,39 @@ export function AdminSettingsPage() {
                   <p className="text-xs text-muted-foreground">{t('admin.tools.agentsDesc')}</p>
                 </div>
               </label>
+            </section>
+          )}
+
+          {activeSection === 'hitl' && (
+            <section className="space-y-4">
+              <div>
+                <h2 className="text-sm font-semibold">{t('admin.hitl.title')}</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">{t('admin.hitl.description')}</p>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium">{t('admin.hitl.threshold')}</label>
+                <p className="text-[10px] text-muted-foreground mb-1">{t('admin.hitl.thresholdDesc')}</p>
+                <input
+                  type="number"
+                  step="0.05"
+                  value={form.confidence_threshold ?? 0.85}
+                  onChange={(e) => updateField('confidence_threshold', parseFloat(e.target.value) || 0.85)}
+                  className={inputClass}
+                  min={0}
+                  max={1}
+                />
+              </div>
+              <div className="rounded-lg border border-border bg-secondary/30 p-4 space-y-2">
+                <p className="text-xs font-medium">{t('admin.hitl.preview')}</p>
+                <div className="flex items-center gap-2 text-[10px]">
+                  <span className="rounded-full border px-2 py-0.5 bg-green-500/10 border-green-500/30 text-green-400 font-bold">
+                    &ge; {((form.confidence_threshold ?? 0.85) * 100).toFixed(0)}% &rarr; AUTO-APPROVED
+                  </span>
+                  <span className="rounded-full border px-2 py-0.5 bg-amber-500/10 border-amber-500/30 text-amber-400 font-bold">
+                    &lt; {((form.confidence_threshold ?? 0.85) * 100).toFixed(0)}% &rarr; PENDING REVIEW
+                  </span>
+                </div>
+              </div>
             </section>
           )}
 

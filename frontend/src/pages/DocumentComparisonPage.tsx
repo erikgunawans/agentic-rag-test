@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { DropZone } from '@/components/shared/DropZone'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { apiFetch } from '@/lib/api'
+import { ConfidenceBadge } from '@/components/shared/ConfidenceBadge'
 
 type ComparisonFocus = 'full' | 'clauses' | 'risks'
 
@@ -22,6 +23,8 @@ interface ComparisonResult {
   differences: ComparisonDifference[]
   risk_assessment: string
   recommendation: string
+  confidence_score?: number
+  review_status?: string
 }
 
 const inputClass = "w-full rounded-lg border border-border bg-secondary text-foreground px-3 py-2 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
@@ -288,7 +291,12 @@ export function DocumentComparisonPage() {
         {result ? (
           <div className="p-8 space-y-6">
             <div>
-              <h2 className="text-lg font-semibold">Comparison Results</h2>
+              <div className="flex items-center gap-3">
+                <h2 className="text-lg font-semibold">Comparison Results</h2>
+                {result.confidence_score != null && (
+                  <ConfidenceBadge score={result.confidence_score} reviewStatus={result.review_status} />
+                )}
+              </div>
               <p className="text-xs text-muted-foreground mt-1">{result.summary}</p>
             </div>
 

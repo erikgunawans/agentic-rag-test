@@ -17,6 +17,7 @@ class GeneratedDocument(BaseModel):
     title: str
     content: str
     summary: str
+    confidence_score: float = 0.0
 
 
 class ComparisonDifference(BaseModel):
@@ -31,6 +32,7 @@ class ComparisonResult(BaseModel):
     differences: list[ComparisonDifference]
     risk_assessment: str
     recommendation: str
+    confidence_score: float = 0.0
 
 
 class ComplianceFinding(BaseModel):
@@ -45,6 +47,7 @@ class ComplianceResult(BaseModel):
     summary: str
     findings: list[ComplianceFinding]
     missing_provisions: list[str]
+    confidence_score: float = 0.0
 
 
 class AnalysisRisk(BaseModel):
@@ -67,6 +70,7 @@ class AnalysisResult(BaseModel):
     obligations: list[AnalysisObligation]
     critical_clauses: list[str]
     missing_provisions: list[str]
+    confidence_score: float = 0.0
 
 
 # ── Helper ─────────────────────────────────────────────────────────────
@@ -112,10 +116,11 @@ async def create_document(
     system_prompt = f"""You are a professional legal document drafting assistant specializing in Indonesian and international law.
 Generate a complete, professional {doc_type} document based on the provided parameters.
 {lang_instruction}
-Return JSON with exactly these keys: title, content, summary.
+Return JSON with exactly these keys: title, content, summary, confidence_score.
 - title: (string) A professional document title
 - content: (string) The full document text as a single string with proper legal formatting, numbered sections, and clauses. If bilingual, include both languages in one string separated by section headers.
-- summary: (string) A 1-2 sentence summary of the document"""
+- summary: (string) A 1-2 sentence summary of the document
+- confidence_score: (float 0.0-1.0) Your confidence in the quality and legal soundness of this document. 1.0 = fully confident; lower = uncertainty about correctness or completeness."""
 
     user_parts = [f"Document Type: {doc_type}", "Parameters:"]
     for key, value in fields.items():
@@ -152,11 +157,12 @@ async def compare_documents(
 
     system_prompt = f"""You are a legal document comparison specialist.
 {focus_map.get(focus, focus_map["full"])}
-Return JSON with keys: summary, differences, risk_assessment, recommendation.
+Return JSON with keys: summary, differences, risk_assessment, recommendation, confidence_score.
 - summary: Overview of the comparison (2-3 sentences)
 - differences: Array of objects with section, doc_a (text from doc A), doc_b (text from doc B), significance ("high"/"medium"/"low")
 - risk_assessment: Overall risk implications of the differences
-- recommendation: Actionable recommendation"""
+- recommendation: Actionable recommendation
+- confidence_score: (float 0.0-1.0) Your confidence in the accuracy and completeness of this comparison. 1.0 = fully confident all differences are correctly identified."""
 
     user_prompt = f"Document A:\n{doc_a_text}\n\n---\n\nDocument B:\n{doc_b_text}"
     if context:
@@ -192,11 +198,12 @@ async def check_compliance(
 
     system_prompt = f"""You are a regulatory compliance expert specializing in {framework_map.get(framework, framework)}.
 Check the document against the specified framework, focusing on: {scope_instructions}.
-Return JSON with keys: overall_status, summary, findings, missing_provisions.
+Return JSON with keys: overall_status, summary, findings, missing_provisions, confidence_score.
 - overall_status: "pass", "review", or "fail"
 - summary: 2-3 sentence overview of compliance status
 - findings: Array of objects with category, status ("pass"/"review"/"fail"), description, recommendation
-- missing_provisions: Array of strings listing provisions that should be present but are missing"""
+- missing_provisions: Array of strings listing provisions that should be present but are missing
+- confidence_score: (float 0.0-1.0) Your confidence in the accuracy of this compliance assessment. 1.0 = fully confident the assessment is correct against the specified framework."""
 
     user_prompt = f"Document:\n{doc_text}"
     if context:
@@ -239,13 +246,14 @@ async def analyze_contract(
     system_prompt = f"""You are a contract analysis specialist with expertise in {law_map.get(law, law)}.
 Analyze the contract focusing on: {type_instructions}.
 {depth_map.get(depth, depth_map["standard"])}
-Return JSON with keys: overall_risk, summary, risks, obligations, critical_clauses, missing_provisions.
+Return JSON with keys: overall_risk, summary, risks, obligations, critical_clauses, missing_provisions, confidence_score.
 - overall_risk: "high", "medium", or "low"
 - summary: 2-3 sentence overview of the contract analysis
 - risks: Array of objects with clause, risk_level ("high"/"medium"/"low"), description, recommendation
 - obligations: Array of objects with party, obligation, deadline (string or null)
 - critical_clauses: Array of strings listing critical clauses found
-- missing_provisions: Array of strings listing missing provisions"""
+- missing_provisions: Array of strings listing missing provisions
+- confidence_score: (float 0.0-1.0) Your confidence in the accuracy and completeness of this analysis. 1.0 = fully confident all risks, obligations, and clauses are correctly identified."""
 
     user_prompt = f"Contract:\n{doc_text}"
     if context:

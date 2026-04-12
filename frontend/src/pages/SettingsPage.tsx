@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Save, Shield, Globe, Bell, ChevronLeft, PanelLeftClose, Settings, User, Menu, FileText } from 'lucide-react'
+import { Save, Shield, Globe, Bell, ChevronLeft, PanelLeftClose, Settings, User, Menu, FileText, ClipboardCheck } from 'lucide-react'
 import { apiFetch } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { useSidebar } from '@/hooks/useSidebar'
@@ -144,6 +144,13 @@ export function SettingsPage() {
                     <FileText className="h-3.5 w-3.5 shrink-0" />
                     {t('settings.auditTrail')}
                   </button>
+                  <button
+                    onClick={() => navigate('/admin/reviews')}
+                    className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-xs font-medium text-amber-400 hover:bg-amber-500/10 transition-colors"
+                  >
+                    <ClipboardCheck className="h-3.5 w-3.5 shrink-0" />
+                    {t('settings.reviewQueue')}
+                  </button>
                 </>
               )}
             </div>
@@ -209,6 +216,13 @@ export function SettingsPage() {
               >
                 <FileText className="h-3.5 w-3.5 shrink-0" />
                 {t('settings.auditTrail')}
+              </button>
+              <button
+                onClick={() => navigate('/admin/reviews')}
+                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-xs font-medium text-amber-400 hover:bg-amber-500/10 transition-colors"
+              >
+                <ClipboardCheck className="h-3.5 w-3.5 shrink-0" />
+                {t('settings.reviewQueue')}
               </button>
             </>
           )}

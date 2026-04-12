@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { DropZone } from '@/components/shared/DropZone'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { apiFetch } from '@/lib/api'
+import { ConfidenceBadge } from '@/components/shared/ConfidenceBadge'
 
 type Framework = 'ojk' | 'international' | 'gdpr' | 'custom'
 type Scope = 'legal' | 'risks' | 'missing' | 'regulatory'
@@ -23,6 +24,8 @@ interface ComplianceResult {
   summary: string
   findings: ComplianceFinding[]
   missing_provisions: string[]
+  confidence_score?: number
+  review_status?: string
 }
 
 const inputClass = "w-full rounded-lg border border-border bg-secondary text-foreground px-3 py-2 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
@@ -300,7 +303,7 @@ export function ComplianceCheckPage() {
         {result ? (
           <div className="p-8 space-y-6">
             {/* Overall status badge */}
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3 flex-wrap">
               <h2 className="text-lg font-semibold">Compliance Report</h2>
               {(() => {
                 const style = OVERALL_STYLE[result.overall_status] || OVERALL_STYLE.review
@@ -310,6 +313,9 @@ export function ComplianceCheckPage() {
                   </span>
                 )
               })()}
+              {result.confidence_score != null && (
+                <ConfidenceBadge score={result.confidence_score} reviewStatus={result.review_status} />
+              )}
             </div>
             <p className="text-xs text-muted-foreground">{result.summary}</p>
 

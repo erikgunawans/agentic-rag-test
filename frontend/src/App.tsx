@@ -11,6 +11,7 @@ import { DocumentComparisonPage } from '@/pages/DocumentComparisonPage'
 import { ComplianceCheckPage } from '@/pages/ComplianceCheckPage'
 import { ContractAnalysisPage } from '@/pages/ContractAnalysisPage'
 import { AuditTrailPage } from '@/pages/AuditTrailPage'
+import { ReviewQueuePage } from '@/pages/ReviewQueuePage'
 import { AuthGuard } from '@/components/auth/AuthGuard'
 import { AdminGuard } from '@/components/auth/AdminGuard'
 import { AppLayout } from '@/layouts/AppLayout'
@@ -50,6 +51,14 @@ export default function App() {
                 element={
                   <AdminGuard>
                     <AuditTrailPage />
+                  </AdminGuard>
+                }
+              />
+              <Route
+                path="admin/reviews"
+                element={
+                  <AdminGuard>
+                    <ReviewQueuePage />
                   </AdminGuard>
                 }
               />

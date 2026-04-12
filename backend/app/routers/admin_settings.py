@@ -22,6 +22,7 @@ class SystemSettingsUpdate(BaseModel):
     tools_enabled: bool | None = None
     tools_max_iterations: int | None = None
     agents_enabled: bool | None = None
+    confidence_threshold: float | None = None
 
 
 @router.get("/settings")

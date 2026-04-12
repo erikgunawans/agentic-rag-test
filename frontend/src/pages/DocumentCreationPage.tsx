@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { DropZone } from '@/components/shared/DropZone'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { apiFetch } from '@/lib/api'
+import { ConfidenceBadge } from '@/components/shared/ConfidenceBadge'
 
 type DocType = 'generic' | 'nda' | 'sales' | 'service'
 
@@ -15,6 +16,8 @@ interface GeneratedDocument {
   title: string
   content: string
   summary: string
+  confidence_score?: number
+  review_status?: string
 }
 
 // --- Form field helper ---
@@ -456,7 +459,12 @@ export function DocumentCreationPage() {
         {result ? (
           <div className="p-8 space-y-6">
             <div>
-              <h2 className="text-lg font-semibold">{result.title}</h2>
+              <div className="flex items-center gap-3">
+                <h2 className="text-lg font-semibold">{result.title}</h2>
+                {result.confidence_score != null && (
+                  <ConfidenceBadge score={result.confidence_score} reviewStatus={result.review_status} />
+                )}
+              </div>
               <p className="text-xs text-muted-foreground mt-1">{result.summary}</p>
             </div>
             <div className="rounded-lg border border-border bg-secondary/30 p-6">

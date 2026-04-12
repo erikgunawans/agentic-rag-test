@@ -72,6 +72,8 @@ export interface DocumentToolResult {
   title: string
   input_params: Record<string, unknown>
   result?: Record<string, unknown>
+  confidence_score?: number
+  review_status?: 'auto_approved' | 'pending_review' | 'approved' | 'rejected'
   created_at: string
 }
 
