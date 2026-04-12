@@ -100,6 +100,8 @@ async def create_document_endpoint(
     doc_type: str = Form(...),
     fields: str = Form(...),  # JSON string of form fields
     output_language: str = Form("both"),
+    clause_ids: str = Form("[]"),  # JSON string of clause UUID strings
+    template_id: str | None = Form(None),
     reference_file: UploadFile | None = File(None),
     template_file: UploadFile | None = File(None),
     user: dict = Depends(get_current_user),
@@ -108,6 +110,28 @@ async def create_document_endpoint(
         parsed_fields = json.loads(fields)
     except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail="Invalid fields JSON.")
+
+    try:
+        parsed_clause_ids = json.loads(clause_ids)
+    except json.JSONDecodeError:
+        parsed_clause_ids = []
+
+    # If template_id provided, merge template defaults
+    if template_id:
+        client = get_supabase_authed_client(user["token"])
+        tpl = client.table("document_templates").select("*").eq("id", template_id).execute().data
+        if tpl:
+            merged = {**tpl[0].get("default_values", {}), **parsed_fields}
+            parsed_fields = {k: v for k, v in merged.items() if v}
+            tpl_clauses = tpl[0].get("default_clauses", [])
+            parsed_clause_ids = list(dict.fromkeys(tpl_clauses + parsed_clause_ids))
+
+    # Fetch clause content if clause_ids provided
+    clause_texts = []
+    if parsed_clause_ids:
+        client = get_supabase_authed_client(user["token"])
+        clause_result = client.table("clause_library").select("title, content, risk_level").in_("id", parsed_clause_ids).execute()
+        clause_texts = clause_result.data
 
     reference_text = None
     if reference_file:
@@ -127,9 +151,15 @@ async def create_document_endpoint(
         output_language=output_language,
         reference_text=reference_text,
         template_text=template_text,
+        clauses=clause_texts or None,
     )
     data = result.model_dump()
-    result_id, review_status = _save_result(user, "create", data["title"], {"doc_type": doc_type, "output_language": output_language}, data)
+    input_params = {"doc_type": doc_type, "output_language": output_language}
+    if parsed_clause_ids:
+        input_params["clause_ids"] = parsed_clause_ids
+    if template_id:
+        input_params["template_id"] = template_id
+    result_id, review_status = _save_result(user, "create", data["title"], input_params, data)
     log_action(user_id=user["id"], user_email=user["email"], action="create", resource_type="document_tool_result", resource_id=result_id, details={"tool_type": "create"})
     data["review_status"] = review_status
     return data

@@ -13,11 +13,18 @@ openrouter = OpenRouterService()
 
 # ── Pydantic response models ──────────────────────────────────────────
 
+class ClauseRisk(BaseModel):
+    clause_title: str
+    risk_level: str
+    risk_note: str
+
+
 class GeneratedDocument(BaseModel):
     title: str
     content: str
     summary: str
     confidence_score: float = 0.0
+    clause_risks: list[dict] = []
 
 
 class ComparisonDifference(BaseModel):
@@ -106,6 +113,7 @@ async def create_document(
     output_language: str,
     reference_text: str | None = None,
     template_text: str | None = None,
+    clauses: list[dict] | None = None,
 ) -> GeneratedDocument:
     lang_instruction = (
         "Write the document in both English and Indonesian (bilingual, side by side sections)."
@@ -113,10 +121,22 @@ async def create_document(
         else "Write the document entirely in Indonesian (Bahasa Indonesia)."
     )
 
+    clause_instruction = ""
+    if clauses:
+        clause_instruction = """
+If clauses are provided below, incorporate them into the document in their designated sections.
+For each clause, assess its risk in the context of this specific document and return a per-clause risk assessment.
+Return JSON with keys: title, content, summary, confidence_score, clause_risks.
+- clause_risks: (array of objects) Each object has: clause_title (string), risk_level ("high"/"medium"/"low"), risk_note (string, 1 sentence explaining the contextual risk)"""
+    else:
+        clause_instruction = """
+Return JSON with keys: title, content, summary, confidence_score, clause_risks.
+- clause_risks: (array) Return an empty array []"""
+
     system_prompt = f"""You are a professional legal document drafting assistant specializing in Indonesian and international law.
 Generate a complete, professional {doc_type} document based on the provided parameters.
 {lang_instruction}
-Return JSON with exactly these keys: title, content, summary, confidence_score.
+{clause_instruction}
 - title: (string) A professional document title
 - content: (string) The full document text as a single string with proper legal formatting, numbered sections, and clauses. If bilingual, include both languages in one string separated by section headers.
 - summary: (string) A 1-2 sentence summary of the document
@@ -132,11 +152,25 @@ Return JSON with exactly these keys: title, content, summary, confidence_score.
     if template_text:
         user_parts.append(f"\nTemplate Document:\n{template_text[:20000]}")
 
+    if clauses:
+        total_chars = 0
+        user_parts.append("\nInclude these clauses in the document:")
+        for i, c in enumerate(clauses, 1):
+            clause_content = c["content"][:2000]
+            total_chars += len(clause_content)
+            if total_chars > 20000:
+                user_parts.append(f"\n(Remaining clauses truncated due to length)")
+                break
+            user_parts.append(f"  Clause {i} — {c['title']} (baseline risk: {c['risk_level']}):\n    {clause_content}")
+
     data = await _llm_json(system_prompt, "\n".join(user_parts))
     # Handle case where LLM returns content as dict (e.g. {"English": "...", "Indonesian": "..."})
     if isinstance(data.get("content"), dict):
         parts = [f"--- {lang} ---\n{text}" for lang, text in data["content"].items()]
         data["content"] = "\n\n".join(parts)
+    # Ensure clause_risks defaults to empty list
+    if "clause_risks" not in data:
+        data["clause_risks"] = []
     return GeneratedDocument(**data)
 
 

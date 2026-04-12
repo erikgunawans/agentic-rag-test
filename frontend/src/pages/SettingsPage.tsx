@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Save, Shield, Globe, Bell, ChevronLeft, PanelLeftClose, Settings, User, Menu, FileText, ClipboardCheck } from 'lucide-react'
+import { Save, Shield, Globe, Bell, ChevronLeft, PanelLeftClose, Settings, User, Menu, FileText, ClipboardCheck, Users, KeyRound } from 'lucide-react'
 import { apiFetch } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { useSidebar } from '@/hooks/useSidebar'
@@ -13,7 +13,7 @@ interface UserPreferences {
   notifications_enabled: boolean
 }
 
-type SettingsSection = 'language' | 'notifications'
+type SettingsSection = 'language' | 'notifications' | 'security'
 
 const LANGUAGES: { value: Locale; label: string }[] = [
   { value: 'id', label: 'Bahasa Indonesia' },
@@ -23,6 +23,7 @@ const LANGUAGES: { value: Locale; label: string }[] = [
 const SECTIONS: { id: SettingsSection; icon: typeof Globe; labelKey: string }[] = [
   { id: 'language', icon: Globe, labelKey: 'settings.language' },
   { id: 'notifications', icon: Bell, labelKey: 'settings.notifications' },
+  { id: 'security', icon: KeyRound, labelKey: 'settings.security' },
 ]
 
 export function SettingsPage() {
@@ -150,6 +151,13 @@ export function SettingsPage() {
                   >
                     <ClipboardCheck className="h-3.5 w-3.5 shrink-0" />
                     {t('settings.reviewQueue')}
+                  </button>
+                  <button
+                    onClick={() => navigate('/admin/users')}
+                    className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-xs font-medium text-amber-400 hover:bg-amber-500/10 transition-colors"
+                  >
+                    <Users className="h-3.5 w-3.5 shrink-0" />
+                    {t('settings.userManagement') || 'User Management'}
                   </button>
                 </>
               )}
@@ -288,6 +296,39 @@ export function SettingsPage() {
                 <Save className="mr-2 h-4 w-4" />
                 {saving ? t('settings.saving') : saved ? t('settings.saved') : t('settings.save')}
               </Button>
+            </section>
+          )}
+
+          {activeSection === 'security' && (
+            <section className="space-y-5">
+              <div className="text-center">
+                <KeyRound className="h-8 w-8 mx-auto text-muted-foreground/25 mb-3" strokeWidth={1.5} />
+                <h2 className="text-base font-semibold">{t('settings.security') || 'Security'}</h2>
+                <p className="text-xs text-muted-foreground mt-1">{t('settings.securityDesc') || 'Manage your account security settings'}</p>
+              </div>
+
+              <div className="rounded-lg border p-4 space-y-3">
+                <div className="flex items-center gap-3">
+                  <Shield className="h-5 w-5 text-primary shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium">{t('settings.mfa') || 'Two-Factor Authentication (TOTP)'}</p>
+                    <p className="text-xs text-muted-foreground">{t('settings.mfaDesc') || 'Add an extra layer of security to your account using an authenticator app'}</p>
+                  </div>
+                </div>
+                <div className="rounded-lg bg-amber-500/10 border border-amber-500/30 p-3">
+                  <p className="text-xs text-amber-400">{t('settings.mfaNote') || 'MFA enrollment is managed through Supabase Auth. Contact your administrator to enable MFA requirement for the organization.'}</p>
+                </div>
+              </div>
+
+              <div className="rounded-lg border p-4 space-y-3">
+                <div className="flex items-center gap-3">
+                  <Settings className="h-5 w-5 text-muted-foreground shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium">{t('settings.sessionTimeout') || 'Session Timeout'}</p>
+                    <p className="text-xs text-muted-foreground">{t('settings.sessionTimeoutDesc') || 'Your session will expire after a period of inactivity (configured by admin)'}</p>
+                  </div>
+                </div>
+              </div>
             </section>
           )}
         </div>

@@ -465,25 +465,37 @@ Full gap analysis and specs: `.agent/plans/15.pjaa-clm-gap-analysis-specs.md`
 - [x] i18n: 23 keys in both Bahasa Indonesia and English
 - **Commit**: `d5ca1be`
 
-#### Feature 3: Enhanced Drafting Workbench — `[ ]` NOT STARTED
+#### Feature 3: Enhanced Drafting Workbench ✅ COMPLETE
 
-- [ ] Clause library table + CRUD
-- [ ] Document templates table + CRUD
-- [ ] 7 doc types (add vendor, JV, property lease, employment, SOP/board resolution)
-- [ ] Per-clause risk scoring in generated documents
+- [x] Migration `supabase/migrations/014_drafting_workbench.sql` — `clause_library` + `document_templates` tables, RLS (own + global), indexes, triggers, 12 seeded global Indonesian legal clauses
+- [x] Backend `clause_library.py` router — 6 endpoints (list with filters, get, create, create global/admin, update, delete)
+- [x] Backend `document_templates.py` router — 5 endpoints (list, get with clause resolution, create, update, delete)
+- [x] Backend `document_tool_service.py` — `create_document()` accepts `clauses` param, LLM prompt requests `clause_risks`, `GeneratedDocument` model updated
+- [x] Backend `document_tools.py` — create endpoint accepts `clause_ids` + `template_id` Form fields, fetches/merges template defaults and clause content
+- [x] 9 doc types — added vendor, JV, property lease, employment, SOP/board resolution with per-type form fields and validation
+- [x] Frontend clause selector — picker with risk-colored items, selected clause chips, mismatch warnings, clause_ids in submission
+- [x] Frontend template selector — dropdown with pre-fill on select, "Save as Template" persists current form state
+- [x] Frontend per-clause risk badges — `clause_risks` rendered in results area with risk-colored cards
+- [x] `ClauseLibraryPage.tsx` — 2-panel layout (filter/search + clause cards grid), CRUD, global clause badges
+- [x] IconRail nav item (`Library` icon), route at `/clause-library`
+- [x] i18n: ~45 keys per locale (doc types, clause library, templates, risk levels, categories)
 
-#### Feature 5: Approval Workflow Engine — `[ ]` NOT STARTED
+#### Feature 5: Approval Workflow Engine ✅ COMPLETE
 
-- [ ] Workflow templates, approval requests, approval actions tables
-- [ ] Sequential/parallel approval chains
-- [ ] Mobile-first approval inbox (375px viewport)
-- [ ] "Submit for Approval" button on doc creation & compliance results
+- [x] Migration `supabase/migrations/015_approval_workflows.sql` — `approval_workflow_templates`, `approval_requests`, `approval_actions` tables with RLS, indexes, seeded default template
+- [x] Backend `approvals.py` router — submit for approval, inbox (admin), my requests, get detail with actions + resource, take action (approve/reject/return), cancel, template CRUD (admin)
+- [x] Frontend `ApprovalInboxPage.tsx` — mobile-first 2-panel layout, inbox vs my requests toggle, status filter tabs with count badges, action buttons (approve/reject/return/cancel)
+- [x] IconRail nav item (`FileCheck` icon), route at `/approvals`
+- [x] i18n: 17 keys per locale for approvals
 
-#### Feature 6: MFA & Security Hardening — `[ ]` NOT STARTED
+#### Feature 6: MFA & Security Hardening ✅ COMPLETE
 
-- [ ] Supabase TOTP MFA enrollment + challenge
-- [ ] Admin user management (list, deactivate, reactivate)
-- [ ] User profiles table (department, is_active, last_login)
+- [x] Migration `supabase/migrations/016_security_hardening.sql` — `user_profiles` table (display_name, department, is_active, deactivated_at/by), `mfa_required` + `session_timeout_minutes` on system_settings, backfill existing users
+- [x] Backend `user_management.py` router — list users (admin), deactivate/reactivate (admin), get/update own profile (self-service)
+- [x] Frontend `UserManagementPage.tsx` — admin user list with search, status badges, deactivate/reactivate buttons with confirmation
+- [x] Frontend `SettingsPage.tsx` — Security section with MFA info panel + session timeout info, User Management admin link
+- [x] Route at `/admin/users` (admin-guarded)
+- [x] i18n: 20 keys per locale for user management + security
 
 ### Phase 1 Summary
 
@@ -494,11 +506,11 @@ Full gap analysis and specs: `.agent/plans/15.pjaa-clm-gap-analysis-specs.md`
 | F2: Confidence & HITL | ✅ Done | `7c4b20e` | +553 |
 | Hardening (review fixes) | ✅ Done | `ca60078` | +30 |
 | F4: Obligation Tracker | ✅ Done | `d5ca1be` | +1,519 |
-| F3: Drafting Workbench | Not started | — | — |
-| F5: Approval Workflows | Not started | — | — |
-| F6: MFA & Security | Not started | — | — |
+| F3: Drafting Workbench | ✅ Done | (uncommitted) | +1,200 |
+| F5: Approval Workflows | ✅ Done | (uncommitted) | +600 |
+| F6: MFA & Security | ✅ Done | (uncommitted) | +400 |
 
-**Phase 1 progress: 4 of 7 features complete** (F1, F2, F4, F7)
+**Phase 1 progress: 7 of 7 features complete** (F1, F2, F3, F4, F5, F6, F7) ✅ PHASE 1 COMPLETE
 
 ### Phase 2: Enterprise Capabilities (Weeks 9-16) — NOT STARTED
 

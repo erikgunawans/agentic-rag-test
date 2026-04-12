@@ -13,6 +13,9 @@ import { ContractAnalysisPage } from '@/pages/ContractAnalysisPage'
 import { AuditTrailPage } from '@/pages/AuditTrailPage'
 import { ReviewQueuePage } from '@/pages/ReviewQueuePage'
 import { ObligationsPage } from '@/pages/ObligationsPage'
+import { ClauseLibraryPage } from '@/pages/ClauseLibraryPage'
+import { ApprovalInboxPage } from '@/pages/ApprovalInboxPage'
+import { UserManagementPage } from '@/pages/UserManagementPage'
 import { AuthGuard } from '@/components/auth/AuthGuard'
 import { AdminGuard } from '@/components/auth/AdminGuard'
 import { AppLayout } from '@/layouts/AppLayout'
@@ -35,16 +38,26 @@ export default function App() {
               <Route index element={<ChatPage />} />
               <Route path="documents" element={<DocumentsPage />} />
               <Route path="create" element={<DocumentCreationPage />} />
+              <Route path="clause-library" element={<ClauseLibraryPage />} />
               <Route path="compare" element={<DocumentComparisonPage />} />
               <Route path="compliance" element={<ComplianceCheckPage />} />
               <Route path="analysis" element={<ContractAnalysisPage />} />
               <Route path="obligations" element={<ObligationsPage />} />
+              <Route path="approvals" element={<ApprovalInboxPage />} />
               <Route path="settings" element={<SettingsPage />} />
               <Route
                 path="admin/settings"
                 element={
                   <AdminGuard>
                     <AdminSettingsPage />
+                  </AdminGuard>
+                }
+              />
+              <Route
+                path="admin/users"
+                element={
+                  <AdminGuard>
+                    <UserManagementPage />
                   </AdminGuard>
                 }
               />
