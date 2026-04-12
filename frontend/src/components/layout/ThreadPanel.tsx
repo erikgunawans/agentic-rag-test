@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, ChevronLeft, Search, Settings } from 'lucide-react'
+import { Plus, ChevronLeft, ChevronRight, Search, Settings } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ThreadList } from '@/components/chat/ThreadList'
 import { useI18n } from '@/i18n/I18nContext'
@@ -7,7 +7,12 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useChatContext } from '@/contexts/ChatContext'
 import { deriveDisplayName, getInitials } from './UserAvatar'
 
-export function ThreadPanel() {
+interface ThreadPanelProps {
+  collapsed: boolean
+  onToggleCollapse: () => void
+}
+
+export function ThreadPanel({ collapsed, onToggleCollapse }: ThreadPanelProps) {
   const { t } = useI18n()
   const { user } = useAuth()
   const {
@@ -28,14 +33,38 @@ export function ThreadPanel() {
   const displayName = user?.email ? deriveDisplayName(user.email) : ''
   const initials = user?.email ? getInitials(user.email) : ''
 
+  if (collapsed) {
+    return (
+      <div className="flex h-full w-[50px] shrink-0 flex-col items-center border-r border-border glass py-4 gap-3">
+        <button
+          onClick={onToggleCollapse}
+          className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+          title={t('sidebar.title')}
+        >
+          <ChevronRight className="h-4 w-4" />
+        </button>
+        <Button onClick={handleCreateThread} size="icon" className="h-8 w-8">
+          <Plus className="h-4 w-4" />
+        </Button>
+        <div className="flex-1" />
+        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-[9px] font-semibold text-primary-foreground">
+          {initials}
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <div className="flex h-full w-[340px] shrink-0 flex-col border-r border-border glass dot-grid">
+    <div className="flex h-full w-[340px] shrink-0 flex-col border-r border-border glass dot-grid transition-all duration-200">
       <div className="flex items-center justify-between p-4">
         <div>
           <h1 className="text-sm font-bold text-sidebar-foreground">{t('sidebar.title')}</h1>
           <p className="text-xs text-muted-foreground">{t('sidebar.chatHistory')}</p>
         </div>
-        <button className="text-muted-foreground hover:text-foreground transition-colors">
+        <button
+          onClick={onToggleCollapse}
+          className="text-muted-foreground hover:text-foreground transition-colors"
+        >
           <ChevronLeft className="h-4 w-4" />
         </button>
       </div>
