@@ -315,6 +315,40 @@ Track your progress through the masterclass. Update this file as you complete mo
 
 - `.agent/plans/11.figma-ui-migration.md`
 
+### Welcome Screen Redesign ✅ COMPLETE
+
+- [x] Sparkle icon replaces "K" badge, gradient text for user name
+- [x] `WelcomeInput` — large card-style input with action bar (attach, doc icon, "Legal AI v1.0" label, mic, send)
+- [x] `SuggestionCards` — 4 cards navigating to feature pages, replacing small pill chips
+- [x] `ThreadPanel` — search bar, "Chat History" subtitle, collapse chevron, user profile card at bottom (name, role, settings gear)
+
+### Page Layout Redesign ✅ COMPLETE
+
+- [x] `DocumentCreationPage` — 3-column layout (Icon Rail | Form 75% + History 25% | Preview empty state), dynamic form fields per doc type (Generic, NDA, Sales, Service), output language radio, reference/template uploads
+- [x] `DocumentsPage` — 3-column layout with upload section (dropzone, recent uploads, storage quota), filter section (type filters, status checkboxes), main area (top bar with search + grid/list toggle, 3-column document card grid)
+- [x] `DocumentComparisonPage` — same 3-column pattern with dual doc upload, swap button, comparison focus, blank results area
+- [x] `ComplianceCheckPage` — same 3-column pattern with framework selector, scope multi-select, blank results area
+- [x] `ContractAnalysisPage` — same 3-column pattern with analysis type, governing law, depth selector, blank results area
+- [x] All column 2 panels standardized to 300px width (including ThreadPanel)
+
+### 2026 Design Trends ✅ COMPLETE
+
+- [x] **Glassmorphism** — `glass` utility (backdrop-blur + semi-transparent bg) on Icon Rail, ThreadPanel, MessageInput, AuthPage card, WelcomeInput
+- [x] **Glow effects** — `glow-primary` on active nav items and focus states, gradient send button with hover glow
+- [x] **Layered shadows** — `--shadow-xs/sm/md/lg` CSS variables, applied to cards, popovers, dropdowns
+- [x] **Gradient accents** — gradient user message bubbles, gradient text for user name, animated gradient card borders
+- [x] **Bento grid** — asymmetric suggestion card layout (hero card spans 2 columns, middle cards 1 each, footer spans 2)
+- [x] **Animated gradient borders** — `gradient-border-animated` with shimmer effect on suggestion cards
+- [x] **Mesh gradient backgrounds** — multi-color radial gradients on welcome screen, empty states, auth page
+- [x] **Dot grid texture** — subtle pattern overlay on ThreadPanel and backgrounds
+- [x] **Floating orbs** — decorative gradient blur circles on welcome screen and auth page
+- [x] **Pulse rings** — concentric expanding ring animation on empty state icons
+- [x] **Staggered animations** — `stagger-children` for sequential card entrance
+- [x] **Dark scrollbars** — thin 6px dark navy scrollbar track/thumb, matching dark theme
+- [x] **Micro-animations** — fade-in-up, glow-pulse, float, gradient-shift keyframes
+- [x] **Feature accent colors** — per-page colored icons (purple/cyan/emerald/amber)
+- [x] **Icon Rail gradient bar** — 3px gradient left accent on active nav items
+
 ---
 
 ## Deployment Status
