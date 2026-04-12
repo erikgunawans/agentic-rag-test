@@ -220,6 +220,24 @@ export const translations: Record<Locale, Record<string, string>> = {
     'admin.save.saved': 'Tersimpan!',
     'admin.save.button': 'Simpan Konfigurasi',
 
+    // Audit Trail
+    'audit.title': 'Jejak Audit',
+    'audit.export': 'Ekspor CSV',
+    'audit.filters': 'Filter',
+    'audit.filter.allActions': 'Semua Aksi',
+    'audit.filter.resourceType': 'Tipe sumber daya...',
+    'audit.empty': 'Belum ada log audit.',
+    'audit.col.timestamp': 'Waktu',
+    'audit.col.user': 'Pengguna',
+    'audit.col.action': 'Aksi',
+    'audit.col.resource': 'Sumber Daya',
+    'audit.col.details': 'Detail',
+    'audit.showing': 'Menampilkan',
+    'audit.prev': 'Sebelumnya',
+    'audit.next': 'Selanjutnya',
+    'audit.error.load': 'Gagal memuat log audit.',
+    'settings.auditTrail': 'Jejak Audit',
+
     // Thinking
     'thinking': 'Sedang berpikir...',
   },
@@ -441,6 +459,24 @@ export const translations: Record<Locale, Record<string, string>> = {
     'admin.save.saving': 'Saving...',
     'admin.save.saved': 'Saved!',
     'admin.save.button': 'Save Configuration',
+
+    // Audit Trail
+    'audit.title': 'Audit Trail',
+    'audit.export': 'Export CSV',
+    'audit.filters': 'Filters',
+    'audit.filter.allActions': 'All Actions',
+    'audit.filter.resourceType': 'Resource type...',
+    'audit.empty': 'No audit logs yet.',
+    'audit.col.timestamp': 'Timestamp',
+    'audit.col.user': 'User',
+    'audit.col.action': 'Action',
+    'audit.col.resource': 'Resource',
+    'audit.col.details': 'Details',
+    'audit.showing': 'Showing',
+    'audit.prev': 'Previous',
+    'audit.next': 'Next',
+    'audit.error.load': 'Failed to load audit logs.',
+    'settings.auditTrail': 'Audit Trail',
 
     // Thinking
     'thinking': 'Thinking...',

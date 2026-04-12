@@ -8,6 +8,7 @@ from app.dependencies import get_current_user
 from app.database import get_supabase_client
 from app.config import get_settings
 from app.services.ingestion_service import process_document
+from app.services.audit_service import log_action
 from app.services.embedding_service import EmbeddingService
 from app.services.hybrid_retrieval_service import HybridRetrievalService
 from app.services.system_settings_service import get_system_settings
@@ -113,6 +114,15 @@ async def upload_document(
         llm_model=sys_settings["llm_model"],
     )
 
+    log_action(
+        user_id=user["id"],
+        user_email=user["email"],
+        action="upload",
+        resource_type="document",
+        resource_id=str(doc["id"]),
+        details={"filename": file.filename, "mime_type": file.content_type, "file_size": len(file_bytes)},
+    )
+
     return {"id": doc["id"], "filename": doc["filename"], "status": "pending", "duplicate": False}
 
 
@@ -168,6 +178,14 @@ async def delete_document(doc_id: str, user: dict = Depends(get_current_user)):
 
     # Delete DB record — chunks cascade automatically
     client.table("documents").delete().eq("id", doc_id).eq("user_id", user["id"]).execute()
+
+    log_action(
+        user_id=user["id"],
+        user_email=user["email"],
+        action="delete",
+        resource_type="document",
+        resource_id=doc_id,
+    )
 
 
 class SearchRequest(BaseModel):

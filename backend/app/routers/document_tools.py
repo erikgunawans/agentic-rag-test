@@ -10,6 +10,7 @@ from app.services.document_tool_service import (
     analyze_contract,
     _extract_text,
 )
+from app.services.audit_service import log_action
 
 logger = logging.getLogger(__name__)
 
@@ -114,7 +115,8 @@ async def create_document_endpoint(
         template_text=template_text,
     )
     data = result.model_dump()
-    _save_result(user, "create", data["title"], {"doc_type": doc_type, "output_language": output_language}, data)
+    result_id = _save_result(user, "create", data["title"], {"doc_type": doc_type, "output_language": output_language}, data)
+    log_action(user_id=user["id"], user_email=user["email"], action="create", resource_type="document_tool_result", resource_id=result_id, details={"tool_type": "create"})
     return data
 
 
@@ -142,7 +144,8 @@ async def compare_documents_endpoint(
     )
     data = result.model_dump()
     title = f"{doc_a.filename} vs {doc_b.filename}"
-    _save_result(user, "compare", title, {"focus": focus}, data)
+    result_id = _save_result(user, "compare", title, {"focus": focus}, data)
+    log_action(user_id=user["id"], user_email=user["email"], action="compare", resource_type="document_tool_result", resource_id=result_id, details={"tool_type": "compare"})
     return data
 
 
@@ -167,7 +170,8 @@ async def check_compliance_endpoint(
         context=context or None,
     )
     data = result.model_dump()
-    _save_result(user, "compliance", document.filename or "Compliance Check", {"framework": framework, "scopes": scope_list}, data)
+    result_id = _save_result(user, "compliance", document.filename or "Compliance Check", {"framework": framework, "scopes": scope_list}, data)
+    log_action(user_id=user["id"], user_email=user["email"], action="compliance", resource_type="document_tool_result", resource_id=result_id, details={"tool_type": "compliance", "framework": framework})
     return data
 
 
@@ -194,5 +198,6 @@ async def analyze_contract_endpoint(
         context=context or None,
     )
     data = result.model_dump()
-    _save_result(user, "analyze", document.filename or "Contract Analysis", {"analysis_types": type_list, "law": law, "depth": depth}, data)
+    result_id = _save_result(user, "analyze", document.filename or "Contract Analysis", {"analysis_types": type_list, "law": law, "depth": depth}, data)
+    log_action(user_id=user["id"], user_email=user["email"], action="analyze", resource_type="document_tool_result", resource_id=result_id, details={"tool_type": "analyze", "law": law})
     return data
