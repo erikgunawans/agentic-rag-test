@@ -9,93 +9,50 @@ interface CardDef {
   icon: LucideIcon
   path: string
   colorVar: string
-  borderColor: string
 }
 
 const cards: CardDef[] = [
-  {
-    titleKey: 'card.create.title',
-    descKey: 'card.create.desc',
-    icon: FilePlus,
-    path: '/create',
-    colorVar: 'var(--feature-creation)',
-    borderColor: 'border-[var(--feature-creation)]/30',
-  },
-  {
-    titleKey: 'card.compare.title',
-    descKey: 'card.compare.desc',
-    icon: GitCompare,
-    path: '/compare',
-    colorVar: 'var(--feature-management)',
-    borderColor: 'border-[var(--feature-management)]/30',
-  },
-  {
-    titleKey: 'card.compliance.title',
-    descKey: 'card.compliance.desc',
-    icon: ShieldCheck,
-    path: '/compliance',
-    colorVar: 'var(--feature-compliance)',
-    borderColor: 'border-[var(--feature-compliance)]/30',
-  },
-  {
-    titleKey: 'card.analysis.title',
-    descKey: 'card.analysis.desc',
-    icon: Scale,
-    path: '/analysis',
-    colorVar: 'var(--feature-analysis)',
-    borderColor: 'border-[var(--feature-analysis)]/30',
-  },
+  { titleKey: 'card.create.title', descKey: 'card.create.desc', icon: FilePlus, path: '/create', colorVar: 'var(--feature-creation)' },
+  { titleKey: 'card.compare.title', descKey: 'card.compare.desc', icon: GitCompare, path: '/compare', colorVar: 'var(--feature-management)' },
+  { titleKey: 'card.compliance.title', descKey: 'card.compliance.desc', icon: ShieldCheck, path: '/compliance', colorVar: 'var(--feature-compliance)' },
+  { titleKey: 'card.analysis.title', descKey: 'card.analysis.desc', icon: Scale, path: '/analysis', colorVar: 'var(--feature-analysis)' },
 ]
 
 export function SuggestionCards() {
   const { t } = useI18n()
   const navigate = useNavigate()
 
+  function renderCard({ titleKey, descKey, icon: Icon, path, colorVar }: CardDef, index: number) {
+    return (
+      <button
+        key={path}
+        onClick={() => navigate(path)}
+        className="group flex items-start gap-2.5 rounded-xl border border-border/50 bg-card p-4 text-left transition-all duration-200 hover:bg-accent/50 hover:shadow-[var(--shadow-md)] cursor-pointer animate-fade-in-up interactive-lift focus-ring"
+        style={{
+          animationDelay: `${index * 100}ms`,
+          borderLeftWidth: '3px',
+          borderLeftColor: colorVar,
+        }}
+      >
+        <div className="flex-1">
+          <div className="flex items-center gap-2">
+            <Icon className="h-4 w-4 shrink-0" style={{ color: colorVar }} />
+            <p className="text-sm font-medium text-foreground">{t(titleKey)}</p>
+          </div>
+          <p className="text-xs text-muted-foreground mt-1 pl-6">{t(descKey)}</p>
+        </div>
+        <span className="text-muted-foreground/30 group-hover:text-muted-foreground/60 transition-colors text-xs mt-0.5">&rarr;</span>
+      </button>
+    )
+  }
+
   return (
     <div className="flex flex-col gap-3 w-full stagger-children">
-      {/* Row 1: two equal cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {cards.slice(0, 2).map(({ titleKey, descKey, icon: Icon, path, colorVar, borderColor }, index) => (
-          <button
-            key={path}
-            onClick={() => navigate(path)}
-            className={`flex items-center gap-3 rounded-xl border ${borderColor} bg-card p-4 text-left transition-all duration-200 hover:bg-accent/50 hover:scale-[1.02] hover:shadow-[var(--shadow-md)] cursor-pointer animate-fade-in-up gradient-border-animated`}
-            style={{ animationDelay: `${index * 100}ms` }}
-          >
-            <div
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
-              style={{ backgroundColor: `color-mix(in oklch, ${colorVar} 20%, transparent)`, color: colorVar }}
-            >
-              <Icon className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-foreground">{t(titleKey)}</p>
-              <p className="text-xs text-muted-foreground">{t(descKey)}</p>
-            </div>
-          </button>
-        ))}
+        {cards.slice(0, 2).map((card, i) => renderCard(card, i))}
       </div>
-      {/* Row 2: left wider (3fr), right narrower (2fr) */}
       <div className="grid grid-cols-1 sm:grid-cols-[3fr_2fr] gap-3">
-        {cards.slice(2, 4).map(({ titleKey, descKey, icon: Icon, path, colorVar, borderColor }, index) => (
-          <button
-            key={path}
-            onClick={() => navigate(path)}
-            className={`flex items-center gap-3 rounded-xl border ${borderColor} bg-card p-4 text-left transition-all duration-200 hover:bg-accent/50 hover:scale-[1.02] hover:shadow-[var(--shadow-md)] cursor-pointer animate-fade-in-up gradient-border-animated`}
-            style={{ animationDelay: `${(index + 2) * 100}ms` }}
-          >
-          <div
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
-            style={{ backgroundColor: `color-mix(in oklch, ${colorVar} 20%, transparent)`, color: colorVar }}
-          >
-            <Icon className="h-5 w-5" />
-          </div>
-          <div>
-            <p className="text-sm font-medium text-foreground">{t(titleKey)}</p>
-            <p className="text-xs text-muted-foreground">{t(descKey)}</p>
-          </div>
-        </button>
-        ))}
+        {cards.slice(2, 4).map((card, i) => renderCard(card, i + 2))}
       </div>
     </div>
   )
