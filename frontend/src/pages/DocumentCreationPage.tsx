@@ -222,6 +222,14 @@ export function DocumentCreationPage() {
     }
   }
 
+  const REQUIRED_FIELDS: Record<DocType, string[]> = {
+    generic: ['document_type', 'first_party', 'purpose'],
+    nda: ['disclosing_party', 'receiving_party', 'purpose', 'confidential_info', 'term', 'return_destruction', 'governing_law'],
+    sales: ['first_party', 'second_party', 'effective_date', 'duration_count', 'duration_unit', 'purpose', 'scope_of_work', 'deliverables', 'governing_law'],
+    service: ['first_party', 'second_party', 'effective_date', 'duration_count', 'duration_unit', 'purpose', 'scope_of_work', 'deliverables', 'governing_law'],
+  }
+  const canGenerate = !loading && REQUIRED_FIELDS[docType].every((key) => fields[key]?.trim())
+
   const generateLabel = docType === 'nda' ? 'Generate NDA' : 'Generate Draft'
 
   return (
@@ -291,7 +299,7 @@ export function DocumentCreationPage() {
               </FormField>
 
               {/* Generate button */}
-              <Button className="w-full text-xs" disabled={loading} onClick={handleGenerate}>
+              <Button className="w-full text-xs" disabled={!canGenerate} onClick={handleGenerate}>
                 {loading ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <FilePlus className="mr-2 h-3.5 w-3.5" />}
                 {loading ? 'Generating...' : generateLabel}
               </Button>
