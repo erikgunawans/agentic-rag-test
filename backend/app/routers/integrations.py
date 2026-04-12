@@ -20,15 +20,12 @@ class DokmeeExport(BaseModel):
 
 
 def _get_dokmee_config() -> dict:
-    """Read Dokmee settings from system_settings. Returns dict with configured flag."""
+    """Read Dokmee settings from system_settings (single-row table)."""
     client = get_supabase_client()
-    rows = (
-        client.table("system_settings")
-        .select("key, value")
-        .in_("key", ["dokmee_api_url", "dokmee_api_key"])
-        .execute()
-    )
-    settings = {r["key"]: r["value"] for r in rows.data}
+    row = client.table("system_settings").select("dokmee_api_url, dokmee_api_key").eq("id", 1).execute()
+    if not row.data:
+        return {"configured": False, "api_url": None}
+    settings = row.data[0]
     api_url = settings.get("dokmee_api_url")
     api_key = settings.get("dokmee_api_key")
     configured = bool(api_url and api_key)

@@ -17,15 +17,10 @@ class GoogleExport(BaseModel):
 
 
 def _is_google_configured() -> bool:
-    """Check if Google OAuth client ID is set in system_settings."""
+    """Check if Google OAuth client ID is set in system_settings (single-row table)."""
     client = get_supabase_client()
-    rows = (
-        client.table("system_settings")
-        .select("value")
-        .eq("key", "google_client_id")
-        .execute()
-    )
-    return bool(rows.data and rows.data[0]["value"])
+    row = client.table("system_settings").select("google_client_id").eq("id", 1).execute()
+    return bool(row.data and row.data[0].get("google_client_id"))
 
 
 def _user_has_token(user: dict) -> bool:
