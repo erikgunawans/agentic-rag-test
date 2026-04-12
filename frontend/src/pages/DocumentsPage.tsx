@@ -1,16 +1,63 @@
 import { useCallback, useEffect, useState } from 'react'
+import { Search, Grid3X3, List, Plus, Upload, HardDrive, FileText, Trash2, Loader2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { apiFetch } from '@/lib/api'
 import { useDocumentRealtime } from '@/hooks/useDocumentRealtime'
 import { FileUpload } from '@/components/documents/FileUpload'
-import { DocumentList } from '@/components/documents/DocumentList'
 import { useI18n } from '@/i18n/I18nContext'
 import type { Document } from '@/lib/database.types'
+
+type DocFilter = 'all' | 'nda' | 'kontrak' | 'kepatuhan' | 'laporan' | 'perjanjian' | 'invoice' | 'lainnya'
+type StatusFilter = 'completed' | 'processing' | 'pending'
+type ViewMode = 'grid' | 'list'
+
+const TYPE_FILTERS: { value: DocFilter; label: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'nda', label: 'NDA' },
+  { value: 'kontrak', label: 'Kontrak' },
+  { value: 'kepatuhan', label: 'Kepatuhan' },
+  { value: 'laporan', label: 'Laporan' },
+  { value: 'perjanjian', label: 'Perjanjian' },
+  { value: 'invoice', label: 'Invoice' },
+  { value: 'lainnya', label: 'Lainnya' },
+]
+
+const STATUS_FILTERS: { value: StatusFilter; label: string; color: string }[] = [
+  { value: 'completed', label: 'Analyzed', color: 'bg-green-400' },
+  { value: 'processing', label: 'Processing', color: 'bg-amber-400' },
+  { value: 'pending', label: 'Pending', color: 'bg-gray-400' },
+]
+
+const CATEGORY_COLORS: Record<string, string> = {
+  technical: 'text-blue-400',
+  legal: 'text-purple-400',
+  business: 'text-orange-400',
+  academic: 'text-teal-400',
+  personal: 'text-pink-400',
+  other: 'text-gray-400',
+}
+
+const STATUS_BADGE: Record<string, string> = {
+  pending: 'bg-muted text-muted-foreground',
+  processing: 'bg-amber-500/10 text-amber-400',
+  completed: 'bg-green-500/10 text-green-400',
+  failed: 'bg-red-500/10 text-red-400',
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
 
 export function DocumentsPage() {
   const { t } = useI18n()
   const [documents, setDocuments] = useState<Document[]>([])
   const [userId, setUserId] = useState<string | undefined>()
+  const [searchQuery, setSearchQuery] = useState('')
+  const [typeFilter, setTypeFilter] = useState<DocFilter>('all')
+  const [statusFilters, setStatusFilters] = useState<Set<StatusFilter>>(new Set(['completed', 'processing', 'pending']))
+  const [viewMode, setViewMode] = useState<ViewMode>('grid')
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -41,27 +88,227 @@ export function DocumentsPage() {
     setDocuments((prev) => prev.filter((d) => d.id !== id))
   }
 
-  async function handleUploaded() {
-    await loadDocuments()
+  function toggleStatus(s: StatusFilter) {
+    setStatusFilters((prev) => {
+      const next = new Set(prev)
+      if (next.has(s)) next.delete(s)
+      else next.add(s)
+      return next
+    })
   }
 
-  return (
-    <div className="flex-1 overflow-y-auto p-6">
-      <div className="mx-auto max-w-2xl space-y-6">
-        <h1 className="text-lg font-semibold">{t('documents.title')}</h1>
+  const filtered = documents.filter((doc) => {
+    if (!statusFilters.has(doc.status as StatusFilter)) return false
+    if (searchQuery && !doc.filename.toLowerCase().includes(searchQuery.toLowerCase())) return false
+    return true
+  })
 
-        <div>
-          <h2 className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-3">
-            {t('documents.upload')}
-          </h2>
-          <FileUpload onUploaded={handleUploaded} />
+  const totalSize = documents.reduce((sum, d) => sum + d.file_size, 0)
+
+  return (
+    <div className="flex h-full">
+      {/* Column 2 — Sidebar panel (300px) */}
+      <div className="flex w-[300px] shrink-0 flex-col border-r border-border/50 overflow-y-auto">
+        {/* Section 1: Upload */}
+        <div className="p-4 space-y-4 border-b border-border/50">
+          <div className="flex items-center gap-2">
+            <Upload className="h-4 w-4 text-muted-foreground" />
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Upload</span>
+          </div>
+
+          <FileUpload onUploaded={loadDocuments} />
+
+          {/* Recent uploads */}
+          {documents.slice(0, 3).map((doc) => (
+            <div key={doc.id} className="flex items-center gap-2 text-xs">
+              <div className={`h-1.5 w-1.5 rounded-full shrink-0 ${doc.status === 'completed' ? 'bg-green-400' : doc.status === 'processing' ? 'bg-amber-400' : 'bg-gray-400'}`} />
+              <span className="truncate flex-1 text-muted-foreground">{doc.filename}</span>
+              {doc.status === 'processing' && <Loader2 className="h-3 w-3 animate-spin text-amber-400 shrink-0" />}
+            </div>
+          ))}
+
+          {/* Storage quota */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+              <div className="flex items-center gap-1">
+                <HardDrive className="h-3 w-3" />
+                <span>Storage</span>
+              </div>
+              <span>{formatBytes(totalSize)} / 50 MB</span>
+            </div>
+            <div className="h-1.5 rounded-full bg-secondary overflow-hidden">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-primary to-[oklch(0.65_0.18_230)]"
+                style={{ width: `${Math.min((totalSize / (50 * 1024 * 1024)) * 100, 100)}%` }}
+              />
+            </div>
+          </div>
         </div>
 
-        <div>
-          <h2 className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-3">
-            {t('documents.yourDocs')}
-          </h2>
-          <DocumentList documents={documents} onDelete={handleDelete} />
+        {/* Section 2: Filter */}
+        <div className="p-4 space-y-4">
+          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Filter</span>
+
+          {/* Type filters */}
+          <div className="space-y-1">
+            {TYPE_FILTERS.map(({ value, label }) => {
+              const count = value === 'all' ? documents.length : 0
+              return (
+                <button
+                  key={value}
+                  onClick={() => setTypeFilter(value)}
+                  className={`flex w-full items-center justify-between rounded-md px-2.5 py-1.5 text-xs transition-colors ${
+                    typeFilter === value ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                  }`}
+                >
+                  <span>{label}</span>
+                  <span className="text-[10px] tabular-nums">{count}</span>
+                </button>
+              )
+            })}
+          </div>
+
+          {/* Status checkboxes */}
+          <div className="space-y-2 pt-2 border-t border-border/50">
+            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Status</span>
+            {STATUS_FILTERS.map(({ value, label, color }) => (
+              <button
+                key={value}
+                onClick={() => toggleStatus(value)}
+                className="flex w-full items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <div className={`h-3.5 w-3.5 rounded border flex items-center justify-center ${
+                  statusFilters.has(value) ? 'border-primary bg-primary' : 'border-border'
+                }`}>
+                  {statusFilters.has(value) && <span className="text-[8px] text-primary-foreground">✓</span>}
+                </div>
+                <span className={`h-2 w-2 rounded-full ${color}`} />
+                <span>{label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Column 3 — Main document area */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Top bar */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border/50 shrink-0">
+          <div className="flex items-center gap-3">
+            <h1 className="text-lg font-semibold">{t('documents.title')}</h1>
+            <span className="text-xs text-muted-foreground">{filtered.length} documents</span>
+          </div>
+          <div className="flex items-center gap-2">
+            {/* Search */}
+            <div className="flex items-center gap-2 rounded-md border border-border bg-secondary px-2.5 py-1.5 w-48">
+              <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <input
+                type="text"
+                placeholder="Search..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-transparent text-xs text-foreground placeholder:text-muted-foreground focus:outline-none"
+              />
+            </div>
+            {/* View toggle */}
+            <div className="flex rounded-md border border-border">
+              <button
+                onClick={() => setViewMode('grid')}
+                className={`p-1.5 transition-colors ${viewMode === 'grid' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+              >
+                <Grid3X3 className="h-3.5 w-3.5" />
+              </button>
+              <button
+                onClick={() => setViewMode('list')}
+                className={`p-1.5 transition-colors ${viewMode === 'list' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+              >
+                <List className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            {/* New Document button */}
+            <button className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90 transition-opacity">
+              <Plus className="h-3.5 w-3.5" />
+              New Document
+            </button>
+          </div>
+        </div>
+
+        {/* Document grid/list */}
+        <div className="flex-1 overflow-y-auto p-6">
+          {filtered.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full text-center">
+              <FileText className="h-12 w-12 text-muted-foreground mb-3" />
+              <p className="text-sm text-muted-foreground">{t('docList.empty')}</p>
+            </div>
+          ) : (
+            <div className={viewMode === 'grid' ? 'grid grid-cols-3 gap-4' : 'space-y-2'}>
+              {filtered.map((doc) => {
+                const meta = doc.status === 'completed' ? doc.metadata : null
+                const tags = meta?.tags?.slice(0, 2) ?? []
+                return (
+                  <div
+                    key={doc.id}
+                    className={`group rounded-xl border p-4 transition-all duration-200 hover:shadow-[var(--shadow-sm)] hover:border-border/80 cursor-pointer ${
+                      viewMode === 'list' ? 'flex items-center gap-4' : 'space-y-3'
+                    }`}
+                  >
+                    {/* File type badge + menu */}
+                    <div className="flex items-center justify-between">
+                      <div className={`flex h-8 w-8 items-center justify-center rounded-lg text-[9px] font-bold ${
+                        doc.filename.endsWith('.pdf') ? 'bg-red-500/15 text-red-400' : 'bg-cyan-500/15 text-cyan-400'
+                      }`}>
+                        {doc.filename.endsWith('.pdf') ? 'PDF' : 'TXT'}
+                      </div>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleDelete(doc.id) }}
+                        className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+
+                    {/* Title */}
+                    <div className={viewMode === 'list' ? 'flex-1 min-w-0' : ''}>
+                      <p className="text-sm font-medium truncate">{doc.filename}</p>
+                      {meta?.category && (
+                        <span className={`text-[10px] ${CATEGORY_COLORS[meta.category] ?? 'text-gray-400'}`}>
+                          {meta.category}
+                        </span>
+                      )}
+                      {meta?.summary && viewMode === 'grid' && (
+                        <p className="text-[10px] text-muted-foreground line-clamp-2 mt-1">{meta.summary}</p>
+                      )}
+                    </div>
+
+                    {/* Footer */}
+                    <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                      <div className="flex items-center gap-1">
+                        <span>{formatBytes(doc.file_size)}</span>
+                        {doc.chunk_count != null && <span>· {doc.chunk_count} chunks</span>}
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        {tags.map((tag) => (
+                          <span key={tag} className="rounded-full bg-muted px-1.5 py-0.5 text-[8px]">{tag}</span>
+                        ))}
+                        <span className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-medium ${STATUS_BADGE[doc.status]}`}>
+                          {doc.status === 'processing' && <Loader2 className="h-2.5 w-2.5 animate-spin" />}
+                          {doc.status}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+
+              {/* Ghost upload card */}
+              {viewMode === 'grid' && (
+                <div className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-border p-4 cursor-pointer hover:border-primary/50 hover:shadow-[var(--glow-sm)] transition-all min-h-[160px]">
+                  <Plus className="h-6 w-6 text-muted-foreground mb-2" />
+                  <span className="text-xs text-muted-foreground">Upload New</span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
