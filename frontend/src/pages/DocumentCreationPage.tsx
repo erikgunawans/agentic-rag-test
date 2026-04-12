@@ -242,7 +242,7 @@ export function DocumentCreationPage() {
         <div className="flex items-center justify-between px-5 py-3 border-b border-border/50 shrink-0">
           <div>
             <h1 className="text-sm font-semibold">{t('create.title')}</h1>
-            <p className="text-[10px] text-muted-foreground">Fill in details to generate</p>
+            <p className="text-[10px] text-muted-foreground">Isi detail untuk membuat dokumen</p>
           </div>
           <button onClick={() => setPanelCollapsed(true)} className="text-muted-foreground hover:text-foreground transition-colors">
             <ChevronLeft className="h-4 w-4" />

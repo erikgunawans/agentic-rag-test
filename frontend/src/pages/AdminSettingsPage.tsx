@@ -104,7 +104,7 @@ export function AdminSettingsPage() {
             <Shield className="h-4 w-4 text-amber-500" />
             <div>
               <h1 className="text-sm font-semibold">{t('admin.title')}</h1>
-              <p className="text-[10px] text-muted-foreground">System configuration</p>
+              <p className="text-[10px] text-muted-foreground">Konfigurasi sistem</p>
             </div>
           </div>
           <button onClick={() => setPanelCollapsed(true)} className="text-muted-foreground hover:text-foreground transition-colors">
