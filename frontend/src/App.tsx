@@ -10,6 +10,7 @@ import { DocumentCreationPage } from '@/pages/DocumentCreationPage'
 import { DocumentComparisonPage } from '@/pages/DocumentComparisonPage'
 import { ComplianceCheckPage } from '@/pages/ComplianceCheckPage'
 import { ContractAnalysisPage } from '@/pages/ContractAnalysisPage'
+import { AuditTrailPage } from '@/pages/AuditTrailPage'
 import { AuthGuard } from '@/components/auth/AuthGuard'
 import { AdminGuard } from '@/components/auth/AdminGuard'
 import { AppLayout } from '@/layouts/AppLayout'
@@ -41,6 +42,14 @@ export default function App() {
                 element={
                   <AdminGuard>
                     <AdminSettingsPage />
+                  </AdminGuard>
+                }
+              />
+              <Route
+                path="admin/audit"
+                element={
+                  <AdminGuard>
+                    <AuditTrailPage />
                   </AdminGuard>
                 }
               />

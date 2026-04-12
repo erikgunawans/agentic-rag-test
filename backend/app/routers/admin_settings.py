@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from app.dependencies import require_admin
+from app.services.audit_service import log_action
 from app.services.system_settings_service import (
     get_system_settings,
     update_system_settings,
@@ -36,4 +37,12 @@ async def patch_settings(
     updates = body.model_dump(exclude_none=True)
     if not updates:
         return get_system_settings()
-    return update_system_settings(updates)
+    result = update_system_settings(updates)
+    log_action(
+        user_id=user["id"],
+        user_email=user["email"],
+        action="update",
+        resource_type="system_settings",
+        details={"changed_fields": list(updates.keys())},
+    )
+    return result

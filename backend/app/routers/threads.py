@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from app.dependencies import get_current_user
 from app.database import get_supabase_client
+from app.services.audit_service import log_action
 from app.services.openai_service import OpenAIService
 
 router = APIRouter(prefix="/threads", tags=["threads"])
@@ -57,7 +58,15 @@ async def create_thread(
         )
         .execute()
     )
-    return result.data[0]
+    thread = result.data[0]
+    log_action(
+        user_id=user["id"],
+        user_email=user["email"],
+        action="create",
+        resource_type="thread",
+        resource_id=str(thread["id"]),
+    )
+    return thread
 
 
 @router.patch("/{thread_id}", response_model=ThreadResponse)
@@ -94,4 +103,11 @@ async def delete_thread(
     )
     if not result.data:
         raise HTTPException(status_code=404, detail="Thread not found")
+    log_action(
+        user_id=user["id"],
+        user_email=user["email"],
+        action="delete",
+        resource_type="thread",
+        resource_id=thread_id,
+    )
     return {"ok": True}
