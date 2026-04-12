@@ -77,7 +77,7 @@ export function MessageView({
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-4 p-4 overflow-y-auto">
+    <div className="flex-1 min-h-0 flex flex-col gap-4 p-4 overflow-y-auto">
       {messages.map((msg) => {
         const parentId = msg.parent_message_id ?? null
         const siblings = parentId ? childrenMap.get(parentId) : null

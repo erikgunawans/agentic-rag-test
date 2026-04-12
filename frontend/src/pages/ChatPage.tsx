@@ -25,7 +25,7 @@ export function ChatPage() {
   }
 
   return (
-    <>
+    <div className="flex flex-1 flex-col overflow-hidden">
       <MessageView
         messages={messages}
         allMessages={allMessages}
@@ -43,6 +43,6 @@ export function ChatPage() {
         forkParentId={forkParentId}
         onCancelFork={handleCancelFork}
       />
-    </>
+    </div>
   )
 }
