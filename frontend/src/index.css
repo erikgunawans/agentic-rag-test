@@ -123,6 +123,26 @@
   html {
     @apply font-sans;
     }
+
+  /* Dark scrollbars */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: oklch(0.25 0.015 260) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: oklch(0.25 0.015 260);
+    border-radius: 3px;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background: oklch(0.35 0.015 260);
+  }
 }
 
 /* 2026 Design — Utility classes */
