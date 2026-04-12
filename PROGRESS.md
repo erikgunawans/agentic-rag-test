@@ -410,3 +410,105 @@ Track your progress through the masterclass. Update this file as you complete mo
 | #3 | `feat/deploy` | Deploy backend (Railway) + frontend (Vercel) | Merged |
 | #4 | `feat/rbac-settings` | Module 9 — RBAC Settings Architecture | Merged |
 | #5 | `feat/ui-improvements` | Animated thinking indicator + collapsible thread groups | Merged |
+
+---
+
+## PJAA CLM Platform Upgrade
+
+Based on PJAA stakeholder survey (53 questions, 7 findings) — see `References/PJAA-Research-Synthesis-CLM-Compliance.docx.md`.
+Full gap analysis and specs: `.agent/plans/15.pjaa-clm-gap-analysis-specs.md`
+
+### Phase 1: Go-Live Foundation (Weeks 1-8)
+
+#### Feature 1: Audit Trail & Activity Logging ✅ COMPLETE
+
+- [x] Migration `supabase/migrations/011_audit_trail.sql` — `audit_logs` table with 4 indexes, RLS enabled (admin-only read)
+- [x] Backend `audit_service.py` — fire-and-forget `log_action()` function, service-role client
+- [x] Backend `audit_trail.py` router — `GET /admin/audit-logs` (paginated + filtered), CSV export, distinct actions
+- [x] Instrumented 4 existing routers (documents, document_tools, admin_settings, threads) with audit log calls
+- [x] Frontend `AuditTrailPage.tsx` — admin-only, date/action/resource filters, pagination, CSV export button
+- [x] Route at `/admin/audit`, nav link in SettingsPage (mobile + desktop)
+- [x] i18n: 17 keys in both Bahasa Indonesia and English
+- [x] Security hardening: RLS enabled on audit_logs (caught by adversarial review — was exposed via PostgREST)
+- **Commit**: `59a277a`, hardening fix: `ca60078`
+
+#### Feature 7: Bahasa Indonesia Full-Text Search ✅ COMPLETE
+
+- [x] Migration `supabase/migrations/010_bahasa_fts.sql` — FTS trigger + RPC switched from `'english'` to `'simple'` config
+- [x] Backfill existing document chunks with new config
+- [x] No backend/frontend changes needed — existing search automatically benefits
+- **Commit**: `59a277a`
+
+#### Feature 2: AI Confidence Scoring & HITL Gates ✅ COMPLETE
+
+- [x] Migration `supabase/migrations/012_confidence_hitl.sql` — `confidence_score`, `review_status`, `reviewed_by/at/notes` on `document_tool_results`; `confidence_threshold` on `system_settings`; RLS for admin review access
+- [x] All 4 Pydantic models updated with `confidence_score: float = 0.0`
+- [x] All 4 LLM system prompts request `confidence_score` in JSON response
+- [x] `_save_result` computes `review_status` based on configurable threshold (default 0.85)
+- [x] Review queue endpoints: `GET /document-tools/review-queue`, `PATCH /document-tools/review/{id}` with `ReviewAction` Pydantic model
+- [x] `get_result` endpoint updated — admins can view any user's results (for review)
+- [x] `ConfidenceBadge.tsx` component — percentage badge + review status badge
+- [x] Badges added to all 4 tool result pages (DocumentCreation, Comparison, Compliance, Analysis)
+- [x] `ReviewQueuePage.tsx` — filter by status, approve/reject with notes, audit logged
+- [x] `AdminSettingsPage.tsx` — HITL Gates section with threshold input + visual preview
+- [x] i18n: 22 keys in both Bahasa Indonesia and English
+- [x] Security hardening: `ReviewAction` Pydantic model (validates action, caps notes at 2000 chars), re-review guard (409 if not pending), `confidence_threshold` bounded to 0.0-1.0
+- **Commit**: `7c4b20e`, hardening fix: `ca60078`
+
+#### Feature 4: Obligation Lifecycle Tracker ✅ COMPLETE
+
+- [x] Migration `supabase/migrations/013_obligations.sql` — `obligations` table with 15 columns, RLS (4 policies), 3 indexes, `updated_at` trigger, `check_overdue_obligations()` RPC
+- [x] Backend `obligations.py` router — 7 endpoints: list (filtered), summary, create, extract from analysis, check-deadlines, update, soft-delete
+- [x] Frontend `ObligationsPage.tsx` — summary cards (5 statuses), filter tabs, obligations table with status badges, deadline formatting (relative), "Mark Complete" button
+- [x] "Import Obligations" button on `ContractAnalysisPage.tsx` — extracts obligations from analysis results into structured rows
+- [x] IconRail nav item (`ClipboardList` icon) + route at `/obligations`
+- [x] i18n: 23 keys in both Bahasa Indonesia and English
+- **Commit**: `d5ca1be`
+
+#### Feature 3: Enhanced Drafting Workbench — `[ ]` NOT STARTED
+
+- [ ] Clause library table + CRUD
+- [ ] Document templates table + CRUD
+- [ ] 7 doc types (add vendor, JV, property lease, employment, SOP/board resolution)
+- [ ] Per-clause risk scoring in generated documents
+
+#### Feature 5: Approval Workflow Engine — `[ ]` NOT STARTED
+
+- [ ] Workflow templates, approval requests, approval actions tables
+- [ ] Sequential/parallel approval chains
+- [ ] Mobile-first approval inbox (375px viewport)
+- [ ] "Submit for Approval" button on doc creation & compliance results
+
+#### Feature 6: MFA & Security Hardening — `[ ]` NOT STARTED
+
+- [ ] Supabase TOTP MFA enrollment + challenge
+- [ ] Admin user management (list, deactivate, reactivate)
+- [ ] User profiles table (department, is_active, last_login)
+
+### Phase 1 Summary
+
+| Feature | Status | Commit | Lines |
+|---------|--------|--------|-------|
+| F1: Audit Trail | ✅ Done | `59a277a` | +1,994 |
+| F7: Bahasa FTS | ✅ Done | `59a277a` | (included above) |
+| F2: Confidence & HITL | ✅ Done | `7c4b20e` | +553 |
+| Hardening (review fixes) | ✅ Done | `ca60078` | +30 |
+| F4: Obligation Tracker | ✅ Done | `d5ca1be` | +1,519 |
+| F3: Drafting Workbench | Not started | — | — |
+| F5: Approval Workflows | Not started | — | — |
+| F6: MFA & Security | Not started | — | — |
+
+**Phase 1 progress: 4 of 7 features complete** (F1, F2, F4, F7)
+
+### Phase 2: Enterprise Capabilities (Weeks 9-16) — NOT STARTED
+
+- [ ] F8: Regulatory Intelligence Engine
+- [ ] F9: WhatsApp Notifications
+- [ ] F10: Executive Dashboard
+- [ ] F11: Dokmee DMS Integration
+- [ ] F12: Google Workspace Export
+
+### Phase 3: Advanced Compliance (Months 5-6) — NOT STARTED
+
+- [ ] F13: Point-in-Time Compliance Querying
+- [ ] F14: UU PDP Compliance Toolkit
