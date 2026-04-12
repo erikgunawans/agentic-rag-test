@@ -97,8 +97,19 @@ export function DocumentsPage() {
     })
   }
 
+  function matchesTypeFilter(doc: Document, filter: DocFilter): boolean {
+    if (filter === 'all') return true
+    const name = doc.filename.toLowerCase()
+    const meta = doc.status === 'completed' ? doc.metadata : null
+    const tags = meta?.tags?.map((t) => t.toLowerCase()) ?? []
+    const category = meta?.category?.toLowerCase() ?? ''
+    const searchable = [name, category, ...tags].join(' ')
+    return searchable.includes(filter)
+  }
+
   const filtered = documents.filter((doc) => {
     if (!statusFilters.has(doc.status as StatusFilter)) return false
+    if (!matchesTypeFilter(doc, typeFilter)) return false
     if (searchQuery && !doc.filename.toLowerCase().includes(searchQuery.toLowerCase())) return false
     return true
   })
@@ -152,7 +163,7 @@ export function DocumentsPage() {
           {/* Type filters */}
           <div className="space-y-1">
             {TYPE_FILTERS.map(({ value, label }) => {
-              const count = value === 'all' ? documents.length : 0
+              const count = value === 'all' ? documents.length : documents.filter((d) => matchesTypeFilter(d, value)).length
               return (
                 <button
                   key={value}

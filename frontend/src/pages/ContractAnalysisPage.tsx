@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { Scale, X, Clock, CheckCircle, AlertTriangle, XCircle, Loader2 } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { Scale, ChevronLeft, ChevronRight, Clock, CheckCircle, AlertTriangle, XCircle, Loader2 } from 'lucide-react'
+import { useToolHistory, formatTimeAgo } from '@/hooks/useToolHistory'
 import { useI18n } from '@/i18n/I18nContext'
 import { Button } from '@/components/ui/button'
 import { DropZone } from '@/components/shared/DropZone'
@@ -35,15 +35,8 @@ interface AnalysisResult {
 
 const inputClass = "w-full rounded-lg border border-border bg-secondary text-foreground px-3 py-2 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
 
-interface RecentItem { id: string; title: string; depth: string; risk: string; time: string; status: 'low' | 'medium' | 'high' }
-const MOCK_RECENT: RecentItem[] = [
-  { id: '1', title: 'Kontrak-Kerja.pdf', depth: 'Deep', risk: 'High Risk', time: '2h ago', status: 'high' },
-  { id: '2', title: 'NDA-Final.docx', depth: 'Standard', risk: 'Low Risk', time: '1d ago', status: 'low' },
-  { id: '3', title: 'Perjanjian-Sewa.pdf', depth: 'Quick', risk: 'Medium Risk', time: '3d ago', status: 'medium' },
-  { id: '4', title: 'Lisensi-Software.docx', depth: 'Deep', risk: 'Low Risk', time: '1w ago', status: 'low' },
-]
-const STATUS_ICON = { low: CheckCircle, medium: AlertTriangle, high: XCircle }
-const STATUS_COLOR = { low: 'text-green-400', medium: 'text-amber-400', high: 'text-red-400' }
+const STATUS_ICON: Record<string, typeof CheckCircle> = { low: CheckCircle, medium: AlertTriangle, high: XCircle }
+const STATUS_COLOR: Record<string, string> = { low: 'text-green-400', medium: 'text-amber-400', high: 'text-red-400' }
 
 const RISK_STYLE: Record<string, { color: string; bg: string; label: string }> = {
   high: { color: 'text-red-400', bg: 'border-red-500/30 bg-red-500/5', label: 'HIGH RISK' },
@@ -53,7 +46,8 @@ const RISK_STYLE: Record<string, { color: string; bg: string; label: string }> =
 
 export function ContractAnalysisPage() {
   const { t } = useI18n()
-  const navigate = useNavigate()
+  const { history, reload: reloadHistory } = useToolHistory('analyze')
+  const [panelCollapsed, setPanelCollapsed] = useState(false)
   const [types, setTypes] = useState<Set<AnalysisType>>(new Set(['risk']))
   const [law, setLaw] = useState<Law>('indonesia')
   const [depth, setDepth] = useState<Depth>('standard')
@@ -62,6 +56,7 @@ export function ContractAnalysisPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<AnalysisResult | null>(null)
+  const [showErrors, setShowErrors] = useState(false)
 
   function toggleType(type: AnalysisType) {
     setTypes((prev) => {
@@ -90,6 +85,7 @@ export function ContractAnalysisPage() {
       })
       const data = await response.json()
       setResult(data)
+      reloadHistory()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Analysis failed')
     } finally {
@@ -100,14 +96,26 @@ export function ContractAnalysisPage() {
   return (
     <div className="flex h-full">
       {/* Column 2 -- Form (75%) + History (25%) */}
+      {panelCollapsed ? (
+        <div className="flex h-full w-[50px] shrink-0 flex-col items-center border-r border-border/50 py-4 gap-3">
+          <button
+            onClick={() => setPanelCollapsed(false)}
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+            title={t('analysis.title')}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+          <Scale className="h-4 w-4 text-muted-foreground" />
+        </div>
+      ) : (
       <div className="flex w-[340px] shrink-0 flex-col border-r border-border/50">
         <div className="flex items-center justify-between px-5 py-3 border-b border-border/50 shrink-0">
           <div>
             <h1 className="text-sm font-semibold">{t('analysis.title')}</h1>
             <p className="text-[10px] text-muted-foreground">Identify risks and key clauses</p>
           </div>
-          <button onClick={() => navigate('/')} className="text-muted-foreground hover:text-foreground transition-colors">
-            <X className="h-4 w-4" />
+          <button onClick={() => setPanelCollapsed(true)} className="text-muted-foreground hover:text-foreground transition-colors">
+            <ChevronLeft className="h-4 w-4" />
           </button>
         </div>
 
@@ -115,7 +123,10 @@ export function ContractAnalysisPage() {
           <div className="px-5 py-4 space-y-4">
             <div className="space-y-1.5">
               <label className="text-xs font-medium">{t('analysis.document')} <span className="text-red-400">*</span></label>
-              <DropZone onFileSelect={setFile} />
+              <div className={showErrors && !file ? 'rounded-lg border border-red-500/50' : ''}>
+                <DropZone onFileSelect={setFile} />
+              </div>
+              {showErrors && !file && <p className="text-[10px] text-red-400">Please upload a document</p>}
             </div>
 
             <div className="space-y-1.5">
@@ -167,10 +178,12 @@ export function ContractAnalysisPage() {
               <textarea className={`${inputClass} min-h-[80px] resize-none`} placeholder={t('analysis.context')} value={context} onChange={(e) => setContext(e.target.value)} />
             </div>
 
-            <Button className="w-full text-xs" disabled={loading || !file} onClick={handleRun}>
-              {loading ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <Scale className="mr-2 h-3.5 w-3.5" />}
-              {loading ? 'Analyzing...' : t('analysis.run')}
-            </Button>
+            <div onClick={() => { if (!file) setShowErrors(true) }}>
+              <Button className="w-full text-xs" disabled={loading || !file} onClick={handleRun}>
+                {loading ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <Scale className="mr-2 h-3.5 w-3.5" />}
+                {loading ? 'Analyzing...' : t('analysis.run')}
+              </Button>
+            </div>
 
             {error && <p className="text-xs text-red-400">{error}</p>}
           </div>
@@ -185,22 +198,27 @@ export function ContractAnalysisPage() {
             <span className="text-[10px] text-primary cursor-pointer hover:underline">View all &rarr;</span>
           </div>
           <div className="flex-1 overflow-y-auto min-h-0 px-3 pb-2 space-y-0.5">
-            {MOCK_RECENT.map((item) => {
-              const StatusIcon = STATUS_ICON[item.status]
+            {history.length === 0 ? (
+              <p className="text-[10px] text-muted-foreground px-2 py-3">No analyses yet</p>
+            ) : history.map((item) => {
+              const risk = (item.result as Record<string, string> | undefined)?.overall_risk ?? 'low'
+              const StatusIcon = STATUS_ICON[risk] ?? CheckCircle
+              const params = item.input_params as Record<string, string>
               return (
                 <div key={item.id} className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-muted/50 transition-colors cursor-pointer">
                   <Scale className="h-4 w-4 shrink-0 text-[var(--feature-analysis)]" />
                   <div className="flex-1 min-w-0">
                     <p className="text-[11px] font-medium truncate">{item.title}</p>
-                    <p className="text-[9px] text-muted-foreground">{item.depth} &middot; {item.risk} &middot; {item.time}</p>
+                    <p className="text-[9px] text-muted-foreground">{params.depth} &middot; {risk} risk &middot; {formatTimeAgo(item.created_at)}</p>
                   </div>
-                  <StatusIcon className={`h-3.5 w-3.5 shrink-0 ${STATUS_COLOR[item.status]}`} />
+                  <StatusIcon className={`h-3.5 w-3.5 shrink-0 ${STATUS_COLOR[risk] ?? 'text-green-400'}`} />
                 </div>
               )
             })}
           </div>
         </div>
       </div>
+      )}
 
       {/* Column 3 -- Results */}
       <div className="flex-1 flex flex-col overflow-y-auto">

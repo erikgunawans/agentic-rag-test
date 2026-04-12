@@ -66,6 +66,15 @@ export interface DocumentMetadata {
   summary: string
 }
 
+export interface DocumentToolResult {
+  id: string
+  tool_type: 'create' | 'compare' | 'compliance' | 'analyze'
+  title: string
+  input_params: Record<string, unknown>
+  result?: Record<string, unknown>
+  created_at: string
+}
+
 export interface Document {
   id: string
   user_id: string

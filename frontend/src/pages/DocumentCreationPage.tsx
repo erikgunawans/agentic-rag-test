@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { FilePlus, X, Clock, CheckCircle, Pencil, XCircle, Loader2 } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { FilePlus, ChevronLeft, ChevronRight, Clock, CheckCircle, XCircle, Loader2, FileText } from 'lucide-react'
+import { useToolHistory, formatTimeAgo } from '@/hooks/useToolHistory'
 import { useI18n } from '@/i18n/I18nContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -17,29 +17,33 @@ interface GeneratedDocument {
 }
 
 // --- Form field helper ---
-function FormField({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+function FormField({ label, required, error, children }: { label: string; required?: boolean; error?: boolean; children: React.ReactNode }) {
   return (
     <div className="space-y-1.5">
       <label className="text-xs font-medium">
         {label} {required && <span className="text-red-400">*</span>}
       </label>
       {children}
+      {error && <p className="text-[10px] text-red-400">This field is required</p>}
     </div>
   )
 }
 
-const inputClass = "w-full rounded-lg border border-border bg-secondary text-foreground px-3 py-2 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+const inputBase = "w-full rounded-lg bg-secondary text-foreground px-3 py-2 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+const inputClass = `${inputBase} border border-border`
+const inputErrorClass = `${inputBase} border border-red-500/50`
 const textareaClass = `${inputClass} min-h-[80px] resize-none`
+const textareaErrorClass = `${inputErrorClass} min-h-[80px] resize-none`
 
 // --- Dynamic form renderers ---
-function GenericForm({ fields, onChange }: { fields: Record<string, string>; onChange: (key: string, val: string) => void }) {
+function GenericForm({ fields, onChange, fieldErr }: { fields: Record<string, string>; onChange: (key: string, val: string) => void; fieldErr: (k: string) => boolean }) {
   return (
     <>
-      <FormField label="Please specify document type" required>
-        <input className={inputClass} placeholder="e.g., Independent Contractor Agreement" value={fields.document_type || ''} onChange={(e) => onChange('document_type', e.target.value)} />
+      <FormField label="Please specify document type" required error={fieldErr('document_type')}>
+        <input className={fieldErr('document_type') ? inputErrorClass : inputClass} placeholder="e.g., Independent Contractor Agreement" value={fields.document_type || ''} onChange={(e) => onChange('document_type', e.target.value)} />
       </FormField>
-      <FormField label="First Party" required>
-        <input className={inputClass} placeholder="e.g., Buyer: John Doe" value={fields.first_party || ''} onChange={(e) => onChange('first_party', e.target.value)} />
+      <FormField label="First Party" required error={fieldErr('first_party')}>
+        <input className={fieldErr('first_party') ? inputErrorClass : inputClass} placeholder="e.g., Buyer: John Doe" value={fields.first_party || ''} onChange={(e) => onChange('first_party', e.target.value)} />
       </FormField>
       <FormField label="Second Party">
         <input className={inputClass} placeholder="e.g., Seller: Jane Smith Inc." value={fields.second_party || ''} onChange={(e) => onChange('second_party', e.target.value)} />
@@ -60,27 +64,27 @@ function GenericForm({ fields, onChange }: { fields: Record<string, string>; onC
           </select>
         </FormField>
       </div>
-      <FormField label="Purpose of the document" required>
-        <textarea className={textareaClass} placeholder="e.g., To define terms for software development services" value={fields.purpose || ''} onChange={(e) => onChange('purpose', e.target.value)} />
+      <FormField label="Purpose of the document" required error={fieldErr('purpose')}>
+        <textarea className={fieldErr('purpose') ? textareaErrorClass : textareaClass} placeholder="e.g., To define terms for software development services" value={fields.purpose || ''} onChange={(e) => onChange('purpose', e.target.value)} />
       </FormField>
     </>
   )
 }
 
-function NDAForm({ fields, onChange }: { fields: Record<string, string>; onChange: (key: string, val: string) => void }) {
+function NDAForm({ fields, onChange, fieldErr }: { fields: Record<string, string>; onChange: (key: string, val: string) => void; fieldErr: (k: string) => boolean }) {
   return (
     <>
-      <FormField label="Disclosing Party" required>
-        <input className={inputClass} placeholder="e.g., Company A Inc." value={fields.disclosing_party || ''} onChange={(e) => onChange('disclosing_party', e.target.value)} />
+      <FormField label="Disclosing Party" required error={fieldErr('disclosing_party')}>
+        <input className={fieldErr('disclosing_party') ? inputErrorClass : inputClass} placeholder="e.g., Company A Inc." value={fields.disclosing_party || ''} onChange={(e) => onChange('disclosing_party', e.target.value)} />
       </FormField>
-      <FormField label="Receiving Party" required>
-        <input className={inputClass} placeholder="e.g., Consultant X LLC" value={fields.receiving_party || ''} onChange={(e) => onChange('receiving_party', e.target.value)} />
+      <FormField label="Receiving Party" required error={fieldErr('receiving_party')}>
+        <input className={fieldErr('receiving_party') ? inputErrorClass : inputClass} placeholder="e.g., Consultant X LLC" value={fields.receiving_party || ''} onChange={(e) => onChange('receiving_party', e.target.value)} />
       </FormField>
-      <FormField label="Purpose of Disclosure" required>
-        <textarea className={textareaClass} placeholder="e.g., Evaluation of potential business partnership" value={fields.purpose || ''} onChange={(e) => onChange('purpose', e.target.value)} />
+      <FormField label="Purpose of Disclosure" required error={fieldErr('purpose')}>
+        <textarea className={fieldErr('purpose') ? textareaErrorClass : textareaClass} placeholder="e.g., Evaluation of potential business partnership" value={fields.purpose || ''} onChange={(e) => onChange('purpose', e.target.value)} />
       </FormField>
-      <FormField label="Definition of Confidential Information" required>
-        <textarea className={textareaClass} value={fields.confidential_info || ''} onChange={(e) => onChange('confidential_info', e.target.value)} />
+      <FormField label="Definition of Confidential Information" required error={fieldErr('confidential_info')}>
+        <textarea className={fieldErr('confidential_info') ? textareaErrorClass : textareaClass} value={fields.confidential_info || ''} onChange={(e) => onChange('confidential_info', e.target.value)} />
       </FormField>
       <FormField label="Obligations of Receiving Party">
         <select className={inputClass} value={fields.obligations || ''} onChange={(e) => onChange('obligations', e.target.value)}>
@@ -89,14 +93,14 @@ function NDAForm({ fields, onChange }: { fields: Record<string, string>; onChang
           <option value="enhanced">Enhanced confidentiality obligations</option>
         </select>
       </FormField>
-      <FormField label="Term of Agreement" required>
-        <input className={inputClass} placeholder="e.g., 5 years from effective date, indefinite" value={fields.term || ''} onChange={(e) => onChange('term', e.target.value)} />
+      <FormField label="Term of Agreement" required error={fieldErr('term')}>
+        <input className={fieldErr('term') ? inputErrorClass : inputClass} placeholder="e.g., 5 years from effective date, indefinite" value={fields.term || ''} onChange={(e) => onChange('term', e.target.value)} />
       </FormField>
-      <FormField label="Return/Destruction of Confidential Information" required>
-        <input className={inputClass} placeholder="Upon termination or request" value={fields.return_destruction || ''} onChange={(e) => onChange('return_destruction', e.target.value)} />
+      <FormField label="Return/Destruction of Confidential Information" required error={fieldErr('return_destruction')}>
+        <input className={fieldErr('return_destruction') ? inputErrorClass : inputClass} placeholder="Upon termination or request" value={fields.return_destruction || ''} onChange={(e) => onChange('return_destruction', e.target.value)} />
       </FormField>
-      <FormField label="Governing Law" required>
-        <input className={inputClass} value={fields.governing_law || 'Indonesia'} onChange={(e) => onChange('governing_law', e.target.value)} />
+      <FormField label="Governing Law" required error={fieldErr('governing_law')}>
+        <input className={fieldErr('governing_law') ? inputErrorClass : inputClass} value={fields.governing_law || 'Indonesia'} onChange={(e) => onChange('governing_law', e.target.value)} />
       </FormField>
       <FormField label="Additional Notes or Specific Requirements">
         <textarea className={`${inputClass} min-h-[64px] resize-none`} value={fields.additional_notes || ''} onChange={(e) => onChange('additional_notes', e.target.value)} />
@@ -105,24 +109,24 @@ function NDAForm({ fields, onChange }: { fields: Record<string, string>; onChang
   )
 }
 
-function SalesServiceForm({ fields, onChange }: { fields: Record<string, string>; onChange: (key: string, val: string) => void }) {
+function SalesServiceForm({ fields, onChange, fieldErr }: { fields: Record<string, string>; onChange: (key: string, val: string) => void; fieldErr: (k: string) => boolean }) {
   return (
     <>
-      <FormField label="First Party" required>
-        <input className={inputClass} placeholder="e.g., Buyer: John Doe" value={fields.first_party || ''} onChange={(e) => onChange('first_party', e.target.value)} />
+      <FormField label="First Party" required error={fieldErr('first_party')}>
+        <input className={fieldErr('first_party') ? inputErrorClass : inputClass} placeholder="e.g., Buyer: John Doe" value={fields.first_party || ''} onChange={(e) => onChange('first_party', e.target.value)} />
       </FormField>
-      <FormField label="Second Party" required>
-        <input className={inputClass} placeholder="e.g., Seller: Jane Smith Inc." value={fields.second_party || ''} onChange={(e) => onChange('second_party', e.target.value)} />
+      <FormField label="Second Party" required error={fieldErr('second_party')}>
+        <input className={fieldErr('second_party') ? inputErrorClass : inputClass} placeholder="e.g., Seller: Jane Smith Inc." value={fields.second_party || ''} onChange={(e) => onChange('second_party', e.target.value)} />
       </FormField>
-      <FormField label="Effective Date" required>
-        <Input type="date" className="text-xs bg-secondary" value={fields.effective_date || ''} onChange={(e) => onChange('effective_date', e.target.value)} />
+      <FormField label="Effective Date" required error={fieldErr('effective_date')}>
+        <Input type="date" className={`text-xs bg-secondary ${fieldErr('effective_date') ? 'border-red-500/50' : ''}`} value={fields.effective_date || ''} onChange={(e) => onChange('effective_date', e.target.value)} />
       </FormField>
       <div className="grid grid-cols-[1fr_1fr] gap-2.5">
-        <FormField label="Duration Count" required>
-          <input type="number" className={inputClass} placeholder="e.g., 1" value={fields.duration_count || ''} onChange={(e) => onChange('duration_count', e.target.value)} />
+        <FormField label="Duration Count" required error={fieldErr('duration_count')}>
+          <input type="number" className={fieldErr('duration_count') ? inputErrorClass : inputClass} placeholder="e.g., 1" value={fields.duration_count || ''} onChange={(e) => onChange('duration_count', e.target.value)} />
         </FormField>
-        <FormField label="Duration Unit" required>
-          <select className={inputClass} value={fields.duration_unit || ''} onChange={(e) => onChange('duration_unit', e.target.value)}>
+        <FormField label="Duration Unit" required error={fieldErr('duration_unit')}>
+          <select className={fieldErr('duration_unit') ? inputErrorClass : inputClass} value={fields.duration_unit || ''} onChange={(e) => onChange('duration_unit', e.target.value)}>
             <option value="">Select an option</option>
             <option value="days">Days</option>
             <option value="months">Months</option>
@@ -130,20 +134,20 @@ function SalesServiceForm({ fields, onChange }: { fields: Record<string, string>
           </select>
         </FormField>
       </div>
-      <FormField label="Purpose of the document" required>
-        <textarea className={textareaClass} value={fields.purpose || ''} onChange={(e) => onChange('purpose', e.target.value)} />
+      <FormField label="Purpose of the document" required error={fieldErr('purpose')}>
+        <textarea className={fieldErr('purpose') ? textareaErrorClass : textareaClass} value={fields.purpose || ''} onChange={(e) => onChange('purpose', e.target.value)} />
       </FormField>
-      <FormField label="Scope of Work" required>
-        <textarea className={textareaClass} value={fields.scope_of_work || ''} onChange={(e) => onChange('scope_of_work', e.target.value)} />
+      <FormField label="Scope of Work" required error={fieldErr('scope_of_work')}>
+        <textarea className={fieldErr('scope_of_work') ? textareaErrorClass : textareaClass} value={fields.scope_of_work || ''} onChange={(e) => onChange('scope_of_work', e.target.value)} />
       </FormField>
-      <FormField label="Deliverables" required>
-        <textarea className={textareaClass} value={fields.deliverables || ''} onChange={(e) => onChange('deliverables', e.target.value)} />
+      <FormField label="Deliverables" required error={fieldErr('deliverables')}>
+        <textarea className={fieldErr('deliverables') ? textareaErrorClass : textareaClass} value={fields.deliverables || ''} onChange={(e) => onChange('deliverables', e.target.value)} />
       </FormField>
       <FormField label="Payment Terms (Optional)">
         <input className={inputClass} value={fields.payment_terms || ''} onChange={(e) => onChange('payment_terms', e.target.value)} />
       </FormField>
-      <FormField label="Governing Law" required>
-        <input className={inputClass} value={fields.governing_law || 'Indonesia'} onChange={(e) => onChange('governing_law', e.target.value)} />
+      <FormField label="Governing Law" required error={fieldErr('governing_law')}>
+        <input className={fieldErr('governing_law') ? inputErrorClass : inputClass} value={fields.governing_law || 'Indonesia'} onChange={(e) => onChange('governing_law', e.target.value)} />
       </FormField>
       <FormField label="Additional Notes or Specific Requirements">
         <textarea className={`${inputClass} min-h-[64px] resize-none`} value={fields.additional_notes || ''} onChange={(e) => onChange('additional_notes', e.target.value)} />
@@ -152,34 +156,13 @@ function SalesServiceForm({ fields, onChange }: { fields: Record<string, string>
   )
 }
 
-// --- Recent documents data ---
-interface RecentDoc {
-  id: string
-  title: string
-  type: string
-  time: string
-  status: 'done' | 'draft' | 'failed'
-  fileExt: 'pdf' | 'docx'
-}
-
-const MOCK_RECENT: RecentDoc[] = [
-  { id: '1', title: 'NDA_Kerahasiaan_PT_Marina.pdf', type: 'NDA', time: 'Just now', status: 'done', fileExt: 'pdf' },
-  { id: '2', title: 'Kontrak_Distribusi_Q1.docx', type: 'Sales', time: '2h ago', status: 'done', fileExt: 'docx' },
-  { id: '3', title: 'Service_Agreement_Draft.docx', type: 'Service', time: 'Yesterday', status: 'draft', fileExt: 'docx' },
-  { id: '4', title: 'Generic_Compliance_Report.pdf', type: 'Generic', time: '2d ago', status: 'done', fileExt: 'pdf' },
-  { id: '5', title: 'NDA_Proyek_Ekspansi.docx', type: 'NDA', time: '3d ago', status: 'done', fileExt: 'docx' },
-  { id: '6', title: 'Sales_Contract_Retail.pdf', type: 'Sales', time: '4d ago', status: 'failed', fileExt: 'pdf' },
-  { id: '7', title: 'Perjanjian_Lisensi_SW.docx', type: 'Generic', time: '5d ago', status: 'done', fileExt: 'docx' },
-]
-
-const STATUS_ICON = { done: CheckCircle, draft: Pencil, failed: XCircle }
-const STATUS_COLOR = { done: 'text-green-400', draft: 'text-muted-foreground', failed: 'text-red-400' }
-const FILE_COLOR = { pdf: 'bg-red-500/15 text-red-400', docx: 'bg-cyan-500/15 text-cyan-400' }
+// --- Recent documents ---
 
 // --- Main page ---
 export function DocumentCreationPage() {
   const { t } = useI18n()
-  const navigate = useNavigate()
+  const { history, reload: reloadHistory } = useToolHistory('create')
+  const [panelCollapsed, setPanelCollapsed] = useState(false)
   const [docType, setDocType] = useState<DocType>('generic')
   const [outputLang, setOutputLang] = useState<'both' | 'indonesian'>('both')
   const [fields, setFields] = useState<Record<string, string>>({})
@@ -188,6 +171,7 @@ export function DocumentCreationPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<GeneratedDocument | null>(null)
+  const [showErrors, setShowErrors] = useState(false)
 
   function updateField(key: string, value: string) {
     setFields((prev) => ({ ...prev, [key]: value }))
@@ -196,6 +180,7 @@ export function DocumentCreationPage() {
   function handleDocTypeChange(newType: DocType) {
     setDocType(newType)
     setFields({})
+    setShowErrors(false)
   }
 
   async function handleGenerate() {
@@ -215,6 +200,7 @@ export function DocumentCreationPage() {
       })
       const data = await response.json()
       setResult(data)
+      reloadHistory()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to generate document')
     } finally {
@@ -229,12 +215,27 @@ export function DocumentCreationPage() {
     service: ['first_party', 'second_party', 'effective_date', 'duration_count', 'duration_unit', 'purpose', 'scope_of_work', 'deliverables', 'governing_law'],
   }
   const canGenerate = !loading && REQUIRED_FIELDS[docType].every((key) => fields[key]?.trim())
+  function fieldErr(key: string): boolean {
+    return showErrors && REQUIRED_FIELDS[docType].includes(key) && !fields[key]?.trim()
+  }
 
   const generateLabel = docType === 'nda' ? 'Generate NDA' : 'Generate Draft'
 
   return (
     <div className="flex h-full">
       {/* Column 2 -- Form (top 75%) + History (bottom 25%) */}
+      {panelCollapsed ? (
+        <div className="flex h-full w-[50px] shrink-0 flex-col items-center border-r border-border/50 py-4 gap-3">
+          <button
+            onClick={() => setPanelCollapsed(false)}
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+            title={t('create.title')}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+          <FilePlus className="h-4 w-4 text-muted-foreground" />
+        </div>
+      ) : (
       <div className="flex w-[340px] shrink-0 flex-col border-r border-border/50">
 
         {/* Header -- fixed */}
@@ -243,8 +244,8 @@ export function DocumentCreationPage() {
             <h1 className="text-sm font-semibold">{t('create.title')}</h1>
             <p className="text-[10px] text-muted-foreground">Fill in details to generate</p>
           </div>
-          <button onClick={() => navigate('/')} className="text-muted-foreground hover:text-foreground transition-colors">
-            <X className="h-4 w-4" />
+          <button onClick={() => setPanelCollapsed(true)} className="text-muted-foreground hover:text-foreground transition-colors">
+            <ChevronLeft className="h-4 w-4" />
           </button>
         </div>
 
@@ -266,9 +267,9 @@ export function DocumentCreationPage() {
               </FormField>
 
               {/* Dynamic fields per type */}
-              {docType === 'generic' && <GenericForm fields={fields} onChange={updateField} />}
-              {docType === 'nda' && <NDAForm fields={fields} onChange={updateField} />}
-              {(docType === 'sales' || docType === 'service') && <SalesServiceForm fields={fields} onChange={updateField} />}
+              {docType === 'generic' && <GenericForm fields={fields} onChange={updateField} fieldErr={fieldErr} />}
+              {docType === 'nda' && <NDAForm fields={fields} onChange={updateField} fieldErr={fieldErr} />}
+              {(docType === 'sales' || docType === 'service') && <SalesServiceForm fields={fields} onChange={updateField} fieldErr={fieldErr} />}
 
               {/* Output Language */}
               <div className="space-y-2.5 pt-2">
@@ -299,10 +300,15 @@ export function DocumentCreationPage() {
               </FormField>
 
               {/* Generate button */}
-              <Button className="w-full text-xs" disabled={!canGenerate} onClick={handleGenerate}>
-                {loading ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <FilePlus className="mr-2 h-3.5 w-3.5" />}
-                {loading ? 'Generating...' : generateLabel}
-              </Button>
+              <div onClick={() => { if (!canGenerate) setShowErrors(true) }}>
+                <Button className="w-full text-xs" disabled={!canGenerate} onClick={handleGenerate}>
+                  {loading ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <FilePlus className="mr-2 h-3.5 w-3.5" />}
+                  {loading ? 'Generating...' : generateLabel}
+                </Button>
+              </div>
+              {showErrors && !canGenerate && (
+                <p className="text-[10px] text-red-400">Please fill in all required fields marked with *</p>
+              )}
 
               {error && <p className="text-xs text-red-400">{error}</p>}
             </div>
@@ -319,27 +325,25 @@ export function DocumentCreationPage() {
           </div>
           <div className="flex-1 overflow-y-auto min-h-0">
             <div className="px-3 pb-2 space-y-0.5">
-              {MOCK_RECENT.map((doc) => {
-                const StatusIcon = STATUS_ICON[doc.status]
-                return (
-                  <div key={doc.id} className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-muted/50 transition-colors cursor-pointer">
-                    <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded text-[7px] font-bold ${FILE_COLOR[doc.fileExt]}`}>
-                      {doc.fileExt.toUpperCase()}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[11px] font-medium truncate">{doc.title}</p>
-                      <p className="text-[9px] text-muted-foreground">
-                        <span className="text-primary/70">{doc.type}</span> &middot; {doc.time}
-                      </p>
-                    </div>
-                    <StatusIcon className={`h-3.5 w-3.5 shrink-0 ${STATUS_COLOR[doc.status]}`} />
+              {history.length === 0 ? (
+                <p className="text-[10px] text-muted-foreground px-2 py-3">No documents generated yet</p>
+              ) : history.map((item) => (
+                <div key={item.id} className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-muted/50 transition-colors cursor-pointer">
+                  <FileText className="h-4 w-4 shrink-0 text-primary/70" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[11px] font-medium truncate">{item.title}</p>
+                    <p className="text-[9px] text-muted-foreground">
+                      <span className="text-primary/70">{(item.input_params as Record<string, string>).doc_type}</span> &middot; {formatTimeAgo(item.created_at)}
+                    </p>
                   </div>
-                )
-              })}
+                  <CheckCircle className="h-3.5 w-3.5 shrink-0 text-green-400" />
+                </div>
+              ))}
             </div>
           </div>
         </div>
       </div>
+      )}
 
       {/* Column 3 -- Preview / results */}
       <div className="flex-1 flex flex-col overflow-y-auto">

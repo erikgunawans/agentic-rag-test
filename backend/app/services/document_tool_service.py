@@ -112,10 +112,10 @@ async def create_document(
     system_prompt = f"""You are a professional legal document drafting assistant specializing in Indonesian and international law.
 Generate a complete, professional {doc_type} document based on the provided parameters.
 {lang_instruction}
-Return JSON with keys: title, content, summary.
-- title: A professional document title
-- content: The full document text with proper legal formatting, numbered sections, and clauses
-- summary: A 1-2 sentence summary of the document"""
+Return JSON with exactly these keys: title, content, summary.
+- title: (string) A professional document title
+- content: (string) The full document text as a single string with proper legal formatting, numbered sections, and clauses. If bilingual, include both languages in one string separated by section headers.
+- summary: (string) A 1-2 sentence summary of the document"""
 
     user_parts = [f"Document Type: {doc_type}", "Parameters:"]
     for key, value in fields.items():
@@ -128,6 +128,10 @@ Return JSON with keys: title, content, summary.
         user_parts.append(f"\nTemplate Document:\n{template_text[:20000]}")
 
     data = await _llm_json(system_prompt, "\n".join(user_parts))
+    # Handle case where LLM returns content as dict (e.g. {"English": "...", "Indonesian": "..."})
+    if isinstance(data.get("content"), dict):
+        parts = [f"--- {lang} ---\n{text}" for lang, text in data["content"].items()]
+        data["content"] = "\n\n".join(parts)
     return GeneratedDocument(**data)
 
 

@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { ShieldCheck, X, Clock, CheckCircle, ShieldAlert, ShieldX, Loader2 } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { ShieldCheck, ChevronLeft, ChevronRight, Clock, CheckCircle, ShieldAlert, ShieldX, Loader2 } from 'lucide-react'
+import { useToolHistory, formatTimeAgo } from '@/hooks/useToolHistory'
 import { useI18n } from '@/i18n/I18nContext'
 import { Button } from '@/components/ui/button'
 import { DropZone } from '@/components/shared/DropZone'
@@ -26,15 +26,8 @@ interface ComplianceResult {
 
 const inputClass = "w-full rounded-lg border border-border bg-secondary text-foreground px-3 py-2 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
 
-interface RecentItem { id: string; title: string; framework: string; time: string; status: 'pass' | 'review' | 'fail' }
-const MOCK_RECENT: RecentItem[] = [
-  { id: '1', title: 'Kontrak-Layanan.pdf', framework: 'OJK', time: '3h ago', status: 'pass' },
-  { id: '2', title: 'NDA-Draft.docx', framework: 'GDPR', time: '1d ago', status: 'review' },
-  { id: '3', title: 'Employment-Contract.pdf', framework: 'International', time: '4d ago', status: 'fail' },
-  { id: '4', title: 'Perjanjian-Sewa.pdf', framework: 'OJK', time: '1w ago', status: 'pass' },
-]
-const STATUS_ICON = { pass: CheckCircle, review: ShieldAlert, fail: ShieldX }
-const STATUS_COLOR = { pass: 'text-green-400', review: 'text-amber-400', fail: 'text-red-400' }
+const STATUS_ICON: Record<string, typeof CheckCircle> = { pass: CheckCircle, review: ShieldAlert, fail: ShieldX }
+const STATUS_COLOR: Record<string, string> = { pass: 'text-green-400', review: 'text-amber-400', fail: 'text-red-400' }
 
 const FINDING_STYLE: Record<string, { color: string; bg: string }> = {
   pass: { color: 'text-green-400', bg: 'border-green-500/30 bg-green-500/5' },
@@ -50,7 +43,8 @@ const OVERALL_STYLE: Record<string, { label: string; color: string; bg: string }
 
 export function ComplianceCheckPage() {
   const { t } = useI18n()
-  const navigate = useNavigate()
+  const { history, reload: reloadHistory } = useToolHistory('compliance')
+  const [panelCollapsed, setPanelCollapsed] = useState(false)
   const [framework, setFramework] = useState<Framework>('ojk')
   const [scopes, setScopes] = useState<Set<Scope>>(new Set(['legal']))
   const [file, setFile] = useState<File | null>(null)
@@ -58,6 +52,7 @@ export function ComplianceCheckPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<ComplianceResult | null>(null)
+  const [showErrors, setShowErrors] = useState(false)
 
   function toggleScope(scope: Scope) {
     setScopes((prev) => {
@@ -85,6 +80,7 @@ export function ComplianceCheckPage() {
       })
       const data = await response.json()
       setResult(data)
+      reloadHistory()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Compliance check failed')
     } finally {
@@ -95,14 +91,26 @@ export function ComplianceCheckPage() {
   return (
     <div className="flex h-full">
       {/* Column 2 -- Form (75%) + History (25%) */}
+      {panelCollapsed ? (
+        <div className="flex h-full w-[50px] shrink-0 flex-col items-center border-r border-border/50 py-4 gap-3">
+          <button
+            onClick={() => setPanelCollapsed(false)}
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+            title={t('compliance.title')}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+          <ShieldCheck className="h-4 w-4 text-muted-foreground" />
+        </div>
+      ) : (
       <div className="flex w-[340px] shrink-0 flex-col border-r border-border/50">
         <div className="flex items-center justify-between px-5 py-3 border-b border-border/50 shrink-0">
           <div>
             <h1 className="text-sm font-semibold">{t('compliance.title')}</h1>
             <p className="text-[10px] text-muted-foreground">Check regulatory compliance</p>
           </div>
-          <button onClick={() => navigate('/')} className="text-muted-foreground hover:text-foreground transition-colors">
-            <X className="h-4 w-4" />
+          <button onClick={() => setPanelCollapsed(true)} className="text-muted-foreground hover:text-foreground transition-colors">
+            <ChevronLeft className="h-4 w-4" />
           </button>
         </div>
 
@@ -110,7 +118,10 @@ export function ComplianceCheckPage() {
           <div className="px-5 py-4 space-y-4">
             <div className="space-y-1.5">
               <label className="text-xs font-medium">{t('compliance.document')} <span className="text-red-400">*</span></label>
-              <DropZone onFileSelect={setFile} />
+              <div className={showErrors && !file ? 'rounded-lg border border-red-500/50' : ''}>
+                <DropZone onFileSelect={setFile} />
+              </div>
+              {showErrors && !file && <p className="text-[10px] text-red-400">Please upload a document</p>}
             </div>
 
             <div className="space-y-1.5">
@@ -145,10 +156,12 @@ export function ComplianceCheckPage() {
               <textarea className={`${inputClass} min-h-[80px] resize-none`} placeholder={t('compliance.context')} value={context} onChange={(e) => setContext(e.target.value)} />
             </div>
 
-            <Button className="w-full text-xs" disabled={loading || !file} onClick={handleRun}>
-              {loading ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="mr-2 h-3.5 w-3.5" />}
-              {loading ? 'Checking...' : t('compliance.run')}
-            </Button>
+            <div onClick={() => { if (!file) setShowErrors(true) }}>
+              <Button className="w-full text-xs" disabled={loading || !file} onClick={handleRun}>
+                {loading ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="mr-2 h-3.5 w-3.5" />}
+                {loading ? 'Checking...' : t('compliance.run')}
+              </Button>
+            </div>
 
             {error && <p className="text-xs text-red-400">{error}</p>}
           </div>
@@ -163,22 +176,26 @@ export function ComplianceCheckPage() {
             <span className="text-[10px] text-primary cursor-pointer hover:underline">View all &rarr;</span>
           </div>
           <div className="flex-1 overflow-y-auto min-h-0 px-3 pb-2 space-y-0.5">
-            {MOCK_RECENT.map((item) => {
-              const StatusIcon = STATUS_ICON[item.status]
+            {history.length === 0 ? (
+              <p className="text-[10px] text-muted-foreground px-2 py-3">No checks yet</p>
+            ) : history.map((item) => {
+              const status = (item.result as Record<string, string> | undefined)?.overall_status ?? 'pass'
+              const StatusIcon = STATUS_ICON[status] ?? CheckCircle
               return (
                 <div key={item.id} className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-muted/50 transition-colors cursor-pointer">
                   <ShieldCheck className="h-4 w-4 shrink-0 text-[var(--feature-compliance)]" />
                   <div className="flex-1 min-w-0">
                     <p className="text-[11px] font-medium truncate">{item.title}</p>
-                    <p className="text-[9px] text-muted-foreground">{item.framework} &middot; {item.time}</p>
+                    <p className="text-[9px] text-muted-foreground">{(item.input_params as Record<string, string>).framework} &middot; {formatTimeAgo(item.created_at)}</p>
                   </div>
-                  <StatusIcon className={`h-3.5 w-3.5 shrink-0 ${STATUS_COLOR[item.status]}`} />
+                  <StatusIcon className={`h-3.5 w-3.5 shrink-0 ${STATUS_COLOR[status] ?? 'text-green-400'}`} />
                 </div>
               )
             })}
           </div>
         </div>
       </div>
+      )}
 
       {/* Column 3 -- Results */}
       <div className="flex-1 flex flex-col overflow-y-auto">

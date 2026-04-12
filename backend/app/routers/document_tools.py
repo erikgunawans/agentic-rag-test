@@ -1,7 +1,8 @@
 import json
 import logging
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form
 from app.dependencies import get_current_user
+from app.database import get_supabase_authed_client
 from app.services.document_tool_service import (
     create_document,
     compare_documents,
@@ -13,6 +14,19 @@ from app.services.document_tool_service import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/document-tools", tags=["document-tools"])
+
+
+def _save_result(user: dict, tool_type: str, title: str, input_params: dict, result: dict) -> str:
+    """Save a document tool result and return its ID."""
+    client = get_supabase_authed_client(user["token"])
+    row = client.table("document_tool_results").insert({
+        "user_id": user["id"],
+        "tool_type": tool_type,
+        "title": title,
+        "input_params": input_params,
+        "result": result,
+    }).execute()
+    return row.data[0]["id"]
 
 ALLOWED_MIME_TYPES = {
     "application/pdf",
@@ -36,6 +50,34 @@ def _validate_file(file_bytes: bytes, content_type: str | None) -> None:
         raise HTTPException(status_code=400, detail="File exceeds 50 MB limit.")
     if not file_bytes:
         raise HTTPException(status_code=400, detail="Empty file.")
+
+
+@router.get("/history")
+async def get_history(
+    tool_type: str | None = Query(None),
+    limit: int = Query(10, ge=1, le=50),
+    user: dict = Depends(get_current_user),
+):
+    """Get recent document tool results for the current user."""
+    client = get_supabase_authed_client(user["token"])
+    query = client.table("document_tool_results").select(
+        "id, tool_type, title, input_params, created_at"
+    ).eq("user_id", user["id"]).order("created_at", desc=True).limit(limit)
+    if tool_type:
+        query = query.eq("tool_type", tool_type)
+    return query.execute().data
+
+
+@router.get("/history/{result_id}")
+async def get_result(result_id: str, user: dict = Depends(get_current_user)):
+    """Get a specific document tool result."""
+    client = get_supabase_authed_client(user["token"])
+    rows = client.table("document_tool_results").select("*").eq(
+        "id", result_id
+    ).eq("user_id", user["id"]).execute().data
+    if not rows:
+        raise HTTPException(status_code=404, detail="Result not found")
+    return rows[0]
 
 
 @router.post("/create")
@@ -71,7 +113,9 @@ async def create_document_endpoint(
         reference_text=reference_text,
         template_text=template_text,
     )
-    return result.model_dump()
+    data = result.model_dump()
+    _save_result(user, "create", data["title"], {"doc_type": doc_type, "output_language": output_language}, data)
+    return data
 
 
 @router.post("/compare")
@@ -96,7 +140,10 @@ async def compare_documents_endpoint(
         focus=focus,
         context=context or None,
     )
-    return result.model_dump()
+    data = result.model_dump()
+    title = f"{doc_a.filename} vs {doc_b.filename}"
+    _save_result(user, "compare", title, {"focus": focus}, data)
+    return data
 
 
 @router.post("/compliance")
@@ -119,7 +166,9 @@ async def check_compliance_endpoint(
         scopes=scope_list,
         context=context or None,
     )
-    return result.model_dump()
+    data = result.model_dump()
+    _save_result(user, "compliance", document.filename or "Compliance Check", {"framework": framework, "scopes": scope_list}, data)
+    return data
 
 
 @router.post("/analyze")
@@ -144,4 +193,6 @@ async def analyze_contract_endpoint(
         depth=depth,
         context=context or None,
     )
-    return result.model_dump()
+    data = result.model_dump()
+    _save_result(user, "analyze", document.filename or "Contract Analysis", {"analysis_types": type_list, "law": law, "depth": depth}, data)
+    return data

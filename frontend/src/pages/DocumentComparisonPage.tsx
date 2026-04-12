@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { GitCompare, ArrowLeftRight, X, Clock, CheckCircle, Pencil, XCircle, Loader2, AlertTriangle } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { GitCompare, ArrowLeftRight, ChevronLeft, ChevronRight, Clock, CheckCircle, Loader2, AlertTriangle } from 'lucide-react'
+import { useToolHistory, formatTimeAgo } from '@/hooks/useToolHistory'
 import { useI18n } from '@/i18n/I18nContext'
 import { Button } from '@/components/ui/button'
 import { DropZone } from '@/components/shared/DropZone'
@@ -25,15 +25,6 @@ interface ComparisonResult {
 
 const inputClass = "w-full rounded-lg border border-border bg-secondary text-foreground px-3 py-2 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
 
-interface RecentItem { id: string; title: string; depth: string; time: string; status: 'done' | 'running' | 'failed' }
-const MOCK_RECENT: RecentItem[] = [
-  { id: '1', title: 'NDA v1 vs NDA v2', depth: 'Full', time: '1h ago', status: 'done' },
-  { id: '2', title: 'Kontrak A vs Kontrak B', depth: 'Clauses', time: '2d ago', status: 'done' },
-  { id: '3', title: 'Draft vs Final', depth: 'Risk', time: '5d ago', status: 'running' },
-  { id: '4', title: 'Service v1 vs v2', depth: 'Full', time: '1w ago', status: 'done' },
-]
-const STATUS_ICON = { done: CheckCircle, running: Pencil, failed: XCircle }
-const STATUS_COLOR = { done: 'text-green-400', running: 'text-amber-400', failed: 'text-red-400' }
 
 const SIG_STYLE: Record<string, { icon: typeof AlertTriangle; color: string; bg: string }> = {
   high: { icon: XCircle, color: 'text-red-400', bg: 'border-red-500/30 bg-red-500/5' },
@@ -43,7 +34,8 @@ const SIG_STYLE: Record<string, { icon: typeof AlertTriangle; color: string; bg:
 
 export function DocumentComparisonPage() {
   const { t } = useI18n()
-  const navigate = useNavigate()
+  const { history, reload: reloadHistory } = useToolHistory('compare')
+  const [panelCollapsed, setPanelCollapsed] = useState(false)
   const [focus, setFocus] = useState<ComparisonFocus>('full')
   const [docA, setDocA] = useState<File | null>(null)
   const [docB, setDocB] = useState<File | null>(null)
@@ -51,6 +43,7 @@ export function DocumentComparisonPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<ComparisonResult | null>(null)
+  const [showErrors, setShowErrors] = useState(false)
 
   async function handleCompare() {
     if (!docA || !docB) return
@@ -69,6 +62,7 @@ export function DocumentComparisonPage() {
       })
       const data = await response.json()
       setResult(data)
+      reloadHistory()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Comparison failed')
     } finally {
@@ -79,14 +73,26 @@ export function DocumentComparisonPage() {
   return (
     <div className="flex h-full">
       {/* Column 2 -- Form (75%) + History (25%) */}
+      {panelCollapsed ? (
+        <div className="flex h-full w-[50px] shrink-0 flex-col items-center border-r border-border/50 py-4 gap-3">
+          <button
+            onClick={() => setPanelCollapsed(false)}
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+            title={t('compare.title')}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+          <GitCompare className="h-4 w-4 text-muted-foreground" />
+        </div>
+      ) : (
       <div className="flex w-[340px] shrink-0 flex-col border-r border-border/50">
         <div className="flex items-center justify-between px-5 py-3 border-b border-border/50 shrink-0">
           <div>
             <h1 className="text-sm font-semibold">{t('compare.title')}</h1>
             <p className="text-[10px] text-muted-foreground">Upload two documents to compare</p>
           </div>
-          <button onClick={() => navigate('/')} className="text-muted-foreground hover:text-foreground transition-colors">
-            <X className="h-4 w-4" />
+          <button onClick={() => setPanelCollapsed(true)} className="text-muted-foreground hover:text-foreground transition-colors">
+            <ChevronLeft className="h-4 w-4" />
           </button>
         </div>
 
@@ -94,7 +100,10 @@ export function DocumentComparisonPage() {
           <div className="px-5 py-4 space-y-4">
             <div className="space-y-1.5">
               <label className="text-xs font-medium">{t('compare.doc1')} <span className="text-red-400">*</span></label>
-              <DropZone label={t('compare.doc1')} onFileSelect={setDocA} />
+              <div className={showErrors && !docA ? 'rounded-lg border border-red-500/50' : ''}>
+                <DropZone label={t('compare.doc1')} onFileSelect={setDocA} />
+              </div>
+              {showErrors && !docA && <p className="text-[10px] text-red-400">Please upload a document</p>}
             </div>
 
             <div className="flex justify-center">
@@ -105,7 +114,10 @@ export function DocumentComparisonPage() {
 
             <div className="space-y-1.5">
               <label className="text-xs font-medium">{t('compare.doc2')} <span className="text-red-400">*</span></label>
-              <DropZone label={t('compare.doc2')} onFileSelect={setDocB} />
+              <div className={showErrors && !docB ? 'rounded-lg border border-red-500/50' : ''}>
+                <DropZone label={t('compare.doc2')} onFileSelect={setDocB} />
+              </div>
+              {showErrors && !docB && <p className="text-[10px] text-red-400">Please upload a document</p>}
             </div>
 
             <div className="space-y-1.5 pt-2">
@@ -130,10 +142,15 @@ export function DocumentComparisonPage() {
               <textarea className={`${inputClass} min-h-[64px] resize-none`} placeholder="Any specific areas to focus on..." value={context} onChange={(e) => setContext(e.target.value)} />
             </div>
 
-            <Button className="w-full text-xs" disabled={loading || !docA || !docB} onClick={handleCompare}>
-              {loading ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <GitCompare className="mr-2 h-3.5 w-3.5" />}
-              {loading ? 'Comparing...' : t('compare.generate')}
-            </Button>
+            <div onClick={() => { if (!docA || !docB) setShowErrors(true) }}>
+              <Button className="w-full text-xs" disabled={loading || !docA || !docB} onClick={handleCompare}>
+                {loading ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <GitCompare className="mr-2 h-3.5 w-3.5" />}
+                {loading ? 'Comparing...' : t('compare.generate')}
+              </Button>
+            </div>
+            {showErrors && (!docA || !docB) && (
+              <p className="text-[10px] text-red-400">Please upload both documents to compare</p>
+            )}
 
             {error && <p className="text-xs text-red-400">{error}</p>}
           </div>
@@ -148,22 +165,22 @@ export function DocumentComparisonPage() {
             <span className="text-[10px] text-primary cursor-pointer hover:underline">View all &rarr;</span>
           </div>
           <div className="flex-1 overflow-y-auto min-h-0 px-3 pb-2 space-y-0.5">
-            {MOCK_RECENT.map((item) => {
-              const StatusIcon = STATUS_ICON[item.status]
-              return (
-                <div key={item.id} className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-muted/50 transition-colors cursor-pointer">
-                  <GitCompare className="h-4 w-4 shrink-0 text-[var(--feature-management)]" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[11px] font-medium truncate">{item.title}</p>
-                    <p className="text-[9px] text-muted-foreground">{item.depth} &middot; {item.time}</p>
-                  </div>
-                  <StatusIcon className={`h-3.5 w-3.5 shrink-0 ${STATUS_COLOR[item.status]}`} />
+            {history.length === 0 ? (
+              <p className="text-[10px] text-muted-foreground px-2 py-3">No comparisons yet</p>
+            ) : history.map((item) => (
+              <div key={item.id} className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-muted/50 transition-colors cursor-pointer">
+                <GitCompare className="h-4 w-4 shrink-0 text-[var(--feature-management)]" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-[11px] font-medium truncate">{item.title}</p>
+                  <p className="text-[9px] text-muted-foreground">{(item.input_params as Record<string, string>).focus} &middot; {formatTimeAgo(item.created_at)}</p>
                 </div>
-              )
-            })}
+                <CheckCircle className="h-3.5 w-3.5 shrink-0 text-green-400" />
+              </div>
+            ))}
           </div>
         </div>
       </div>
+      )}
 
       {/* Column 3 -- Results */}
       <div className="flex-1 flex flex-col overflow-y-auto">
