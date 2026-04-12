@@ -18,7 +18,7 @@ const navItems = [
 function railButtonClass({ isActive }: { isActive: boolean }) {
   return `flex h-10 w-10 items-center justify-center rounded-lg transition-all duration-200 ${
     isActive
-      ? 'bg-primary text-primary-foreground glow-primary'
+      ? 'bg-primary/15 text-primary relative before:absolute before:left-0 before:top-1 before:bottom-1 before:w-[3px] before:rounded-full before:bg-gradient-to-b before:from-primary before:to-[oklch(0.65_0.18_230)]'
       : 'text-[var(--icon-rail-foreground)] hover:bg-accent hover:text-accent-foreground'
   }`
 }

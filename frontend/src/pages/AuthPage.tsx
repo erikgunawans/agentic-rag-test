@@ -41,8 +41,10 @@ export function AuthPage() {
   }
 
   return (
-    <div className="flex h-screen items-center justify-center bg-background">
-      <div className="w-full max-w-sm space-y-6 rounded-2xl border p-8 glass shadow-[var(--shadow-lg)]">
+    <div className="flex h-screen items-center justify-center bg-background mesh-bg dot-grid relative overflow-hidden">
+      <div className="absolute top-[20%] left-[20%] h-64 w-64 rounded-full bg-primary/5 blur-3xl animate-float" />
+      <div className="absolute bottom-[25%] right-[25%] h-48 w-48 rounded-full bg-[var(--feature-compliance)]/5 blur-3xl animate-float-delay" />
+      <div className="w-full max-w-sm space-y-6 rounded-2xl border p-8 glass shadow-[var(--shadow-lg)] relative z-10">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">{t('auth.title')}</h1>
           <p className="text-sm text-muted-foreground mt-1">{t('auth.subtitle')}</p>

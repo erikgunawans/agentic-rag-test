@@ -52,12 +52,14 @@ export function SuggestionCards() {
   const navigate = useNavigate()
 
   return (
-    <div className="grid grid-cols-2 gap-3 w-full">
+    <div className="grid grid-cols-2 gap-3 w-full stagger-children">
       {cards.map(({ titleKey, descKey, icon: Icon, path, colorVar, borderColor }, index) => (
         <button
           key={path}
           onClick={() => navigate(path)}
-          className={`flex items-center gap-3 rounded-xl border ${borderColor} bg-card p-4 text-left transition-all duration-200 hover:bg-accent/50 hover:scale-[1.02] hover:shadow-[var(--shadow-md)] cursor-pointer animate-fade-in-up`}
+          className={`flex items-center gap-3 rounded-xl border ${borderColor} bg-card text-left transition-all duration-200 hover:bg-accent/50 hover:scale-[1.02] hover:shadow-[var(--shadow-md)] cursor-pointer animate-fade-in-up gradient-border-animated ${
+            index === 0 || index === cards.length - 1 ? 'col-span-2' : ''
+          } ${index === 0 ? 'py-5 px-4' : 'p-4'}`}
           style={{ animationDelay: `${index * 100}ms` }}
         >
           <div
