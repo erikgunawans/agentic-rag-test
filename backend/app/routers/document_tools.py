@@ -1,6 +1,7 @@
 import json
 import logging
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form
+from pydantic import BaseModel, Field
 from app.dependencies import get_current_user
 from app.database import get_supabase_authed_client, get_supabase_client
 from app.services.document_tool_service import (
@@ -246,28 +247,35 @@ async def get_review_queue(
     return {"data": result.data, "count": len(result.data)}
 
 
+class ReviewAction(BaseModel):
+    action: str  # "approve" or "reject"
+    notes: str = Field(default="", max_length=2000)
+
+
 @router.patch("/review/{result_id}")
 async def review_result(
     result_id: str,
-    body: dict,
+    body: ReviewAction,
     user: dict = Depends(get_current_user),
 ):
     """Approve or reject a document tool result. Admin only."""
     if user.get("role") != "super_admin":
         raise HTTPException(status_code=403, detail="Admin access required")
 
-    action = body.get("action")
-    notes = body.get("notes", "")
-    if action not in ("approve", "reject"):
-        raise HTTPException(status_code=400, detail="action must be 'approve' or 'reject'")
-
-    review_status = "approved" if action == "approve" else "rejected"
+    # Guard: only pending_review items can be reviewed
     client = get_supabase_client()
+    existing = client.table("document_tool_results").select("review_status").eq("id", result_id).execute()
+    if not existing.data:
+        raise HTTPException(status_code=404, detail="Result not found")
+    if existing.data[0]["review_status"] != "pending_review":
+        raise HTTPException(status_code=409, detail=f"Result is already '{existing.data[0]['review_status']}' and cannot be re-reviewed")
+
+    review_status = "approved" if body.action == "approve" else "rejected"
     result = client.table("document_tool_results").update({
         "review_status": review_status,
         "reviewed_by": user["id"],
         "reviewed_at": datetime.now(timezone.utc).isoformat(),
-        "review_notes": notes,
+        "review_notes": body.notes,
     }).eq("id", result_id).execute()
 
     if not result.data:
@@ -279,6 +287,6 @@ async def review_result(
         action=f"review_{action}",
         resource_type="document_tool_result",
         resource_id=result_id,
-        details={"review_status": review_status, "notes": notes},
+        details={"review_status": review_status, "notes": body.notes},
     )
     return result.data[0]

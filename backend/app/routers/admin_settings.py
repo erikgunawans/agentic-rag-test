@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from app.dependencies import require_admin
 from app.services.audit_service import log_action
 from app.services.system_settings_service import (
@@ -22,7 +22,7 @@ class SystemSettingsUpdate(BaseModel):
     tools_enabled: bool | None = None
     tools_max_iterations: int | None = None
     agents_enabled: bool | None = None
-    confidence_threshold: float | None = None
+    confidence_threshold: float | None = Field(default=None, ge=0.0, le=1.0)
 
 
 @router.get("/settings")

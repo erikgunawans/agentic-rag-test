@@ -21,8 +21,15 @@ create index idx_audit_logs_created_at on public.audit_logs(created_at desc);
 create index idx_audit_logs_action on public.audit_logs(action);
 create index idx_audit_logs_resource_type on public.audit_logs(resource_type);
 
--- 3. No RLS enabled — only accessed via service-role client in backend
--- Admin access enforced at API layer via require_admin dependency
+-- 3. Enable RLS — prevent direct PostgREST access by non-admins
+alter table public.audit_logs enable row level security;
+
+create policy "admins_read_audit_logs"
+  on public.audit_logs for select to authenticated
+  using ((auth.jwt() -> 'app_metadata' ->> 'role') = 'super_admin');
+
+-- Backend uses service-role client which bypasses RLS for writes.
+-- PostgREST reads are restricted to super_admin only.
 
 comment on table public.audit_logs is
-  'System-wide audit trail. No RLS — accessed only via service-role client.';
+  'System-wide audit trail. RLS enabled — admin-only read via PostgREST, service-role writes.';

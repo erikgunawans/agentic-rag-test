@@ -173,7 +173,7 @@ export function ReviewQueuePage() {
                         size="sm"
                         variant="outline"
                         className="text-xs"
-                        onClick={() => setReviewingId(item.id)}
+                        onClick={() => { setReviewingId(item.id); setNotes('') }}
                       >
                         <Eye className="mr-1.5 h-3.5 w-3.5" />
                         {t('review.reviewAction')}
