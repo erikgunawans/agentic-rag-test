@@ -305,11 +305,32 @@ Track your progress through the masterclass. Update this file as you complete mo
 - [x] `DocumentComparisonPage` — dual document upload, swap button, comparison focus selector (static UI)
 - [x] `ComplianceCheckPage` — doc upload, framework selector, scope multi-select, context textarea (static UI)
 - [x] `ContractAnalysisPage` — doc upload, analysis type multi-select, governing law, depth selector (static UI)
-- [x] All 4 pages are UI-only (no backend calls) — ready for future backend integration
+- [x] All 4 pages wired to backend with API calls, loading states, and result display panels
 - [x] Full i18n support (Indonesian + English) for all new screens (~80 keys per locale)
 - [x] Feature accent colors added (creation/purple, management/cyan, compliance/emerald, analysis/amber)
 - [x] shadcn/ui select, textarea, popover components installed
 - [x] Routes added to `App.tsx` for `/create`, `/compare`, `/compliance`, `/analysis`
+
+### Document Tool Backend ✅ COMPLETE
+
+- [x] Backend service `document_tool_service.py` — Pydantic response models + LLM prompts for all 4 operations (create, compare, compliance, analyze), reuses `parse_text` from ingestion service, OpenRouter with `json_object` response format
+- [x] Backend router `document_tools.py` — 4 FormData endpoints (`POST /document-tools/create`, `/compare`, `/compliance`, `/analyze`), file upload validation, auth required
+- [x] Router registered in `main.py`
+- [x] Frontend wiring — all 4 pages updated with controlled form state, `apiFetch` calls, loading spinners, error display, structured result rendering in right panel
+- [x] Create page: generated document preview (title, summary, content)
+- [x] Compare page: differences table with significance badges, risk assessment, recommendation
+- [x] Compliance page: overall status badge (pass/review/fail), findings list, missing provisions
+- [x] Analysis page: risk cards, obligations table, critical clauses, missing provisions
+- [x] QA fix: Generate Draft button disabled until required fields are filled (per doc type validation)
+
+#### Document Tool Architecture Summary
+
+- **Pattern**: File upload → parse text (reuse ingestion `parse_text`) → LLM structured output (OpenRouter + `json_object` format) → Pydantic validation → JSON response
+- **Stateless**: No new DB tables — operations are synchronous LLM calls, no persistence of results
+- **File handling**: FormData with optional files (reference/template for creation, two docs for comparison, single doc for compliance/analysis)
+- **Truncation**: Document text capped at ~48k chars (~12k tokens) to stay within LLM context
+- **Validation**: Compare/Compliance/Analysis buttons disabled without file upload; Create button disabled until required fields per doc type are filled
+- **No new dependencies**: Reuses existing OpenRouter service, ingestion parser, auth middleware
 
 #### Sub-Plan Files
 
