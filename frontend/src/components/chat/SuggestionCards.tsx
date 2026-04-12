@@ -52,16 +52,38 @@ export function SuggestionCards() {
   const navigate = useNavigate()
 
   return (
-    <div className="grid grid-cols-2 gap-3 w-full stagger-children">
-      {cards.map(({ titleKey, descKey, icon: Icon, path, colorVar, borderColor }, index) => (
-        <button
-          key={path}
-          onClick={() => navigate(path)}
-          className={`flex items-center gap-3 rounded-xl border ${borderColor} bg-card text-left transition-all duration-200 hover:bg-accent/50 hover:scale-[1.02] hover:shadow-[var(--shadow-md)] cursor-pointer animate-fade-in-up gradient-border-animated ${
-            index === 0 || index === cards.length - 1 ? 'col-span-2' : ''
-          } ${index === 0 ? 'py-5 px-4' : 'p-4'}`}
-          style={{ animationDelay: `${index * 100}ms` }}
-        >
+    <div className="flex flex-col gap-3 w-full stagger-children">
+      {/* Row 1: two equal cards */}
+      <div className="grid grid-cols-2 gap-3">
+        {cards.slice(0, 2).map(({ titleKey, descKey, icon: Icon, path, colorVar, borderColor }, index) => (
+          <button
+            key={path}
+            onClick={() => navigate(path)}
+            className={`flex items-center gap-3 rounded-xl border ${borderColor} bg-card p-4 text-left transition-all duration-200 hover:bg-accent/50 hover:scale-[1.02] hover:shadow-[var(--shadow-md)] cursor-pointer animate-fade-in-up gradient-border-animated`}
+            style={{ animationDelay: `${index * 100}ms` }}
+          >
+            <div
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
+              style={{ backgroundColor: `color-mix(in oklch, ${colorVar} 20%, transparent)`, color: colorVar }}
+            >
+              <Icon className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-foreground">{t(titleKey)}</p>
+              <p className="text-xs text-muted-foreground">{t(descKey)}</p>
+            </div>
+          </button>
+        ))}
+      </div>
+      {/* Row 2: left wider (3fr), right narrower (2fr) */}
+      <div className="grid grid-cols-[3fr_2fr] gap-3">
+        {cards.slice(2, 4).map(({ titleKey, descKey, icon: Icon, path, colorVar, borderColor }, index) => (
+          <button
+            key={path}
+            onClick={() => navigate(path)}
+            className={`flex items-center gap-3 rounded-xl border ${borderColor} bg-card p-4 text-left transition-all duration-200 hover:bg-accent/50 hover:scale-[1.02] hover:shadow-[var(--shadow-md)] cursor-pointer animate-fade-in-up gradient-border-animated`}
+            style={{ animationDelay: `${(index + 2) * 100}ms` }}
+          >
           <div
             className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
             style={{ backgroundColor: `color-mix(in oklch, ${colorVar} 20%, transparent)`, color: colorVar }}
@@ -73,7 +95,8 @@ export function SuggestionCards() {
             <p className="text-xs text-muted-foreground">{t(descKey)}</p>
           </div>
         </button>
-      ))}
+        ))}
+      </div>
     </div>
   )
 }
