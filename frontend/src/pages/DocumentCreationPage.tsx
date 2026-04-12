@@ -406,6 +406,7 @@ export function DocumentCreationPage() {
     setDocType(newType)
     setFields({})
     setShowErrors(false)
+    setSelectedTemplateId(null)
   }
 
   async function handleTemplateSelect(templateId: string) {

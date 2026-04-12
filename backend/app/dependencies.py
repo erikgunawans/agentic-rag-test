@@ -16,7 +16,23 @@ async def get_current_user(
         if not user:
             raise HTTPException(status_code=401, detail="Invalid token")
         role = (user.app_metadata or {}).get("role", "user")
+
+        # Check if user is deactivated via user_profiles
+        profile = client.table("user_profiles").select("is_active").eq("user_id", str(user.id)).execute()
+        if profile.data:
+            if not profile.data[0]["is_active"]:
+                raise HTTPException(status_code=403, detail="Account deactivated")
+        else:
+            # Auto-create profile for new signups
+            client.table("user_profiles").insert({
+                "user_id": str(user.id),
+                "display_name": user.email,
+                "is_active": True,
+            }).execute()
+
         return {"id": user.id, "email": user.email, "token": token, "role": role}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=401, detail="Invalid or expired token") from e
 
