@@ -16,7 +16,7 @@ const navItems = [
 ]
 
 function railButtonClass({ isActive }: { isActive: boolean }) {
-  return `flex h-10 w-10 items-center justify-center rounded-lg transition-all duration-200 ${
+  return `flex h-11 w-11 items-center justify-center rounded-lg transition-all duration-200 ${
     isActive
       ? 'bg-primary/15 text-primary relative before:absolute before:left-0 before:top-1 before:bottom-1 before:w-[3px] before:rounded-full before:bg-gradient-to-b before:from-primary before:to-[oklch(0.65_0.18_230)]'
       : 'text-[var(--icon-rail-foreground)] hover:bg-accent hover:text-accent-foreground'
@@ -52,7 +52,7 @@ export function IconRail() {
       <div className="mt-3 flex flex-col items-center">
         <Popover open={flyoutOpen} onOpenChange={setFlyoutOpen}>
           <PopoverTrigger
-            className="flex h-10 w-10 items-center justify-center rounded-lg text-[var(--icon-rail-foreground)] hover:bg-accent hover:text-accent-foreground transition-all duration-200"
+            className="flex h-11 w-11 items-center justify-center rounded-lg text-[var(--icon-rail-foreground)] hover:bg-accent hover:text-accent-foreground transition-all duration-200"
             aria-label={t('nav.moreModules')}
             title={t('nav.moreModules')}
           >

@@ -63,7 +63,7 @@ export function ThreadPanel({ collapsed, onToggleCollapse }: ThreadPanelProps) {
         </div>
         <button
           onClick={onToggleCollapse}
-          className="text-muted-foreground hover:text-foreground transition-colors"
+          className="flex items-center justify-center min-w-[32px] min-h-[32px] text-muted-foreground hover:text-foreground transition-colors"
         >
           <ChevronLeft className="h-4 w-4" />
         </button>

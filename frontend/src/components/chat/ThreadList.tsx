@@ -96,7 +96,7 @@ function CollapsibleGroup({
                   e.stopPropagation()
                   onDelete(thread.id)
                 }}
-                className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+                className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive flex items-center justify-center min-w-[28px] min-h-[28px]"
                 aria-label="Delete thread"
               >
                 <Trash2 className="h-3.5 w-3.5" />
