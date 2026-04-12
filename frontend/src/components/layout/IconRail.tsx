@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import { Home, Folder, FilePlus, GitCompare, ShieldCheck, Scale, Settings, LayoutGrid } from 'lucide-react'
+import { Home, Folder, FilePlus, GitCompare, ShieldCheck, Scale, Settings, LayoutGrid, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useAuth } from '@/contexts/AuthContext'
 import { useI18n } from '@/i18n/I18nContext'
@@ -23,15 +23,34 @@ function railButtonClass({ isActive }: { isActive: boolean }) {
   }`
 }
 
-export function IconRail() {
+interface IconRailProps {
+  panelCollapsed?: boolean
+  onTogglePanel?: () => void
+  showPanelToggle?: boolean
+}
+
+export function IconRail({ panelCollapsed, onTogglePanel, showPanelToggle }: IconRailProps) {
   const { user } = useAuth()
   const { t } = useI18n()
   const [flyoutOpen, setFlyoutOpen] = useState(false)
 
+  const ToggleIcon = panelCollapsed ? PanelLeftOpen : PanelLeftClose
+
   return (
     <div className="flex h-full w-[60px] shrink-0 flex-col items-center border-r border-border bg-[var(--icon-rail)] glass py-4">
-      <div className="mb-6 flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-lg font-bold text-primary-foreground">
-        K
+      <div className="flex flex-col items-center gap-2 mb-6">
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-lg font-bold text-primary-foreground">
+          K
+        </div>
+        {showPanelToggle && onTogglePanel && (
+          <button
+            onClick={onTogglePanel}
+            className="flex h-8 w-8 items-center justify-center rounded-md text-[var(--icon-rail-foreground)] hover:bg-accent hover:text-accent-foreground transition-all duration-200 focus-ring"
+            title={panelCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            <ToggleIcon className="h-4 w-4" />
+          </button>
+        )}
       </div>
 
       <nav className="flex flex-col items-center gap-2">

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, ChevronLeft, ChevronRight, Search } from 'lucide-react'
+import { Plus, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ThreadList } from '@/components/chat/ThreadList'
 import { useI18n } from '@/i18n/I18nContext'
@@ -12,7 +12,7 @@ interface ThreadPanelProps {
   onToggleCollapse: () => void
 }
 
-export function ThreadPanel({ collapsed, onToggleCollapse }: ThreadPanelProps) {
+export function ThreadPanel({ collapsed }: ThreadPanelProps) {
   const { t } = useI18n()
   const { user } = useAuth()
   const {
@@ -32,22 +32,9 @@ export function ThreadPanel({ collapsed, onToggleCollapse }: ThreadPanelProps) {
 
   const displayName = user?.email ? deriveDisplayName(user.email) : ''
 
+  // When collapsed, render nothing — the toggle lives in the IconRail
   if (collapsed) {
-    return (
-      <div className="flex h-full w-[50px] shrink-0 flex-col items-center border-r border-border glass py-4 gap-3">
-        <button
-          onClick={onToggleCollapse}
-          className="flex h-10 w-10 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors focus-ring"
-          title={t('sidebar.title')}
-        >
-          <ChevronRight className="h-4 w-4" />
-        </button>
-        <Button onClick={handleCreateThread} size="icon" className="h-10 w-10">
-          <Plus className="h-4 w-4" />
-        </Button>
-        <div className="flex-1" />
-      </div>
-    )
+    return null
   }
 
   return (
@@ -57,12 +44,6 @@ export function ThreadPanel({ collapsed, onToggleCollapse }: ThreadPanelProps) {
           <h2 className="text-sm font-bold text-sidebar-foreground">{t('sidebar.title')}</h2>
           <p className="text-xs text-muted-foreground">{t('sidebar.chatHistory')}</p>
         </div>
-        <button
-          onClick={onToggleCollapse}
-          className="flex items-center justify-center min-w-[32px] min-h-[32px] text-muted-foreground hover:text-foreground transition-colors focus-ring"
-        >
-          <ChevronLeft className="h-4 w-4" />
-        </button>
       </div>
 
       <div className="px-3 pb-3">

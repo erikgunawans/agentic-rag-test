@@ -18,7 +18,11 @@ export function AppLayout() {
       <div className="flex h-screen bg-background mesh-bg overflow-hidden">
         {/* Desktop icon rail — hidden on mobile */}
         <div className="hidden md:flex">
-          <IconRail />
+          <IconRail
+            panelCollapsed={panelCollapsed}
+            onTogglePanel={() => setPanelCollapsed((prev) => !prev)}
+            showPanelToggle={showThreadPanel}
+          />
         </div>
 
         {/* Mobile top header bar — visible only on mobile */}
