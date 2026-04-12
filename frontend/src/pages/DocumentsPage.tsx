@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Search, Grid3X3, List, Plus, Upload, HardDrive, FileText, Trash2, Loader2 } from 'lucide-react'
+import { Search, Grid3X3, List, Plus, Upload, HardDrive, FileText, Trash2, Loader2, Menu } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { apiFetch } from '@/lib/api'
 import { useDocumentRealtime } from '@/hooks/useDocumentRealtime'
@@ -76,6 +76,7 @@ export function DocumentsPage() {
   const [typeFilter, setTypeFilter] = useState<DocFilter>('all')
   const [statusFilters, setStatusFilters] = useState<Set<StatusFilter>>(new Set(['completed', 'processing', 'pending']))
   const [viewMode, setViewMode] = useState<ViewMode>('grid')
+  const [mobilePanelOpen, setMobilePanelOpen] = useState(false)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -136,8 +137,104 @@ export function DocumentsPage() {
 
   return (
     <div className="flex h-full">
+      {/* Mobile panel trigger */}
+      <button
+        onClick={() => setMobilePanelOpen(true)}
+        className="md:hidden fixed bottom-4 right-4 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg focus-ring"
+      >
+        <Menu className="h-5 w-5" />
+      </button>
+
+      {/* Mobile panel overlay */}
+      {mobilePanelOpen && (
+        <div className="md:hidden fixed inset-0 z-40">
+          <div className="mobile-backdrop" onClick={() => setMobilePanelOpen(false)} />
+          <div className="mobile-panel bg-background border-r border-border/50 overflow-y-auto">
+            {/* Section 1: Upload */}
+            <div className="p-4 space-y-4 border-b border-border/50">
+              <div className="flex items-center gap-2">
+                <Upload className="h-4 w-4 text-muted-foreground" />
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Upload</span>
+              </div>
+
+              <FileUpload onUploaded={loadDocuments} />
+
+              {/* Recent uploads */}
+              {documents.slice(0, 3).map((doc) => (
+                <div key={doc.id} className="flex items-center gap-2 text-xs">
+                  <div className={`h-1.5 w-1.5 rounded-full shrink-0 ${doc.status === 'completed' ? 'bg-green-400' : doc.status === 'processing' ? 'bg-amber-400' : 'bg-gray-400'}`} />
+                  <span className="truncate flex-1 text-muted-foreground">{doc.filename}</span>
+                  {doc.status === 'processing' && <Loader2 className="h-3 w-3 animate-spin text-amber-400 shrink-0" />}
+                </div>
+              ))}
+
+              {/* Storage quota */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                  <div className="flex items-center gap-1">
+                    <HardDrive className="h-3 w-3" />
+                    <span>Storage</span>
+                  </div>
+                  <span>{formatBytes(totalSize)} / 50 MB</span>
+                </div>
+                <div className="h-1.5 rounded-full bg-secondary overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-primary to-[oklch(0.65_0.18_230)]"
+                    style={{ width: `${Math.min((totalSize / (50 * 1024 * 1024)) * 100, 100)}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Section 2: Filter */}
+            <div className="p-4 space-y-4">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Filter</span>
+
+              {/* Type filters */}
+              <div className="space-y-1">
+                {TYPE_FILTERS.map(({ value, label }) => {
+                  const count = value === 'all' ? documents.length : documents.filter((d) => matchesTypeFilter(d, value)).length
+                  return (
+                    <button
+                      key={value}
+                      onClick={() => setTypeFilter(value)}
+                      className={`flex w-full items-center justify-between rounded-md focus-ring px-2.5 py-1.5 text-xs transition-colors ${
+                        typeFilter === value ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                      }`}
+                    >
+                      <span>{label}</span>
+                      <span className="text-[10px] tabular-nums">{count}</span>
+                    </button>
+                  )
+                })}
+              </div>
+
+              {/* Status checkboxes */}
+              <div className="space-y-2 pt-2 border-t border-border/50">
+                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Status</span>
+                {STATUS_FILTERS.map(({ value, label, color }) => (
+                  <button
+                    key={value}
+                    onClick={() => toggleStatus(value)}
+                    className="flex w-full items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors focus-ring"
+                  >
+                    <div className={`h-3.5 w-3.5 rounded border flex items-center justify-center ${
+                      statusFilters.has(value) ? 'border-primary bg-primary' : 'border-border'
+                    }`}>
+                      {statusFilters.has(value) && <span className="text-[8px] text-primary-foreground">&#10003;</span>}
+                    </div>
+                    <span className={`h-2 w-2 rounded-full ${color}`} />
+                    <span>{label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Column 2 — Sidebar panel (300px) */}
-      <div className="flex w-[340px] shrink-0 flex-col border-r border-border/50 overflow-y-auto">
+      <div className="hidden md:flex w-[340px] shrink-0 flex-col border-r border-border/50 overflow-y-auto">
         {/* Section 1: Upload */}
         <div className="p-4 space-y-4 border-b border-border/50">
           <div className="flex items-center gap-2">

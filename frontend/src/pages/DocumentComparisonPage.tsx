@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { GitCompare, ArrowLeftRight, ChevronLeft, ChevronRight, Clock, CheckCircle, XCircle, Loader2, AlertTriangle } from 'lucide-react'
+import { GitCompare, ArrowLeftRight, ChevronLeft, ChevronRight, Clock, CheckCircle, XCircle, Loader2, AlertTriangle, Menu } from 'lucide-react'
 import { useToolHistory, formatTimeAgo } from '@/hooks/useToolHistory'
 import { useI18n } from '@/i18n/I18nContext'
 import { Button } from '@/components/ui/button'
@@ -36,6 +36,7 @@ export function DocumentComparisonPage() {
   const { t } = useI18n()
   const { history, reload: reloadHistory } = useToolHistory('compare')
   const [panelCollapsed, setPanelCollapsed] = useState(false)
+  const [mobilePanelOpen, setMobilePanelOpen] = useState(false)
   const [focus, setFocus] = useState<ComparisonFocus>('full')
   const [docA, setDocA] = useState<File | null>(null)
   const [docB, setDocB] = useState<File | null>(null)
@@ -72,9 +73,119 @@ export function DocumentComparisonPage() {
 
   return (
     <div className="flex h-full">
+      {/* Mobile panel trigger */}
+      <button
+        onClick={() => setMobilePanelOpen(true)}
+        className="md:hidden fixed bottom-4 right-4 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg focus-ring"
+      >
+        <Menu className="h-5 w-5" />
+      </button>
+
+      {/* Mobile panel overlay */}
+      {mobilePanelOpen && (
+        <div className="md:hidden fixed inset-0 z-40">
+          <div className="mobile-backdrop" onClick={() => setMobilePanelOpen(false)} />
+          <div className="mobile-panel bg-background border-r border-border/50 overflow-y-auto">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-border/50 shrink-0">
+              <div>
+                <h1 className="text-sm font-semibold">{t('compare.title')}</h1>
+                <p className="text-[10px] text-muted-foreground">Unggah dua dokumen untuk dibandingkan</p>
+              </div>
+              <button onClick={() => setMobilePanelOpen(false)} className="text-muted-foreground hover:text-foreground transition-colors focus-ring">
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="min-h-0 overflow-y-auto" style={{ flex: '3 1 0' }}>
+              <div className="px-5 py-4 space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium">{t('compare.doc1')} <span className="text-red-400">*</span></label>
+                  <div className={showErrors && !docA ? 'rounded-lg border border-red-500/50' : ''}>
+                    <DropZone label={t('compare.doc1')} onFileSelect={setDocA} />
+                  </div>
+                  {showErrors && !docA && <p className="text-[10px] text-red-400">Please upload a document</p>}
+                </div>
+
+                <div className="flex justify-center">
+                  <button className="flex h-7 w-7 items-center justify-center rounded-full border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors" title={t('compare.swap')} onClick={() => { const tmp = docA; setDocA(docB); setDocB(tmp) }}>
+                    <ArrowLeftRight className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium">{t('compare.doc2')} <span className="text-red-400">*</span></label>
+                  <div className={showErrors && !docB ? 'rounded-lg border border-red-500/50' : ''}>
+                    <DropZone label={t('compare.doc2')} onFileSelect={setDocB} />
+                  </div>
+                  {showErrors && !docB && <p className="text-[10px] text-red-400">Please upload a document</p>}
+                </div>
+
+                <div className="space-y-1.5 pt-2">
+                  <label className="text-xs font-medium">{t('compare.focus')}</label>
+                  <div className="flex flex-col gap-1.5">
+                    {(['full', 'clauses', 'risks'] as const).map((opt) => (
+                      <button
+                        key={opt}
+                        onClick={() => setFocus(opt)}
+                        className={`rounded-lg px-3 py-2 text-xs font-medium text-left transition-colors ${
+                          focus === opt ? 'bg-primary/10 text-primary border border-primary/30' : 'bg-secondary text-muted-foreground hover:text-foreground border border-transparent'
+                        }`}
+                      >
+                        {t(`compare.focus.${opt}`)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium">Additional Context</label>
+                  <textarea className={`${inputClass} min-h-[64px] resize-none`} placeholder="Any specific areas to focus on..." value={context} onChange={(e) => setContext(e.target.value)} />
+                </div>
+
+                <div onClick={() => { if (!docA || !docB) setShowErrors(true) }}>
+                  <Button className="w-full text-xs" disabled={loading || !docA || !docB} onClick={handleCompare}>
+                    {loading ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <GitCompare className="mr-2 h-3.5 w-3.5" />}
+                    {loading ? 'Comparing...' : t('compare.generate')}
+                  </Button>
+                </div>
+                {showErrors && (!docA || !docB) && (
+                  <p className="text-[10px] text-red-400">Please upload both documents to compare</p>
+                )}
+
+                {error && <p className="text-xs text-red-400">{error}</p>}
+              </div>
+            </div>
+
+            <div className="min-h-0 flex flex-col border-t border-border/50" style={{ flex: '1 1 0' }}>
+              <div className="flex items-center justify-between px-5 py-2.5 shrink-0">
+                <div className="flex items-center gap-1.5">
+                  <Clock className="h-3 w-3 text-muted-foreground" />
+                  <span className="text-[10px] font-semibold text-muted-foreground">{t('compare.history')}</span>
+                </div>
+                <span className="text-[10px] text-primary cursor-pointer hover:underline">View all &rarr;</span>
+              </div>
+              <div className="flex-1 overflow-y-auto min-h-0 px-3 pb-2 space-y-0.5">
+                {history.length === 0 ? (
+                  <p className="text-[10px] text-muted-foreground px-2 py-3">No comparisons yet</p>
+                ) : history.map((item) => (
+                  <div key={item.id} className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-muted/50 transition-colors cursor-pointer">
+                    <GitCompare className="h-4 w-4 shrink-0 text-[var(--feature-management)]" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[11px] font-medium truncate">{item.title}</p>
+                      <p className="text-[9px] text-muted-foreground">{(item.input_params as Record<string, string>).focus} &middot; {formatTimeAgo(item.created_at)}</p>
+                    </div>
+                    <CheckCircle className="h-3.5 w-3.5 shrink-0 text-green-400" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Column 2 -- Form (75%) + History (25%) */}
       {panelCollapsed ? (
-        <div className="flex h-full w-[50px] shrink-0 flex-col items-center border-r border-border/50 py-4 gap-3">
+        <div className="hidden md:flex h-full w-[50px] shrink-0 flex-col items-center border-r border-border/50 py-4 gap-3">
           <button
             onClick={() => setPanelCollapsed(false)}
             className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
@@ -85,7 +196,7 @@ export function DocumentComparisonPage() {
           <GitCompare className="h-4 w-4 text-muted-foreground" />
         </div>
       ) : (
-      <div className="flex w-[340px] shrink-0 flex-col border-r border-border/50">
+      <div className="hidden md:flex w-[340px] shrink-0 flex-col border-r border-border/50">
         <div className="flex items-center justify-between px-5 py-3 border-b border-border/50 shrink-0">
           <div>
             <h1 className="text-sm font-semibold">{t('compare.title')}</h1>

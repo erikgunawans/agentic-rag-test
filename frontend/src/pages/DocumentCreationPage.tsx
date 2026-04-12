@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { FilePlus, ChevronLeft, ChevronRight, Clock, CheckCircle, XCircle, Loader2, FileText } from 'lucide-react'
+import { FilePlus, ChevronLeft, ChevronRight, Clock, CheckCircle, XCircle, Loader2, FileText, Menu } from 'lucide-react'
 import { useToolHistory, formatTimeAgo } from '@/hooks/useToolHistory'
 import { useI18n } from '@/i18n/I18nContext'
 import { Button } from '@/components/ui/button'
@@ -163,6 +163,7 @@ export function DocumentCreationPage() {
   const { t } = useI18n()
   const { history, reload: reloadHistory } = useToolHistory('create')
   const [panelCollapsed, setPanelCollapsed] = useState(false)
+  const [mobilePanelOpen, setMobilePanelOpen] = useState(false)
   const [docType, setDocType] = useState<DocType>('generic')
   const [outputLang, setOutputLang] = useState<'both' | 'indonesian'>('both')
   const [fields, setFields] = useState<Record<string, string>>({})
@@ -223,9 +224,124 @@ export function DocumentCreationPage() {
 
   return (
     <div className="flex h-full">
+      {/* Mobile panel trigger */}
+      <button
+        onClick={() => setMobilePanelOpen(true)}
+        className="md:hidden fixed bottom-4 right-4 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg focus-ring"
+      >
+        <Menu className="h-5 w-5" />
+      </button>
+
+      {/* Mobile panel overlay */}
+      {mobilePanelOpen && (
+        <div className="md:hidden fixed inset-0 z-40">
+          <div className="mobile-backdrop" onClick={() => setMobilePanelOpen(false)} />
+          <div className="mobile-panel bg-background border-r border-border/50 overflow-y-auto">
+            {/* Header -- fixed */}
+            <div className="flex items-center justify-between px-5 py-3 border-b border-border/50 shrink-0">
+              <div>
+                <h1 className="text-sm font-semibold">{t('create.title')}</h1>
+                <p className="text-[10px] text-muted-foreground">Isi detail untuk membuat dokumen</p>
+              </div>
+              <button onClick={() => setMobilePanelOpen(false)} className="text-muted-foreground hover:text-foreground transition-colors focus-ring">
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Form area */}
+            <div className="min-h-0 overflow-y-auto" style={{ flex: '3 1 0' }}>
+              <div className="px-5 py-4 space-y-4">
+                <FormField label="Document Type" required>
+                  <select
+                    value={docType}
+                    onChange={(e) => handleDocTypeChange(e.target.value as DocType)}
+                    className={inputClass}
+                  >
+                    <option value="generic">Generic Document</option>
+                    <option value="nda">NDA</option>
+                    <option value="sales">Sales Contract</option>
+                    <option value="service">Service Contract</option>
+                  </select>
+                </FormField>
+
+                {docType === 'generic' && <GenericForm fields={fields} onChange={updateField} fieldErr={fieldErr} />}
+                {docType === 'nda' && <NDAForm fields={fields} onChange={updateField} fieldErr={fieldErr} />}
+                {(docType === 'sales' || docType === 'service') && <SalesServiceForm fields={fields} onChange={updateField} fieldErr={fieldErr} />}
+
+                <div className="space-y-2.5 pt-2">
+                  <label className="text-xs font-medium">Output Language</label>
+                  <div className="flex flex-col gap-2.5">
+                    {([
+                      { value: 'both', label: 'English & Indonesian' },
+                      { value: 'indonesian', label: 'Indonesian Only' },
+                    ] as const).map(({ value, label }) => (
+                      <button key={value} onClick={() => setOutputLang(value)} className="flex items-center gap-2">
+                        <div className={`h-4 w-4 rounded-full border-2 flex items-center justify-center shrink-0 ${outputLang === value ? 'border-primary' : 'border-muted-foreground'}`}>
+                          {outputLang === value && <div className="h-2 w-2 rounded-full bg-primary" />}
+                        </div>
+                        <span className="text-xs text-foreground">{label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <FormField label="Reference Document (Optional)">
+                  <DropZone onFileSelect={setReferenceFile} />
+                </FormField>
+
+                <FormField label="Template Document (Optional)">
+                  <DropZone onFileSelect={setTemplateFile} />
+                </FormField>
+
+                <div onClick={() => { if (!canGenerate) setShowErrors(true) }}>
+                  <Button className="w-full text-xs" disabled={!canGenerate} onClick={handleGenerate}>
+                    {loading ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <FilePlus className="mr-2 h-3.5 w-3.5" />}
+                    {loading ? 'Generating...' : generateLabel}
+                  </Button>
+                </div>
+                {showErrors && !canGenerate && (
+                  <p className="text-[10px] text-red-400">Please fill in all required fields marked with *</p>
+                )}
+
+                {error && <p className="text-xs text-red-400">{error}</p>}
+              </div>
+            </div>
+
+            {/* History area */}
+            <div className="min-h-0 flex flex-col border-t border-border/50" style={{ flex: '1 1 0' }}>
+              <div className="flex items-center justify-between px-5 py-2.5 shrink-0">
+                <div className="flex items-center gap-1.5">
+                  <Clock className="h-3 w-3 text-muted-foreground" />
+                  <span className="text-[10px] font-semibold text-muted-foreground">Recent Documents</span>
+                </div>
+                <span className="text-[10px] text-primary cursor-pointer hover:underline">View all &rarr;</span>
+              </div>
+              <div className="flex-1 overflow-y-auto min-h-0">
+                <div className="px-3 pb-2 space-y-0.5">
+                  {history.length === 0 ? (
+                    <p className="text-[10px] text-muted-foreground px-2 py-3">No documents generated yet</p>
+                  ) : history.map((item) => (
+                    <div key={item.id} className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-muted/50 transition-colors cursor-pointer">
+                      <FileText className="h-4 w-4 shrink-0 text-primary/70" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[11px] font-medium truncate">{item.title}</p>
+                        <p className="text-[9px] text-muted-foreground">
+                          <span className="text-primary/70">{(item.input_params as Record<string, string>).doc_type}</span> &middot; {formatTimeAgo(item.created_at)}
+                        </p>
+                      </div>
+                      <CheckCircle className="h-3.5 w-3.5 shrink-0 text-green-400" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Column 2 -- Form (top 75%) + History (bottom 25%) */}
       {panelCollapsed ? (
-        <div className="flex h-full w-[50px] shrink-0 flex-col items-center border-r border-border/50 py-4 gap-3">
+        <div className="hidden md:flex h-full w-[50px] shrink-0 flex-col items-center border-r border-border/50 py-4 gap-3">
           <button
             onClick={() => setPanelCollapsed(false)}
             className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
@@ -236,7 +352,7 @@ export function DocumentCreationPage() {
           <FilePlus className="h-4 w-4 text-muted-foreground" />
         </div>
       ) : (
-      <div className="flex w-[340px] shrink-0 flex-col border-r border-border/50">
+      <div className="hidden md:flex w-[340px] shrink-0 flex-col border-r border-border/50">
 
         {/* Header -- fixed */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-border/50 shrink-0">

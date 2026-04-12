@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Scale, ChevronLeft, ChevronRight, Clock, CheckCircle, AlertTriangle, XCircle, Loader2 } from 'lucide-react'
+import { Scale, ChevronLeft, ChevronRight, Clock, CheckCircle, AlertTriangle, XCircle, Loader2, Menu } from 'lucide-react'
 import { useToolHistory, formatTimeAgo } from '@/hooks/useToolHistory'
 import { useI18n } from '@/i18n/I18nContext'
 import { Button } from '@/components/ui/button'
@@ -48,6 +48,7 @@ export function ContractAnalysisPage() {
   const { t } = useI18n()
   const { history, reload: reloadHistory } = useToolHistory('analyze')
   const [panelCollapsed, setPanelCollapsed] = useState(false)
+  const [mobilePanelOpen, setMobilePanelOpen] = useState(false)
   const [types, setTypes] = useState<Set<AnalysisType>>(new Set(['risk']))
   const [law, setLaw] = useState<Law>('indonesia')
   const [depth, setDepth] = useState<Depth>('standard')
@@ -95,9 +96,134 @@ export function ContractAnalysisPage() {
 
   return (
     <div className="flex h-full">
+      {/* Mobile panel trigger */}
+      <button
+        onClick={() => setMobilePanelOpen(true)}
+        className="md:hidden fixed bottom-4 right-4 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg focus-ring"
+      >
+        <Menu className="h-5 w-5" />
+      </button>
+
+      {/* Mobile panel overlay */}
+      {mobilePanelOpen && (
+        <div className="md:hidden fixed inset-0 z-40">
+          <div className="mobile-backdrop" onClick={() => setMobilePanelOpen(false)} />
+          <div className="mobile-panel bg-background border-r border-border/50 overflow-y-auto">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-border/50 shrink-0">
+              <div>
+                <h1 className="text-sm font-semibold">{t('analysis.title')}</h1>
+                <p className="text-[10px] text-muted-foreground">Identifikasi risiko & klausul penting</p>
+              </div>
+              <button onClick={() => setMobilePanelOpen(false)} className="text-muted-foreground hover:text-foreground transition-colors focus-ring">
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="min-h-0 overflow-y-auto" style={{ flex: '3 1 0' }}>
+              <div className="px-5 py-4 space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium">{t('analysis.document')} <span className="text-red-400">*</span></label>
+                  <div className={showErrors && !file ? 'rounded-lg border border-red-500/50' : ''}>
+                    <DropZone onFileSelect={setFile} />
+                  </div>
+                  {showErrors && !file && <p className="text-[10px] text-red-400">Please upload a document</p>}
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium">{t('analysis.type')}</label>
+                  <div className="flex flex-col gap-1.5">
+                    {(['risk', 'obligations', 'clauses', 'missing'] as const).map((type) => (
+                      <button
+                        key={type}
+                        onClick={() => toggleType(type)}
+                        className={`rounded-lg px-3 py-2 text-xs font-medium text-left transition-colors ${
+                          types.has(type) ? 'bg-primary/10 text-primary border border-primary/30' : 'bg-secondary text-muted-foreground hover:text-foreground border border-transparent'
+                        }`}
+                      >
+                        {t(`analysis.type.${type}`)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium">{t('analysis.law')}</label>
+                  <select value={law} onChange={(e) => setLaw(e.target.value as Law)} className={inputClass}>
+                    <option value="indonesia">{t('analysis.law.indonesia')}</option>
+                    <option value="singapore">{t('analysis.law.singapore')}</option>
+                    <option value="international">{t('analysis.law.international')}</option>
+                    <option value="custom">{t('analysis.law.custom')}</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium">{t('analysis.depth')}</label>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {(['quick', 'standard', 'deep'] as const).map((d) => (
+                      <button
+                        key={d}
+                        onClick={() => setDepth(d)}
+                        className={`rounded-lg px-2 py-2 text-xs font-medium transition-colors ${
+                          depth === d ? 'bg-primary text-primary-foreground' : 'bg-secondary text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        {t(`analysis.depth.${d}`)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium">{t('analysis.context')}</label>
+                  <textarea className={`${inputClass} min-h-[80px] resize-none`} placeholder={t('analysis.context')} value={context} onChange={(e) => setContext(e.target.value)} />
+                </div>
+
+                <div onClick={() => { if (!file) setShowErrors(true) }}>
+                  <Button className="w-full text-xs" disabled={loading || !file} onClick={handleRun}>
+                    {loading ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <Scale className="mr-2 h-3.5 w-3.5" />}
+                    {loading ? 'Analyzing...' : t('analysis.run')}
+                  </Button>
+                </div>
+
+                {error && <p className="text-xs text-red-400">{error}</p>}
+              </div>
+            </div>
+
+            <div className="min-h-0 flex flex-col border-t border-border/50" style={{ flex: '1 1 0' }}>
+              <div className="flex items-center justify-between px-5 py-2.5 shrink-0">
+                <div className="flex items-center gap-1.5">
+                  <Clock className="h-3 w-3 text-muted-foreground" />
+                  <span className="text-[10px] font-semibold text-muted-foreground">{t('analysis.history')}</span>
+                </div>
+                <span className="text-[10px] text-primary cursor-pointer hover:underline">View all &rarr;</span>
+              </div>
+              <div className="flex-1 overflow-y-auto min-h-0 px-3 pb-2 space-y-0.5">
+                {history.length === 0 ? (
+                  <p className="text-[10px] text-muted-foreground px-2 py-3">No analyses yet</p>
+                ) : history.map((item) => {
+                  const risk = (item.result as Record<string, string> | undefined)?.overall_risk ?? 'low'
+                  const StatusIcon = STATUS_ICON[risk] ?? CheckCircle
+                  const params = item.input_params as Record<string, string>
+                  return (
+                    <div key={item.id} className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-muted/50 transition-colors cursor-pointer">
+                      <Scale className="h-4 w-4 shrink-0 text-[var(--feature-analysis)]" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[11px] font-medium truncate">{item.title}</p>
+                        <p className="text-[9px] text-muted-foreground">{params.depth} &middot; {risk} risk &middot; {formatTimeAgo(item.created_at)}</p>
+                      </div>
+                      <StatusIcon className={`h-3.5 w-3.5 shrink-0 ${STATUS_COLOR[risk] ?? 'text-green-400'}`} />
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Column 2 -- Form (75%) + History (25%) */}
       {panelCollapsed ? (
-        <div className="flex h-full w-[50px] shrink-0 flex-col items-center border-r border-border/50 py-4 gap-3">
+        <div className="hidden md:flex h-full w-[50px] shrink-0 flex-col items-center border-r border-border/50 py-4 gap-3">
           <button
             onClick={() => setPanelCollapsed(false)}
             className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
@@ -108,7 +234,7 @@ export function ContractAnalysisPage() {
           <Scale className="h-4 w-4 text-muted-foreground" />
         </div>
       ) : (
-      <div className="flex w-[340px] shrink-0 flex-col border-r border-border/50">
+      <div className="hidden md:flex w-[340px] shrink-0 flex-col border-r border-border/50">
         <div className="flex items-center justify-between px-5 py-3 border-b border-border/50 shrink-0">
           <div>
             <h1 className="text-sm font-semibold">{t('analysis.title')}</h1>
