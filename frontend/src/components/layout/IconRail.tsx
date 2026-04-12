@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import { Home, Folder, FilePlus, Library, GitCompare, ShieldCheck, Scale, ClipboardList, FileCheck, Settings, LayoutGrid, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import { Home, Folder, FilePlus, Library, GitCompare, ShieldCheck, Scale, ClipboardList, FileCheck, BookOpen, Plug, LayoutDashboard, Settings, LayoutGrid, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useAuth } from '@/contexts/AuthContext'
 import { useI18n } from '@/i18n/I18nContext'
 import { UserAvatar } from './UserAvatar'
 
 const navItems = [
+  { path: '/dashboard', icon: LayoutDashboard, labelKey: 'nav.dashboard' },
   { path: '/', icon: Home, labelKey: 'nav.chat', end: true },
   { path: '/documents', icon: Folder, labelKey: 'nav.documents' },
   { path: '/create', icon: FilePlus, labelKey: 'nav.create' },
@@ -16,6 +17,8 @@ const navItems = [
   { path: '/analysis', icon: Scale, labelKey: 'nav.analysis' },
   { path: '/obligations', icon: ClipboardList, labelKey: 'nav.obligations' },
   { path: '/approvals', icon: FileCheck, labelKey: 'nav.approvals' },
+  { path: '/regulatory', icon: BookOpen, labelKey: 'nav.regulatory' },
+  { path: '/integrations', icon: Plug, labelKey: 'nav.integrations' },
 ]
 
 function railButtonClass({ isActive }: { isActive: boolean }) {

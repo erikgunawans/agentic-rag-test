@@ -223,6 +223,56 @@ export const translations: Record<Locale, Record<string, string>> = {
     'userManagement.department': 'Departemen',
     'userManagement.confirmDeactivate': 'Yakin ingin menonaktifkan pengguna ini?',
 
+    // Dashboard
+    'nav.dashboard': 'Dasbor',
+    'dashboard.title': 'Dasbor Eksekutif',
+    'dashboard.documents': 'Dokumen',
+    'dashboard.obligations': 'Kewajiban',
+    'dashboard.approvals': 'Persetujuan',
+    'dashboard.compliance': 'Kepatuhan',
+    'dashboard.regulatory': 'Regulasi',
+    'dashboard.obligationTimeline': 'Jadwal Kewajiban',
+    'dashboard.complianceTrend': 'Tren Kepatuhan',
+    'dashboard.noDeadlines': 'Tidak ada tenggat mendatang',
+    'dashboard.noComplianceData': 'Belum ada data kepatuhan',
+
+    // Regulatory
+    'nav.regulatory': 'Regulasi',
+    'regulatory.title': 'Intelijen Regulasi',
+    'regulatory.sources': 'Sumber',
+    'regulatory.updates': 'Pembaruan',
+    'regulatory.alerts': 'Peringatan',
+    'regulatory.search': 'Cari regulasi...',
+    'regulatory.addSource': 'Tambah Sumber',
+    'regulatory.empty': 'Belum ada pembaruan regulasi.',
+    'regulatory.markRead': 'Tandai Dibaca',
+    'regulatory.allTypes': 'Semua Jenis',
+
+    // Notifications
+    'notifications.title': 'Notifikasi',
+    'notifications.channels': 'Saluran',
+    'notifications.history': 'Riwayat',
+    'notifications.addChannel': 'Tambah Saluran',
+    'notifications.whatsapp': 'WhatsApp',
+    'notifications.email': 'Email',
+    'notifications.inApp': 'Dalam Aplikasi',
+
+    // Integrations
+    'nav.integrations': 'Integrasi',
+    'integrations.title': 'Integrasi',
+    'integrations.dokmee': 'Dokmee DMS',
+    'integrations.google': 'Google Drive',
+    'integrations.configured': 'Terkonfigurasi',
+    'integrations.notConfigured': 'Belum Dikonfigurasi',
+    'integrations.connected': 'Terhubung',
+    'integrations.notConnected': 'Belum Terhubung',
+    'integrations.browse': 'Jelajahi Dokumen',
+    'integrations.import': 'Impor',
+    'integrations.export': 'Ekspor',
+    'integrations.disconnect': 'Putuskan',
+    'integrations.connectDrive': 'Hubungkan Google Drive',
+    'integrations.configureAdmin': 'Konfigurasi di Pengaturan Admin',
+
     // Document Comparison
     'compare.title': 'Perbandingan Dokumen',
     'compare.doc1': 'Dokumen A',
@@ -593,6 +643,56 @@ export const translations: Record<Locale, Record<string, string>> = {
     'userManagement.empty': 'No users found.',
     'userManagement.department': 'Department',
     'userManagement.confirmDeactivate': 'Are you sure you want to deactivate this user?',
+
+    // Dashboard
+    'nav.dashboard': 'Dashboard',
+    'dashboard.title': 'Executive Dashboard',
+    'dashboard.documents': 'Documents',
+    'dashboard.obligations': 'Obligations',
+    'dashboard.approvals': 'Approvals',
+    'dashboard.compliance': 'Compliance',
+    'dashboard.regulatory': 'Regulatory',
+    'dashboard.obligationTimeline': 'Obligation Timeline',
+    'dashboard.complianceTrend': 'Compliance Trend',
+    'dashboard.noDeadlines': 'No upcoming deadlines',
+    'dashboard.noComplianceData': 'No compliance data yet',
+
+    // Regulatory
+    'nav.regulatory': 'Regulatory',
+    'regulatory.title': 'Regulatory Intelligence',
+    'regulatory.sources': 'Sources',
+    'regulatory.updates': 'Updates',
+    'regulatory.alerts': 'Alerts',
+    'regulatory.search': 'Search regulations...',
+    'regulatory.addSource': 'Add Source',
+    'regulatory.empty': 'No regulatory updates yet.',
+    'regulatory.markRead': 'Mark as Read',
+    'regulatory.allTypes': 'All Types',
+
+    // Notifications
+    'notifications.title': 'Notifications',
+    'notifications.channels': 'Channels',
+    'notifications.history': 'History',
+    'notifications.addChannel': 'Add Channel',
+    'notifications.whatsapp': 'WhatsApp',
+    'notifications.email': 'Email',
+    'notifications.inApp': 'In-App',
+
+    // Integrations
+    'nav.integrations': 'Integrations',
+    'integrations.title': 'Integrations',
+    'integrations.dokmee': 'Dokmee DMS',
+    'integrations.google': 'Google Drive',
+    'integrations.configured': 'Configured',
+    'integrations.notConfigured': 'Not Configured',
+    'integrations.connected': 'Connected',
+    'integrations.notConnected': 'Not Connected',
+    'integrations.browse': 'Browse Documents',
+    'integrations.import': 'Import',
+    'integrations.export': 'Export',
+    'integrations.disconnect': 'Disconnect',
+    'integrations.connectDrive': 'Connect Google Drive',
+    'integrations.configureAdmin': 'Configure in Admin Settings',
 
     // Document Comparison
     'compare.title': 'Document Comparison',
