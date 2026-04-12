@@ -1,13 +1,28 @@
 import { useState } from 'react'
-import { ShieldCheck, X, Clock, CheckCircle, ShieldAlert, ShieldX } from 'lucide-react'
+import { ShieldCheck, X, Clock, CheckCircle, ShieldAlert, ShieldX, Loader2 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useI18n } from '@/i18n/I18nContext'
 import { Button } from '@/components/ui/button'
 import { DropZone } from '@/components/shared/DropZone'
 import { EmptyState } from '@/components/shared/EmptyState'
+import { apiFetch } from '@/lib/api'
 
 type Framework = 'ojk' | 'international' | 'gdpr' | 'custom'
 type Scope = 'legal' | 'risks' | 'missing' | 'regulatory'
+
+interface ComplianceFinding {
+  category: string
+  status: string
+  description: string
+  recommendation: string
+}
+
+interface ComplianceResult {
+  overall_status: string
+  summary: string
+  findings: ComplianceFinding[]
+  missing_provisions: string[]
+}
 
 const inputClass = "w-full rounded-lg border border-border bg-secondary text-foreground px-3 py-2 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
 
@@ -21,11 +36,28 @@ const MOCK_RECENT: RecentItem[] = [
 const STATUS_ICON = { pass: CheckCircle, review: ShieldAlert, fail: ShieldX }
 const STATUS_COLOR = { pass: 'text-green-400', review: 'text-amber-400', fail: 'text-red-400' }
 
+const FINDING_STYLE: Record<string, { color: string; bg: string }> = {
+  pass: { color: 'text-green-400', bg: 'border-green-500/30 bg-green-500/5' },
+  review: { color: 'text-amber-400', bg: 'border-amber-500/30 bg-amber-500/5' },
+  fail: { color: 'text-red-400', bg: 'border-red-500/30 bg-red-500/5' },
+}
+
+const OVERALL_STYLE: Record<string, { label: string; color: string; bg: string }> = {
+  pass: { label: 'COMPLIANT', color: 'text-green-400', bg: 'bg-green-500/10 border-green-500/30' },
+  review: { label: 'NEEDS REVIEW', color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/30' },
+  fail: { label: 'NON-COMPLIANT', color: 'text-red-400', bg: 'bg-red-500/10 border-red-500/30' },
+}
+
 export function ComplianceCheckPage() {
   const { t } = useI18n()
   const navigate = useNavigate()
   const [framework, setFramework] = useState<Framework>('ojk')
   const [scopes, setScopes] = useState<Set<Scope>>(new Set(['legal']))
+  const [file, setFile] = useState<File | null>(null)
+  const [context, setContext] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [result, setResult] = useState<ComplianceResult | null>(null)
 
   function toggleScope(scope: Scope) {
     setScopes((prev) => {
@@ -36,9 +68,33 @@ export function ComplianceCheckPage() {
     })
   }
 
+  async function handleRun() {
+    if (!file) return
+    setLoading(true)
+    setError(null)
+    try {
+      const formData = new FormData()
+      formData.append('document', file)
+      formData.append('framework', framework)
+      formData.append('scopes', Array.from(scopes).join(','))
+      if (context.trim()) formData.append('context', context)
+
+      const response = await apiFetch('/document-tools/compliance', {
+        method: 'POST',
+        body: formData,
+      })
+      const data = await response.json()
+      setResult(data)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Compliance check failed')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <div className="flex h-full">
-      {/* Column 2 — Form (75%) + History (25%) */}
+      {/* Column 2 -- Form (75%) + History (25%) */}
       <div className="flex w-[340px] shrink-0 flex-col border-r border-border/50">
         <div className="flex items-center justify-between px-5 py-3 border-b border-border/50 shrink-0">
           <div>
@@ -54,7 +110,7 @@ export function ComplianceCheckPage() {
           <div className="px-5 py-4 space-y-4">
             <div className="space-y-1.5">
               <label className="text-xs font-medium">{t('compliance.document')} <span className="text-red-400">*</span></label>
-              <DropZone />
+              <DropZone onFileSelect={setFile} />
             </div>
 
             <div className="space-y-1.5">
@@ -86,13 +142,15 @@ export function ComplianceCheckPage() {
 
             <div className="space-y-1.5">
               <label className="text-xs font-medium">{t('compliance.context')}</label>
-              <textarea className={`${inputClass} min-h-[80px] resize-none`} placeholder={t('compliance.context')} />
+              <textarea className={`${inputClass} min-h-[80px] resize-none`} placeholder={t('compliance.context')} value={context} onChange={(e) => setContext(e.target.value)} />
             </div>
 
-            <Button className="w-full text-xs" disabled>
-              <ShieldCheck className="mr-2 h-3.5 w-3.5" />
-              {t('compliance.run')}
+            <Button className="w-full text-xs" disabled={loading || !file} onClick={handleRun}>
+              {loading ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="mr-2 h-3.5 w-3.5" />}
+              {loading ? 'Checking...' : t('compliance.run')}
             </Button>
+
+            {error && <p className="text-xs text-red-400">{error}</p>}
           </div>
         </div>
 
@@ -102,7 +160,7 @@ export function ComplianceCheckPage() {
               <Clock className="h-3 w-3 text-muted-foreground" />
               <span className="text-[10px] font-semibold text-muted-foreground">{t('compliance.history')}</span>
             </div>
-            <span className="text-[10px] text-primary cursor-pointer hover:underline">View all →</span>
+            <span className="text-[10px] text-primary cursor-pointer hover:underline">View all &rarr;</span>
           </div>
           <div className="flex-1 overflow-y-auto min-h-0 px-3 pb-2 space-y-0.5">
             {MOCK_RECENT.map((item) => {
@@ -112,7 +170,7 @@ export function ComplianceCheckPage() {
                   <ShieldCheck className="h-4 w-4 shrink-0 text-[var(--feature-compliance)]" />
                   <div className="flex-1 min-w-0">
                     <p className="text-[11px] font-medium truncate">{item.title}</p>
-                    <p className="text-[9px] text-muted-foreground">{item.framework} · {item.time}</p>
+                    <p className="text-[9px] text-muted-foreground">{item.framework} &middot; {item.time}</p>
                   </div>
                   <StatusIcon className={`h-3.5 w-3.5 shrink-0 ${STATUS_COLOR[item.status]}`} />
                 </div>
@@ -122,9 +180,61 @@ export function ComplianceCheckPage() {
         </div>
       </div>
 
-      {/* Column 3 — Results (blank for now) */}
-      <div className="flex-1 flex flex-col items-center justify-center">
-        <EmptyState icon={ShieldCheck} title="Upload a document and run compliance check" subtitle="The compliance report will appear here" />
+      {/* Column 3 -- Results */}
+      <div className="flex-1 flex flex-col overflow-y-auto">
+        {result ? (
+          <div className="p-8 space-y-6">
+            {/* Overall status badge */}
+            <div className="flex items-center gap-4">
+              <h2 className="text-lg font-semibold">Compliance Report</h2>
+              {(() => {
+                const style = OVERALL_STYLE[result.overall_status] || OVERALL_STYLE.review
+                return (
+                  <span className={`rounded-full border px-3 py-1 text-[10px] font-bold ${style.bg} ${style.color}`}>
+                    {style.label}
+                  </span>
+                )
+              })()}
+            </div>
+            <p className="text-xs text-muted-foreground">{result.summary}</p>
+
+            {/* Findings */}
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold">Findings ({result.findings.length})</h3>
+              {result.findings.map((finding, i) => {
+                const style = FINDING_STYLE[finding.status] || FINDING_STYLE.review
+                const Icon = STATUS_ICON[finding.status as keyof typeof STATUS_ICON] || ShieldAlert
+                return (
+                  <div key={i} className={`rounded-lg border p-4 space-y-2 ${style.bg}`}>
+                    <div className="flex items-center gap-2">
+                      <Icon className={`h-3.5 w-3.5 ${style.color}`} />
+                      <span className="text-xs font-semibold">{finding.category}</span>
+                      <span className={`text-[10px] ml-auto uppercase font-bold ${style.color}`}>{finding.status}</span>
+                    </div>
+                    <p className="text-xs">{finding.description}</p>
+                    <p className="text-xs text-muted-foreground"><span className="font-medium">Recommendation:</span> {finding.recommendation}</p>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Missing provisions */}
+            {result.missing_provisions.length > 0 && (
+              <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-4 space-y-2">
+                <h3 className="text-sm font-semibold text-amber-400">Missing Provisions</h3>
+                <ul className="list-disc list-inside space-y-1">
+                  {result.missing_provisions.map((p, i) => (
+                    <li key={i} className="text-xs">{p}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="flex-1 flex flex-col items-center justify-center">
+            <EmptyState icon={ShieldCheck} title="Upload a document and run compliance check" subtitle="The compliance report will appear here" />
+          </div>
+        )}
       </div>
     </div>
   )

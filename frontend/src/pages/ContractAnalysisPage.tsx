@@ -1,14 +1,37 @@
 import { useState } from 'react'
-import { Scale, X, Clock, CheckCircle, AlertTriangle, XCircle } from 'lucide-react'
+import { Scale, X, Clock, CheckCircle, AlertTriangle, XCircle, Loader2 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useI18n } from '@/i18n/I18nContext'
 import { Button } from '@/components/ui/button'
 import { DropZone } from '@/components/shared/DropZone'
 import { EmptyState } from '@/components/shared/EmptyState'
+import { apiFetch } from '@/lib/api'
 
 type AnalysisType = 'risk' | 'obligations' | 'clauses' | 'missing'
 type Law = 'indonesia' | 'singapore' | 'international' | 'custom'
 type Depth = 'quick' | 'standard' | 'deep'
+
+interface AnalysisRisk {
+  clause: string
+  risk_level: string
+  description: string
+  recommendation: string
+}
+
+interface AnalysisObligation {
+  party: string
+  obligation: string
+  deadline: string | null
+}
+
+interface AnalysisResult {
+  overall_risk: string
+  summary: string
+  risks: AnalysisRisk[]
+  obligations: AnalysisObligation[]
+  critical_clauses: string[]
+  missing_provisions: string[]
+}
 
 const inputClass = "w-full rounded-lg border border-border bg-secondary text-foreground px-3 py-2 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
 
@@ -22,12 +45,23 @@ const MOCK_RECENT: RecentItem[] = [
 const STATUS_ICON = { low: CheckCircle, medium: AlertTriangle, high: XCircle }
 const STATUS_COLOR = { low: 'text-green-400', medium: 'text-amber-400', high: 'text-red-400' }
 
+const RISK_STYLE: Record<string, { color: string; bg: string; label: string }> = {
+  high: { color: 'text-red-400', bg: 'border-red-500/30 bg-red-500/5', label: 'HIGH RISK' },
+  medium: { color: 'text-amber-400', bg: 'border-amber-500/30 bg-amber-500/5', label: 'MEDIUM RISK' },
+  low: { color: 'text-green-400', bg: 'border-green-500/30 bg-green-500/5', label: 'LOW RISK' },
+}
+
 export function ContractAnalysisPage() {
   const { t } = useI18n()
   const navigate = useNavigate()
   const [types, setTypes] = useState<Set<AnalysisType>>(new Set(['risk']))
   const [law, setLaw] = useState<Law>('indonesia')
   const [depth, setDepth] = useState<Depth>('standard')
+  const [file, setFile] = useState<File | null>(null)
+  const [context, setContext] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [result, setResult] = useState<AnalysisResult | null>(null)
 
   function toggleType(type: AnalysisType) {
     setTypes((prev) => {
@@ -38,9 +72,34 @@ export function ContractAnalysisPage() {
     })
   }
 
+  async function handleRun() {
+    if (!file) return
+    setLoading(true)
+    setError(null)
+    try {
+      const formData = new FormData()
+      formData.append('document', file)
+      formData.append('analysis_types', Array.from(types).join(','))
+      formData.append('law', law)
+      formData.append('depth', depth)
+      if (context.trim()) formData.append('context', context)
+
+      const response = await apiFetch('/document-tools/analyze', {
+        method: 'POST',
+        body: formData,
+      })
+      const data = await response.json()
+      setResult(data)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Analysis failed')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <div className="flex h-full">
-      {/* Column 2 — Form (75%) + History (25%) */}
+      {/* Column 2 -- Form (75%) + History (25%) */}
       <div className="flex w-[340px] shrink-0 flex-col border-r border-border/50">
         <div className="flex items-center justify-between px-5 py-3 border-b border-border/50 shrink-0">
           <div>
@@ -56,7 +115,7 @@ export function ContractAnalysisPage() {
           <div className="px-5 py-4 space-y-4">
             <div className="space-y-1.5">
               <label className="text-xs font-medium">{t('analysis.document')} <span className="text-red-400">*</span></label>
-              <DropZone />
+              <DropZone onFileSelect={setFile} />
             </div>
 
             <div className="space-y-1.5">
@@ -105,13 +164,15 @@ export function ContractAnalysisPage() {
 
             <div className="space-y-1.5">
               <label className="text-xs font-medium">{t('analysis.context')}</label>
-              <textarea className={`${inputClass} min-h-[80px] resize-none`} placeholder={t('analysis.context')} />
+              <textarea className={`${inputClass} min-h-[80px] resize-none`} placeholder={t('analysis.context')} value={context} onChange={(e) => setContext(e.target.value)} />
             </div>
 
-            <Button className="w-full text-xs" disabled>
-              <Scale className="mr-2 h-3.5 w-3.5" />
-              {t('analysis.run')}
+            <Button className="w-full text-xs" disabled={loading || !file} onClick={handleRun}>
+              {loading ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <Scale className="mr-2 h-3.5 w-3.5" />}
+              {loading ? 'Analyzing...' : t('analysis.run')}
             </Button>
+
+            {error && <p className="text-xs text-red-400">{error}</p>}
           </div>
         </div>
 
@@ -121,7 +182,7 @@ export function ContractAnalysisPage() {
               <Clock className="h-3 w-3 text-muted-foreground" />
               <span className="text-[10px] font-semibold text-muted-foreground">{t('analysis.history')}</span>
             </div>
-            <span className="text-[10px] text-primary cursor-pointer hover:underline">View all →</span>
+            <span className="text-[10px] text-primary cursor-pointer hover:underline">View all &rarr;</span>
           </div>
           <div className="flex-1 overflow-y-auto min-h-0 px-3 pb-2 space-y-0.5">
             {MOCK_RECENT.map((item) => {
@@ -131,7 +192,7 @@ export function ContractAnalysisPage() {
                   <Scale className="h-4 w-4 shrink-0 text-[var(--feature-analysis)]" />
                   <div className="flex-1 min-w-0">
                     <p className="text-[11px] font-medium truncate">{item.title}</p>
-                    <p className="text-[9px] text-muted-foreground">{item.depth} · {item.risk} · {item.time}</p>
+                    <p className="text-[9px] text-muted-foreground">{item.depth} &middot; {item.risk} &middot; {item.time}</p>
                   </div>
                   <StatusIcon className={`h-3.5 w-3.5 shrink-0 ${STATUS_COLOR[item.status]}`} />
                 </div>
@@ -141,9 +202,102 @@ export function ContractAnalysisPage() {
         </div>
       </div>
 
-      {/* Column 3 — Results (blank for now) */}
-      <div className="flex-1 flex flex-col items-center justify-center">
-        <EmptyState icon={Scale} title="Upload a contract and run analysis" subtitle="The risk assessment will appear here" />
+      {/* Column 3 -- Results */}
+      <div className="flex-1 flex flex-col overflow-y-auto">
+        {result ? (
+          <div className="p-8 space-y-6">
+            {/* Overall risk badge */}
+            <div className="flex items-center gap-4">
+              <h2 className="text-lg font-semibold">Contract Analysis</h2>
+              {(() => {
+                const style = RISK_STYLE[result.overall_risk] || RISK_STYLE.medium
+                return (
+                  <span className={`rounded-full border px-3 py-1 text-[10px] font-bold ${style.bg} ${style.color}`}>
+                    {style.label}
+                  </span>
+                )
+              })()}
+            </div>
+            <p className="text-xs text-muted-foreground">{result.summary}</p>
+
+            {/* Risks */}
+            {result.risks.length > 0 && (
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold">Risks ({result.risks.length})</h3>
+                {result.risks.map((risk, i) => {
+                  const style = RISK_STYLE[risk.risk_level] || RISK_STYLE.medium
+                  const Icon = STATUS_ICON[risk.risk_level as keyof typeof STATUS_ICON] || AlertTriangle
+                  return (
+                    <div key={i} className={`rounded-lg border p-4 space-y-2 ${style.bg}`}>
+                      <div className="flex items-center gap-2">
+                        <Icon className={`h-3.5 w-3.5 ${style.color}`} />
+                        <span className="text-xs font-semibold">{risk.clause}</span>
+                        <span className={`text-[10px] ml-auto uppercase font-bold ${style.color}`}>{risk.risk_level}</span>
+                      </div>
+                      <p className="text-xs">{risk.description}</p>
+                      <p className="text-xs text-muted-foreground"><span className="font-medium">Recommendation:</span> {risk.recommendation}</p>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+            {/* Obligations */}
+            {result.obligations.length > 0 && (
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold">Key Obligations ({result.obligations.length})</h3>
+                <div className="rounded-lg border border-border overflow-hidden">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="bg-secondary/50">
+                        <th className="text-left px-4 py-2 font-semibold">Party</th>
+                        <th className="text-left px-4 py-2 font-semibold">Obligation</th>
+                        <th className="text-left px-4 py-2 font-semibold">Deadline</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {result.obligations.map((ob, i) => (
+                        <tr key={i} className="border-t border-border/50">
+                          <td className="px-4 py-2 font-medium">{ob.party}</td>
+                          <td className="px-4 py-2">{ob.obligation}</td>
+                          <td className="px-4 py-2 text-muted-foreground">{ob.deadline || 'N/A'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Critical clauses */}
+            {result.critical_clauses.length > 0 && (
+              <div className="rounded-lg border border-border bg-secondary/30 p-4 space-y-2">
+                <h3 className="text-sm font-semibold">Critical Clauses</h3>
+                <ul className="list-disc list-inside space-y-1">
+                  {result.critical_clauses.map((c, i) => (
+                    <li key={i} className="text-xs">{c}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Missing provisions */}
+            {result.missing_provisions.length > 0 && (
+              <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-4 space-y-2">
+                <h3 className="text-sm font-semibold text-amber-400">Missing Provisions</h3>
+                <ul className="list-disc list-inside space-y-1">
+                  {result.missing_provisions.map((p, i) => (
+                    <li key={i} className="text-xs">{p}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="flex-1 flex flex-col items-center justify-center">
+            <EmptyState icon={Scale} title="Upload a contract and run analysis" subtitle="The risk assessment will appear here" />
+          </div>
+        )}
       </div>
     </div>
   )

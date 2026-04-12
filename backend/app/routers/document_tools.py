@@ -1,0 +1,147 @@
+import json
+import logging
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from app.dependencies import get_current_user
+from app.services.document_tool_service import (
+    create_document,
+    compare_documents,
+    check_compliance,
+    analyze_contract,
+    _extract_text,
+)
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/document-tools", tags=["document-tools"])
+
+ALLOWED_MIME_TYPES = {
+    "application/pdf",
+    "text/plain",
+    "text/markdown",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "text/csv",
+    "text/html",
+    "application/json",
+}
+MAX_FILE_SIZE = 50 * 1024 * 1024  # 50 MB
+
+
+def _validate_file(file_bytes: bytes, content_type: str | None) -> None:
+    if content_type not in ALLOWED_MIME_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported file type '{content_type}'. Use PDF, TXT, Markdown, DOCX, CSV, HTML, or JSON.",
+        )
+    if len(file_bytes) > MAX_FILE_SIZE:
+        raise HTTPException(status_code=400, detail="File exceeds 50 MB limit.")
+    if not file_bytes:
+        raise HTTPException(status_code=400, detail="Empty file.")
+
+
+@router.post("/create")
+async def create_document_endpoint(
+    doc_type: str = Form(...),
+    fields: str = Form(...),  # JSON string of form fields
+    output_language: str = Form("both"),
+    reference_file: UploadFile | None = File(None),
+    template_file: UploadFile | None = File(None),
+    user: dict = Depends(get_current_user),
+):
+    try:
+        parsed_fields = json.loads(fields)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid fields JSON.")
+
+    reference_text = None
+    if reference_file:
+        ref_bytes = await reference_file.read()
+        _validate_file(ref_bytes, reference_file.content_type)
+        reference_text = _extract_text(ref_bytes, reference_file.content_type)
+
+    template_text = None
+    if template_file:
+        tpl_bytes = await template_file.read()
+        _validate_file(tpl_bytes, template_file.content_type)
+        template_text = _extract_text(tpl_bytes, template_file.content_type)
+
+    result = await create_document(
+        doc_type=doc_type,
+        fields=parsed_fields,
+        output_language=output_language,
+        reference_text=reference_text,
+        template_text=template_text,
+    )
+    return result.model_dump()
+
+
+@router.post("/compare")
+async def compare_documents_endpoint(
+    doc_a: UploadFile = File(...),
+    doc_b: UploadFile = File(...),
+    focus: str = Form("full"),
+    context: str = Form(""),
+    user: dict = Depends(get_current_user),
+):
+    a_bytes = await doc_a.read()
+    _validate_file(a_bytes, doc_a.content_type)
+    b_bytes = await doc_b.read()
+    _validate_file(b_bytes, doc_b.content_type)
+
+    doc_a_text = _extract_text(a_bytes, doc_a.content_type)
+    doc_b_text = _extract_text(b_bytes, doc_b.content_type)
+
+    result = await compare_documents(
+        doc_a_text=doc_a_text,
+        doc_b_text=doc_b_text,
+        focus=focus,
+        context=context or None,
+    )
+    return result.model_dump()
+
+
+@router.post("/compliance")
+async def check_compliance_endpoint(
+    document: UploadFile = File(...),
+    framework: str = Form("ojk"),
+    scopes: str = Form("legal"),  # comma-separated
+    context: str = Form(""),
+    user: dict = Depends(get_current_user),
+):
+    doc_bytes = await document.read()
+    _validate_file(doc_bytes, document.content_type)
+    doc_text = _extract_text(doc_bytes, document.content_type)
+
+    scope_list = [s.strip() for s in scopes.split(",") if s.strip()]
+
+    result = await check_compliance(
+        doc_text=doc_text,
+        framework=framework,
+        scopes=scope_list,
+        context=context or None,
+    )
+    return result.model_dump()
+
+
+@router.post("/analyze")
+async def analyze_contract_endpoint(
+    document: UploadFile = File(...),
+    analysis_types: str = Form("risk"),  # comma-separated
+    law: str = Form("indonesia"),
+    depth: str = Form("standard"),
+    context: str = Form(""),
+    user: dict = Depends(get_current_user),
+):
+    doc_bytes = await document.read()
+    _validate_file(doc_bytes, document.content_type)
+    doc_text = _extract_text(doc_bytes, document.content_type)
+
+    type_list = [t.strip() for t in analysis_types.split(",") if t.strip()]
+
+    result = await analyze_contract(
+        doc_text=doc_text,
+        analysis_types=type_list,
+        law=law,
+        depth=depth,
+        context=context or None,
+    )
+    return result.model_dump()
