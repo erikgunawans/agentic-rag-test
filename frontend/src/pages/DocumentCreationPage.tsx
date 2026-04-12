@@ -244,7 +244,7 @@ export function DocumentCreationPage() {
             <h1 className="text-sm font-semibold">{t('create.title')}</h1>
             <p className="text-[10px] text-muted-foreground">Isi detail untuk membuat dokumen</p>
           </div>
-          <button onClick={() => setPanelCollapsed(true)} className="text-muted-foreground hover:text-foreground transition-colors">
+          <button onClick={() => setPanelCollapsed(true)} className="text-muted-foreground hover:text-foreground transition-colors focus-ring">
             <ChevronLeft className="h-4 w-4" />
           </button>
         </div>

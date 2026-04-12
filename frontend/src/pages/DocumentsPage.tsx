@@ -186,7 +186,7 @@ export function DocumentsPage() {
                 <button
                   key={value}
                   onClick={() => setTypeFilter(value)}
-                  className={`flex w-full items-center justify-between rounded-md px-2.5 py-1.5 text-xs transition-colors ${
+                  className={`flex w-full items-center justify-between rounded-md focus-ring px-2.5 py-1.5 text-xs transition-colors ${
                     typeFilter === value ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
                   }`}
                 >
@@ -204,7 +204,7 @@ export function DocumentsPage() {
               <button
                 key={value}
                 onClick={() => toggleStatus(value)}
-                className="flex w-full items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                className="flex w-full items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors focus-ring"
               >
                 <div className={`h-3.5 w-3.5 rounded border flex items-center justify-center ${
                   statusFilters.has(value) ? 'border-primary bg-primary' : 'border-border'
@@ -224,7 +224,7 @@ export function DocumentsPage() {
         {/* Top bar */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border/50 shrink-0">
           <div className="flex items-center gap-3">
-            <h1 className="text-lg font-semibold">{t('documents.title')}</h1>
+            <h1 className="text-lg font-bold tracking-tight">{t('documents.title')}</h1>
             <span className="text-xs text-muted-foreground">{filtered.length} documents</span>
           </div>
           <div className="flex items-center gap-2">

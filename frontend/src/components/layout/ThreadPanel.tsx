@@ -63,7 +63,7 @@ export function ThreadPanel({ collapsed, onToggleCollapse }: ThreadPanelProps) {
         </div>
         <button
           onClick={onToggleCollapse}
-          className="flex items-center justify-center min-w-[32px] min-h-[32px] text-muted-foreground hover:text-foreground transition-colors"
+          className="flex items-center justify-center min-w-[32px] min-h-[32px] text-muted-foreground hover:text-foreground transition-colors focus-ring"
         >
           <ChevronLeft className="h-4 w-4" />
         </button>
@@ -107,7 +107,7 @@ export function ThreadPanel({ collapsed, onToggleCollapse }: ThreadPanelProps) {
             <p className="text-xs font-medium text-foreground truncate">{displayName}</p>
             <p className="text-[10px] text-muted-foreground">{t('sidebar.role')}</p>
           </div>
-          <button className="text-muted-foreground hover:text-foreground transition-colors">
+          <button className="text-muted-foreground hover:text-foreground transition-colors focus-ring">
             <Settings className="h-3.5 w-3.5" />
           </button>
         </div>
