@@ -322,14 +322,16 @@ Track your progress through the masterclass. Update this file as you complete mo
 - [x] Compliance page: overall status badge (pass/review/fail), findings list, missing provisions
 - [x] Analysis page: risk cards, obligations table, critical clauses, missing provisions
 - [x] QA fix: Generate Draft button disabled until required fields are filled (per doc type validation)
+- [x] Backend fix: bilingual document creation handles dict content response from LLM
+- [x] Result persistence: `document_tool_results` Supabase table with RLS, history endpoints, frontend history sidebars
 
 #### Document Tool Architecture Summary
 
-- **Pattern**: File upload → parse text (reuse ingestion `parse_text`) → LLM structured output (OpenRouter + `json_object` format) → Pydantic validation → JSON response
-- **Stateless**: No new DB tables — operations are synchronous LLM calls, no persistence of results
+- **Pattern**: File upload → parse text (reuse ingestion `parse_text`) → LLM structured output (OpenRouter + `json_object` format) → Pydantic validation → JSON response → persist to `document_tool_results`
+- **Persistence**: Results stored in `document_tool_results` table (JSONB), history sidebar shows recent results per tool type, `GET /document-tools/history` endpoint
 - **File handling**: FormData with optional files (reference/template for creation, two docs for comparison, single doc for compliance/analysis)
 - **Truncation**: Document text capped at ~48k chars (~12k tokens) to stay within LLM context
-- **Validation**: Compare/Compliance/Analysis buttons disabled without file upload; Create button disabled until required fields per doc type are filled
+- **Validation**: Red border + inline error messages on required fields when clicking disabled button; per doc type required field lists
 - **No new dependencies**: Reuses existing OpenRouter service, ingestion parser, auth middleware
 
 #### Sub-Plan Files
@@ -340,35 +342,44 @@ Track your progress through the masterclass. Update this file as you complete mo
 
 - [x] Sparkle icon replaces "K" badge, gradient text for user name
 - [x] `WelcomeInput` — large card-style input with action bar (attach, doc icon, "Legal AI v1.0" label, mic, send)
-- [x] `SuggestionCards` — Bento grid: Row 1 equal halves (Create | Compare), Row 2 asymmetric (Compliance 60% | Analysis 40%)
-- [x] `ThreadPanel` — search bar, "Chat History" subtitle, collapsible (340px expanded ↔ 50px minimized strip), user profile card at bottom
+- [x] `SuggestionCards` — Bento grid with left accent borders + inline icons (no icon circles), responsive (stacks on mobile)
+- [x] `ThreadPanel` — search bar, "Chat History" subtitle, fully collapsible (340px expanded ↔ hidden), toggle in IconRail
 
 ### Page Layout Redesign ✅ COMPLETE
 
 - [x] `DocumentCreationPage` — 3-column layout (Icon Rail | Form 75% + History 25% | Preview empty state), dynamic form fields per doc type (Generic, NDA, Sales, Service), output language radio, reference/template uploads
-- [x] `DocumentsPage` — 3-column layout with upload section (dropzone, recent uploads, storage quota), filter section (type filters, status checkboxes), main area (top bar with search + grid/list toggle, 3-column document card grid)
+- [x] `DocumentsPage` — 3-column layout with upload section (dropzone, recent uploads, storage quota), filter section (type filters, status checkboxes), main area (top bar with search + grid/list toggle, responsive document card grid)
 - [x] `DocumentComparisonPage` — same 3-column pattern with dual doc upload, swap button, comparison focus, blank results area
 - [x] `ComplianceCheckPage` — same 3-column pattern with framework selector, scope multi-select, blank results area
 - [x] `ContractAnalysisPage` — same 3-column pattern with analysis type, governing law, depth selector, blank results area
-- [x] All column 2 panels standardized to 340px width (including ThreadPanel)
-- [x] Collapsible panels — ThreadPanel chevron toggles 340px ↔ 50px minimized strip
+- [x] All column 2 panels standardized to 340px width
+- [x] Unified sidebar collapse — shared state via `useSidebar` hook, `PanelLeftClose`/`PanelLeftOpen` icons, panels collapse fully (no 50px strip)
+- [x] Settings/Admin pages — 3-column layout with section navigation, centered content with section icons
 
-### 2026 Design Trends ✅ COMPLETE
+### Design Quality (A / A+) ✅ COMPLETE
 
-- [x] **Glassmorphism** — `glass` utility (backdrop-blur + semi-transparent bg) on Icon Rail, ThreadPanel, MessageInput, AuthPage card, WelcomeInput
-- [x] **Glow effects** — `glow-primary` on active nav items and focus states, gradient send button with hover glow
-- [x] **Layered shadows** — `--shadow-xs/sm/md/lg` CSS variables, applied to cards, popovers, dropdowns
-- [x] **Gradient accents** — gradient user message bubbles, gradient text for user name, animated gradient card borders
+- [x] **Mobile responsive** — hamburger menu header, panel overlays with backdrop, responsive grids, FAB on all feature pages
+- [x] **AI slop eliminated** — icon-in-circle cards replaced with accent-border + inline icon, pulse rings removed from EmptyState
+- [x] **Touch targets** — all interactive elements 40px+, icon rail 44px, focus-ring on all custom buttons
+- [x] **Accessibility** — `prefers-reduced-motion` support for all animations, focus-visible rings on all interactive elements
+- [x] **Micro-interactions** — `interactive-lift` hover effect, purposeful active/press states
+- [x] **Typography hierarchy** — `font-extrabold tracking-tight` on page headings, 3-tier weight system
+- [x] **Document card variety** — category-colored left borders, colored dots, multi-format file type badges (PDF/DOC/MD/CSV/JSON/TXT)
+- [x] **Chat layout** — input pinned to bottom, messages scroll above (matches ChatGPT/Claude pattern)
+- [x] **Indonesian language** — all panel subtitles translated, consistent language throughout
+- [x] **Design Score: A** | **AI Slop Score: A+** (verified by /design-review regression audit)
+
+### 2026 Design System ✅ COMPLETE
+
+- [x] **Font**: Geist Variable (single family, not a default stack)
+- [x] **Colors**: oklch/oklab color space, 11 unique colors, coherent dark navy palette
+- [x] **Glassmorphism** — `glass` utility on Icon Rail, ThreadPanel, MessageInput, AuthPage, WelcomeInput
+- [x] **Layered shadows** — `--shadow-xs/sm/md/lg` CSS variables
+- [x] **Gradient accents** — gradient user message bubbles, gradient text for user name
 - [x] **Bento grid** — Row 1: equal halves, Row 2: wider left (3fr) + narrower right (2fr)
-- [x] **Animated gradient borders** — `gradient-border-animated` with shimmer effect on suggestion cards
-- [x] **Glowing mesh background** — base `#0B1120`, top-right purple radial glow (600px, rgba(76,29,149,0.06)), bottom-left blue glow (500px, rgba(10,31,61,0.3)), applied globally via AppLayout
-- [x] **Dot grid texture** — subtle pattern overlay on ThreadPanel and backgrounds
-- [x] **Floating orbs** — decorative gradient blur circles on welcome screen and auth page
-- [x] **Pulse rings** — concentric expanding ring animation on empty state icons
+- [x] **Mesh background** — radial glows, dot grid texture, floating orbs
 - [x] **Staggered animations** — `stagger-children` for sequential card entrance
-- [x] **Dark scrollbars** — thin 6px dark navy scrollbar track/thumb, matching dark theme
-- [x] **Micro-animations** — fade-in-up, glow-pulse, float, gradient-shift keyframes
-- [x] **Feature accent colors** — per-page colored icons (purple/cyan/emerald/amber)
+- [x] **Feature accent colors** — per-page left border colors (purple/cyan/emerald/amber)
 - [x] **Icon Rail gradient bar** — 3px gradient left accent on active nav items
 
 ---
