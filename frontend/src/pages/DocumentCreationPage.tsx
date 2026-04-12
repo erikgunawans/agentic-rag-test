@@ -389,17 +389,13 @@ export function DocumentCreationPage() {
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null)
 
   useEffect(() => {
-    apiFetch(`/clause-library?doc_type=${docType}&limit=30`)
-      .then(res => res.json())
-      .then(d => setAvailableClauses(d.data || []))
-      .catch(() => {})
-  }, [docType])
-
-  useEffect(() => {
-    apiFetch(`/document-templates?doc_type=${docType}&limit=20`)
-      .then(res => res.json())
-      .then(d => setTemplates(d.data || []))
-      .catch(() => {})
+    Promise.all([
+      apiFetch(`/clause-library?doc_type=${docType}&limit=30`).then(r => r.json()),
+      apiFetch(`/document-templates?doc_type=${docType}&limit=20`).then(r => r.json()),
+    ]).then(([clauseData, tplData]) => {
+      setAvailableClauses(clauseData.data || [])
+      setTemplates(tplData.data || [])
+    }).catch(() => {})
   }, [docType])
 
   function updateField(key: string, value: string) {

@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from 'react'
-import { CheckCircle, XCircle, RotateCcw, Clock, FileCheck, Menu, ChevronLeft, PanelLeftClose, Inbox } from 'lucide-react'
+import { CheckCircle, XCircle, RotateCcw, FileCheck, Menu, ChevronLeft, PanelLeftClose, Inbox } from 'lucide-react'
 import { useSidebar } from '@/hooks/useSidebar'
 import { useI18n } from '@/i18n/I18nContext'
 import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
 import { apiFetch } from '@/lib/api'
+import { formatTimeAgo } from '@/hooks/useToolHistory'
 
 interface ApprovalRequest {
   id: string
@@ -25,20 +26,6 @@ const STATUS_STYLE: Record<string, { color: string; bg: string; label: string }>
   rejected: { color: 'text-red-400', bg: 'border-red-500/30 bg-red-500/5', label: 'REJECTED' },
   cancelled: { color: 'text-gray-400', bg: 'border-gray-500/30 bg-gray-500/5', label: 'CANCELLED' },
 }
-
-function timeAgo(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime()
-  const mins = Math.floor(diff / 60000)
-  if (mins < 1) return 'Just now'
-  if (mins < 60) return `${mins}m ago`
-  const hrs = Math.floor(mins / 60)
-  if (hrs < 24) return `${hrs}h ago`
-  const days = Math.floor(hrs / 24)
-  return `${days}d ago`
-}
-
-const inputBase = "w-full rounded-lg bg-secondary text-foreground px-3 py-2 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-const inputClass = `${inputBase} border border-border`
 
 export function ApprovalInboxPage() {
   const { t } = useI18n()
@@ -91,10 +78,14 @@ export function ApprovalInboxPage() {
   async function handleAction(id: string, action: 'approve' | 'reject' | 'return' | 'cancel') {
     setActingOn(id)
     try {
-      await apiFetch(`/approvals/${id}/action`, {
-        method: 'POST',
-        body: JSON.stringify({ action, comments: '' }),
-      })
+      if (action === 'cancel') {
+        await apiFetch(`/approvals/${id}/cancel`, { method: 'POST' })
+      } else {
+        await apiFetch(`/approvals/${id}/action`, {
+          method: 'POST',
+          body: JSON.stringify({ action, comments: '' }),
+        })
+      }
       await fetchData()
     } catch {
       // silent
@@ -260,13 +251,13 @@ export function ApprovalInboxPage() {
                       </div>
                     </div>
                     <span className="text-[9px] text-muted-foreground whitespace-nowrap shrink-0">
-                      {timeAgo(request.submitted_at)}
+                      {formatTimeAgo(request.submitted_at)}
                     </span>
                   </div>
 
                   {request.completed_at && (
                     <p className="text-[10px] text-muted-foreground">
-                      {t('approvals.completedAt') || 'Completed'}: {timeAgo(request.completed_at)}
+                      {t('approvals.completedAt') || 'Completed'}: {formatTimeAgo(request.completed_at)}
                     </p>
                   )}
 

@@ -27,7 +27,8 @@ async def list_users(
     if is_active is not None:
         query = query.eq("is_active", is_active)
     if search:
-        query = query.or_(f"display_name.ilike.%{search}%,department.ilike.%{search}%")
+        safe_search = search.replace(",", "").replace("(", "").replace(")", "").replace(".", " ")
+        query = query.or_(f"display_name.ilike.%{safe_search}%,department.ilike.%{safe_search}%")
     query = query.order("created_at", desc=True).limit(limit)
     result = query.execute()
     return {"data": result.data}

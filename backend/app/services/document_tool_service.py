@@ -24,7 +24,7 @@ class GeneratedDocument(BaseModel):
     content: str
     summary: str
     confidence_score: float = 0.0
-    clause_risks: list[dict] = []
+    clause_risks: list[ClauseRisk] = []
 
 
 class ComparisonDifference(BaseModel):

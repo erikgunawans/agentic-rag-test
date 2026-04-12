@@ -48,7 +48,8 @@ async def list_clauses(
         # Match clauses containing this doc_type OR universal clauses (empty array)
         query = query.or_(f"applicable_doc_types.cs.{{{doc_type}}},applicable_doc_types.eq.{'{}'}")
     if search:
-        query = query.or_(f"title.ilike.%{search}%,content.ilike.%{search}%")
+        safe_search = search.replace(",", "").replace("(", "").replace(")", "").replace(".", " ")
+        query = query.or_(f"title.ilike.%{safe_search}%,content.ilike.%{safe_search}%")
 
     query = query.order("is_global", desc=True).order("created_at", desc=True)
     query = query.range(offset, offset + limit - 1)

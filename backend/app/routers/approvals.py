@@ -1,3 +1,4 @@
+from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from app.dependencies import get_current_user, require_admin
@@ -15,7 +16,7 @@ class SubmitApproval(BaseModel):
 
 
 class ApprovalAction(BaseModel):
-    action: str  # approve, reject, return
+    action: Literal["approve", "reject", "return"]
     comments: str = ""
 
 
@@ -132,9 +133,6 @@ async def take_action(request_id: str, body: ApprovalAction, user: dict = Depend
     if user["role"] != "super_admin":
         raise HTTPException(status_code=403, detail="Only admins can take approval actions")
 
-    if body.action not in ("approve", "reject", "return"):
-        raise HTTPException(status_code=400, detail="Action must be approve, reject, or return")
-
     client = get_supabase_authed_client(user["token"])
 
     # Get request
@@ -223,7 +221,7 @@ async def cancel_request(request_id: str, user: dict = Depends(get_current_user)
 @router.get("/templates/list")
 async def list_templates(user: dict = Depends(get_current_user)):
     client = get_supabase_authed_client(user["token"])
-    result = client.table("approval_workflow_templates").select("*").order("created_at", desc=True).execute()
+    result = client.table("approval_workflow_templates").select("*").order("created_at", desc=True).limit(100).execute()
     return {"data": result.data}
 
 

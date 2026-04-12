@@ -3,7 +3,6 @@ import { Library, Plus, Pencil, Trash2, X, Menu, ChevronLeft, PanelLeftClose, Gl
 import { useSidebar } from '@/hooks/useSidebar'
 import { useI18n } from '@/i18n/I18nContext'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { apiFetch } from '@/lib/api'
 
 interface Clause {
