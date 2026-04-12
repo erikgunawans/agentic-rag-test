@@ -44,6 +44,24 @@ const STATUS_BADGE: Record<string, string> = {
   failed: 'bg-red-500/10 text-red-400',
 }
 
+const CATEGORY_BORDER_COLORS: Record<string, string> = {
+  technical: 'oklch(0.60 0.15 250)',
+  legal: 'oklch(0.55 0.20 280)',
+  business: 'oklch(0.65 0.15 50)',
+  academic: 'oklch(0.65 0.15 175)',
+  personal: 'oklch(0.60 0.15 330)',
+  other: 'oklch(0.40 0 0)',
+}
+
+function getFileBadge(filename: string): { label: string; className: string } {
+  if (filename.endsWith('.pdf')) return { label: 'PDF', className: 'bg-red-500/15 text-red-400' }
+  if (filename.endsWith('.docx') || filename.endsWith('.doc')) return { label: 'DOC', className: 'bg-blue-500/15 text-blue-400' }
+  if (filename.endsWith('.md')) return { label: 'MD', className: 'bg-emerald-500/15 text-emerald-400' }
+  if (filename.endsWith('.csv')) return { label: 'CSV', className: 'bg-amber-500/15 text-amber-400' }
+  if (filename.endsWith('.json')) return { label: 'JSON', className: 'bg-purple-500/15 text-purple-400' }
+  return { label: 'TXT', className: 'bg-cyan-500/15 text-cyan-400' }
+}
+
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
@@ -252,23 +270,25 @@ export function DocumentsPage() {
               <p className="text-sm text-muted-foreground">{t('docList.empty')}</p>
             </div>
           ) : (
-            <div className={viewMode === 'grid' ? 'grid grid-cols-3 gap-4' : 'space-y-2'}>
+            <div className={viewMode === 'grid' ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4' : 'space-y-2'}>
               {filtered.map((doc) => {
                 const meta = doc.status === 'completed' ? doc.metadata : null
                 const tags = meta?.tags?.slice(0, 2) ?? []
                 return (
                   <div
                     key={doc.id}
-                    className={`group rounded-xl border p-4 transition-all duration-200 hover:shadow-[var(--shadow-sm)] hover:border-border/80 cursor-pointer ${
+                    className={`group rounded-xl border p-4 transition-all duration-200 hover:shadow-[var(--shadow-sm)] hover:border-border/80 cursor-pointer interactive-lift ${
                       viewMode === 'list' ? 'flex items-center gap-4' : 'space-y-3'
                     }`}
+                    style={{
+                      borderLeftWidth: meta?.category ? '3px' : undefined,
+                      borderLeftColor: meta?.category ? (CATEGORY_BORDER_COLORS[meta.category] ?? undefined) : undefined,
+                    }}
                   >
                     {/* File type badge + menu */}
                     <div className="flex items-center justify-between">
-                      <div className={`flex h-8 w-8 items-center justify-center rounded-lg text-[9px] font-bold ${
-                        doc.filename.endsWith('.pdf') ? 'bg-red-500/15 text-red-400' : 'bg-cyan-500/15 text-cyan-400'
-                      }`}>
-                        {doc.filename.endsWith('.pdf') ? 'PDF' : 'TXT'}
+                      <div className={`flex h-8 w-8 items-center justify-center rounded-lg text-[9px] font-bold ${getFileBadge(doc.filename).className}`}>
+                        {getFileBadge(doc.filename).label}
                       </div>
                       <button
                         onClick={(e) => { e.stopPropagation(); handleDelete(doc.id) }}
@@ -282,9 +302,12 @@ export function DocumentsPage() {
                     <div className={viewMode === 'list' ? 'flex-1 min-w-0' : ''}>
                       <p className="text-sm font-medium truncate">{doc.filename}</p>
                       {meta?.category && (
-                        <span className={`text-[10px] ${CATEGORY_COLORS[meta.category] ?? 'text-gray-400'}`}>
-                          {meta.category}
-                        </span>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: CATEGORY_BORDER_COLORS[meta.category] }} />
+                          <span className="text-[10px] font-medium" style={{ color: CATEGORY_BORDER_COLORS[meta.category] }}>
+                            {meta.category}
+                          </span>
+                        </div>
                       )}
                       {meta?.summary && viewMode === 'grid' && (
                         <p className="text-[10px] text-muted-foreground line-clamp-2 mt-1">{meta.summary}</p>
