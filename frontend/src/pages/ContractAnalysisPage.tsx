@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { Scale, ChevronLeft, ChevronRight, Clock, CheckCircle, AlertTriangle, XCircle, Loader2, Menu } from 'lucide-react'
+import { Scale, ChevronLeft, PanelLeftClose, Clock, CheckCircle, AlertTriangle, XCircle, Loader2, Menu } from 'lucide-react'
 import { useToolHistory, formatTimeAgo } from '@/hooks/useToolHistory'
+import { useSidebar } from '@/hooks/useSidebar'
 import { useI18n } from '@/i18n/I18nContext'
 import { Button } from '@/components/ui/button'
 import { DropZone } from '@/components/shared/DropZone'
@@ -47,7 +48,7 @@ const RISK_STYLE: Record<string, { color: string; bg: string; label: string }> =
 export function ContractAnalysisPage() {
   const { t } = useI18n()
   const { history, reload: reloadHistory } = useToolHistory('analyze')
-  const [panelCollapsed, setPanelCollapsed] = useState(false)
+  const { panelCollapsed, togglePanel } = useSidebar()
   const [mobilePanelOpen, setMobilePanelOpen] = useState(false)
   const [types, setTypes] = useState<Set<AnalysisType>>(new Set(['risk']))
   const [law, setLaw] = useState<Law>('indonesia')
@@ -222,26 +223,15 @@ export function ContractAnalysisPage() {
       )}
 
       {/* Column 2 -- Form (75%) + History (25%) */}
-      {panelCollapsed ? (
-        <div className="hidden md:flex h-full w-[50px] shrink-0 flex-col items-center border-r border-border/50 py-4 gap-3">
-          <button
-            onClick={() => setPanelCollapsed(false)}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-            title={t('analysis.title')}
-          >
-            <ChevronRight className="h-4 w-4" />
-          </button>
-          <Scale className="h-4 w-4 text-muted-foreground" />
-        </div>
-      ) : (
+      {!panelCollapsed && (
       <div className="hidden md:flex w-[340px] shrink-0 flex-col border-r border-border/50">
         <div className="flex items-center justify-between px-5 py-3 border-b border-border/50 shrink-0">
           <div>
             <h1 className="text-sm font-semibold">{t('analysis.title')}</h1>
             <p className="text-[10px] text-muted-foreground">Identifikasi risiko & klausul penting</p>
           </div>
-          <button onClick={() => setPanelCollapsed(true)} className="text-muted-foreground hover:text-foreground transition-colors focus-ring">
-            <ChevronLeft className="h-4 w-4" />
+          <button onClick={togglePanel} className="flex items-center justify-center h-8 w-8 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors focus-ring" title="Collapse sidebar">
+            <PanelLeftClose className="h-4 w-4" />
           </button>
         </div>
 

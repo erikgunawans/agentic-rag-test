@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Save, Shield, Brain, Database, Settings2, Wrench, ChevronLeft, ChevronRight, Menu } from 'lucide-react'
+import { Save, Shield, Brain, Database, Settings2, Wrench, ChevronLeft, PanelLeftClose, Menu } from 'lucide-react'
 import { apiFetch } from '@/lib/api'
 import { LLM_MODELS, EMBEDDING_MODELS } from '@/lib/models'
 import { Button } from '@/components/ui/button'
+import { useSidebar } from '@/hooks/useSidebar'
 import { Separator } from '@/components/ui/separator'
 import { useI18n } from '@/i18n/I18nContext'
 
@@ -39,7 +40,7 @@ export function AdminSettingsPage() {
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [activeSection, setActiveSection] = useState<AdminSection>('llm')
-  const [panelCollapsed, setPanelCollapsed] = useState(false)
+  const { panelCollapsed, togglePanel } = useSidebar()
   const [mobilePanelOpen, setMobilePanelOpen] = useState(false)
 
   const loadSettings = useCallback(async () => {
@@ -144,18 +145,7 @@ export function AdminSettingsPage() {
       )}
 
       {/* Column 2 — Admin nav panel */}
-      {panelCollapsed ? (
-        <div className="hidden md:flex h-full w-[50px] shrink-0 flex-col items-center border-r border-border/50 py-4 gap-3">
-          <button
-            onClick={() => setPanelCollapsed(false)}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-            title={t('admin.title')}
-          >
-            <ChevronRight className="h-4 w-4" />
-          </button>
-          <Shield className="h-4 w-4 text-amber-400" />
-        </div>
-      ) : (
+      {!panelCollapsed && (
       <div className="hidden md:flex w-[340px] shrink-0 flex-col border-r border-border/50">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-border/50 shrink-0">
@@ -166,8 +156,8 @@ export function AdminSettingsPage() {
               <p className="text-[10px] text-muted-foreground">Konfigurasi sistem</p>
             </div>
           </div>
-          <button onClick={() => setPanelCollapsed(true)} className="text-muted-foreground hover:text-foreground transition-colors focus-ring">
-            <ChevronLeft className="h-4 w-4" />
+          <button onClick={togglePanel} className="flex items-center justify-center h-8 w-8 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors focus-ring" title="Collapse sidebar">
+            <PanelLeftClose className="h-4 w-4" />
           </button>
         </div>
 

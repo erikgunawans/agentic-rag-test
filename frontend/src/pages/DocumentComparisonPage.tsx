@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { GitCompare, ArrowLeftRight, ChevronLeft, ChevronRight, Clock, CheckCircle, XCircle, Loader2, AlertTriangle, Menu } from 'lucide-react'
+import { GitCompare, ArrowLeftRight, ChevronLeft, PanelLeftClose, Clock, CheckCircle, XCircle, Loader2, AlertTriangle, Menu } from 'lucide-react'
 import { useToolHistory, formatTimeAgo } from '@/hooks/useToolHistory'
+import { useSidebar } from '@/hooks/useSidebar'
 import { useI18n } from '@/i18n/I18nContext'
 import { Button } from '@/components/ui/button'
 import { DropZone } from '@/components/shared/DropZone'
@@ -35,7 +36,7 @@ const SIG_STYLE: Record<string, { icon: typeof AlertTriangle; color: string; bg:
 export function DocumentComparisonPage() {
   const { t } = useI18n()
   const { history, reload: reloadHistory } = useToolHistory('compare')
-  const [panelCollapsed, setPanelCollapsed] = useState(false)
+  const { panelCollapsed, togglePanel } = useSidebar()
   const [mobilePanelOpen, setMobilePanelOpen] = useState(false)
   const [focus, setFocus] = useState<ComparisonFocus>('full')
   const [docA, setDocA] = useState<File | null>(null)
@@ -184,26 +185,15 @@ export function DocumentComparisonPage() {
       )}
 
       {/* Column 2 -- Form (75%) + History (25%) */}
-      {panelCollapsed ? (
-        <div className="hidden md:flex h-full w-[50px] shrink-0 flex-col items-center border-r border-border/50 py-4 gap-3">
-          <button
-            onClick={() => setPanelCollapsed(false)}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-            title={t('compare.title')}
-          >
-            <ChevronRight className="h-4 w-4" />
-          </button>
-          <GitCompare className="h-4 w-4 text-muted-foreground" />
-        </div>
-      ) : (
+      {!panelCollapsed && (
       <div className="hidden md:flex w-[340px] shrink-0 flex-col border-r border-border/50">
         <div className="flex items-center justify-between px-5 py-3 border-b border-border/50 shrink-0">
           <div>
             <h1 className="text-sm font-semibold">{t('compare.title')}</h1>
             <p className="text-[10px] text-muted-foreground">Unggah dua dokumen untuk dibandingkan</p>
           </div>
-          <button onClick={() => setPanelCollapsed(true)} className="text-muted-foreground hover:text-foreground transition-colors focus-ring">
-            <ChevronLeft className="h-4 w-4" />
+          <button onClick={togglePanel} className="flex items-center justify-center h-8 w-8 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors focus-ring" title="Collapse sidebar">
+            <PanelLeftClose className="h-4 w-4" />
           </button>
         </div>
 

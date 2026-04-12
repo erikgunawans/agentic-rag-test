@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Save, Shield, Globe, Bell, ChevronLeft, ChevronRight, Settings, User, Menu } from 'lucide-react'
+import { Save, Shield, Globe, Bell, ChevronLeft, PanelLeftClose, Settings, User, Menu } from 'lucide-react'
 import { apiFetch } from '@/lib/api'
 import { Button } from '@/components/ui/button'
+import { useSidebar } from '@/hooks/useSidebar'
 import { useAuth } from '@/contexts/AuthContext'
 import { useI18n } from '@/i18n/I18nContext'
 import type { Locale } from '@/i18n/translations'
@@ -34,7 +35,7 @@ export function SettingsPage() {
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [activeSection, setActiveSection] = useState<SettingsSection>('language')
-  const [panelCollapsed, setPanelCollapsed] = useState(false)
+  const { panelCollapsed, togglePanel } = useSidebar()
   const [mobilePanelOpen, setMobilePanelOpen] = useState(false)
 
   const loadPrefs = useCallback(async () => {
@@ -144,18 +145,7 @@ export function SettingsPage() {
       )}
 
       {/* Column 2 — Settings nav panel */}
-      {panelCollapsed ? (
-        <div className="hidden md:flex h-full w-[50px] shrink-0 flex-col items-center border-r border-border/50 py-4 gap-3">
-          <button
-            onClick={() => setPanelCollapsed(false)}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-            title={t('settings.title')}
-          >
-            <ChevronRight className="h-4 w-4" />
-          </button>
-          <Settings className="h-4 w-4 text-muted-foreground" />
-        </div>
-      ) : (
+      {!panelCollapsed && (
       <div className="hidden md:flex w-[340px] shrink-0 flex-col border-r border-border/50">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-border/50 shrink-0">
@@ -163,8 +153,8 @@ export function SettingsPage() {
             <h1 className="text-sm font-semibold">{t('settings.title')}</h1>
             <p className="text-[10px] text-muted-foreground">Kelola preferensi Anda</p>
           </div>
-          <button onClick={() => setPanelCollapsed(true)} className="text-muted-foreground hover:text-foreground transition-colors focus-ring">
-            <ChevronLeft className="h-4 w-4" />
+          <button onClick={togglePanel} className="flex items-center justify-center h-8 w-8 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors focus-ring" title="Collapse sidebar">
+            <PanelLeftClose className="h-4 w-4" />
           </button>
         </div>
 

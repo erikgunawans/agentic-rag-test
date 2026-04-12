@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Search, Grid3X3, List, Plus, Upload, HardDrive, FileText, Trash2, Loader2, Menu } from 'lucide-react'
+import { Search, Grid3X3, List, Plus, Upload, HardDrive, FileText, Trash2, Loader2, Menu, PanelLeftClose } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { apiFetch } from '@/lib/api'
 import { useDocumentRealtime } from '@/hooks/useDocumentRealtime'
+import { useSidebar } from '@/hooks/useSidebar'
 import { FileUpload } from '@/components/documents/FileUpload'
 import { useI18n } from '@/i18n/I18nContext'
 import type { Document } from '@/lib/database.types'
@@ -70,6 +71,7 @@ function formatBytes(bytes: number): string {
 
 export function DocumentsPage() {
   const { t } = useI18n()
+  const { panelCollapsed, togglePanel } = useSidebar()
   const [documents, setDocuments] = useState<Document[]>([])
   const [userId, setUserId] = useState<string | undefined>()
   const [searchQuery, setSearchQuery] = useState('')
@@ -234,12 +236,18 @@ export function DocumentsPage() {
       )}
 
       {/* Column 2 — Sidebar panel (300px) */}
+      {!panelCollapsed && (
       <div className="hidden md:flex w-[340px] shrink-0 flex-col border-r border-border/50 overflow-y-auto">
         {/* Section 1: Upload */}
         <div className="p-4 space-y-4 border-b border-border/50">
-          <div className="flex items-center gap-2">
-            <Upload className="h-4 w-4 text-muted-foreground" />
-            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Upload</span>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Upload className="h-4 w-4 text-muted-foreground" />
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Upload</span>
+            </div>
+            <button onClick={togglePanel} className="flex items-center justify-center h-8 w-8 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors focus-ring" title="Collapse sidebar">
+              <PanelLeftClose className="h-4 w-4" />
+            </button>
           </div>
 
           <FileUpload onUploaded={loadDocuments} />
@@ -315,6 +323,7 @@ export function DocumentsPage() {
           </div>
         </div>
       </div>
+      )}
 
       {/* Column 3 — Main document area */}
       <div className="flex-1 flex flex-col overflow-hidden">

@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { ShieldCheck, ChevronLeft, ChevronRight, Clock, CheckCircle, ShieldAlert, ShieldX, Loader2, Menu } from 'lucide-react'
+import { ShieldCheck, ChevronLeft, PanelLeftClose, Clock, CheckCircle, ShieldAlert, ShieldX, Loader2, Menu } from 'lucide-react'
 import { useToolHistory, formatTimeAgo } from '@/hooks/useToolHistory'
+import { useSidebar } from '@/hooks/useSidebar'
 import { useI18n } from '@/i18n/I18nContext'
 import { Button } from '@/components/ui/button'
 import { DropZone } from '@/components/shared/DropZone'
@@ -44,7 +45,7 @@ const OVERALL_STYLE: Record<string, { label: string; color: string; bg: string }
 export function ComplianceCheckPage() {
   const { t } = useI18n()
   const { history, reload: reloadHistory } = useToolHistory('compliance')
-  const [panelCollapsed, setPanelCollapsed] = useState(false)
+  const { panelCollapsed, togglePanel } = useSidebar()
   const [mobilePanelOpen, setMobilePanelOpen] = useState(false)
   const [framework, setFramework] = useState<Framework>('ojk')
   const [scopes, setScopes] = useState<Set<Scope>>(new Set(['legal']))
@@ -199,26 +200,15 @@ export function ComplianceCheckPage() {
       )}
 
       {/* Column 2 -- Form (75%) + History (25%) */}
-      {panelCollapsed ? (
-        <div className="hidden md:flex h-full w-[50px] shrink-0 flex-col items-center border-r border-border/50 py-4 gap-3">
-          <button
-            onClick={() => setPanelCollapsed(false)}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-            title={t('compliance.title')}
-          >
-            <ChevronRight className="h-4 w-4" />
-          </button>
-          <ShieldCheck className="h-4 w-4 text-muted-foreground" />
-        </div>
-      ) : (
+      {!panelCollapsed && (
       <div className="hidden md:flex w-[340px] shrink-0 flex-col border-r border-border/50">
         <div className="flex items-center justify-between px-5 py-3 border-b border-border/50 shrink-0">
           <div>
             <h1 className="text-sm font-semibold">{t('compliance.title')}</h1>
             <p className="text-[10px] text-muted-foreground">Periksa kepatuhan regulasi</p>
           </div>
-          <button onClick={() => setPanelCollapsed(true)} className="text-muted-foreground hover:text-foreground transition-colors focus-ring">
-            <ChevronLeft className="h-4 w-4" />
+          <button onClick={togglePanel} className="flex items-center justify-center h-8 w-8 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors focus-ring" title="Collapse sidebar">
+            <PanelLeftClose className="h-4 w-4" />
           </button>
         </div>
 

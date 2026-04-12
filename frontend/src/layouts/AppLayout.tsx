@@ -6,12 +6,19 @@ import { ThreadPanel } from '@/components/layout/ThreadPanel'
 import { ChatProvider } from '@/contexts/ChatContext'
 import { useChatState } from '@/hooks/useChatState'
 
+export interface SidebarContext {
+  panelCollapsed: boolean
+  togglePanel: () => void
+}
+
 export function AppLayout() {
   const location = useLocation()
   const chatState = useChatState()
   const showThreadPanel = location.pathname === '/'
   const [panelCollapsed, setPanelCollapsed] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+
+  const togglePanel = () => setPanelCollapsed((prev) => !prev)
 
   return (
     <ChatProvider value={chatState}>
@@ -20,8 +27,8 @@ export function AppLayout() {
         <div className="hidden md:flex">
           <IconRail
             panelCollapsed={panelCollapsed}
-            onTogglePanel={() => setPanelCollapsed((prev) => !prev)}
-            showPanelToggle={showThreadPanel}
+            onTogglePanel={togglePanel}
+            showPanelToggle
           />
         </div>
 
@@ -56,14 +63,14 @@ export function AppLayout() {
           <div className="hidden md:flex">
             <ThreadPanel
               collapsed={panelCollapsed}
-              onToggleCollapse={() => setPanelCollapsed((prev) => !prev)}
+              onToggleCollapse={togglePanel}
             />
           </div>
         )}
 
         {/* Main content — top padding on mobile for the header bar */}
         <main className="relative z-10 flex flex-1 flex-col overflow-hidden pt-14 md:pt-0">
-          <Outlet />
+          <Outlet context={{ panelCollapsed, togglePanel } satisfies SidebarContext} />
         </main>
       </div>
     </ChatProvider>

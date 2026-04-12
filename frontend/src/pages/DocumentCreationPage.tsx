@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { FilePlus, ChevronLeft, ChevronRight, Clock, CheckCircle, XCircle, Loader2, FileText, Menu } from 'lucide-react'
+import { FilePlus, ChevronLeft, PanelLeftClose, Clock, CheckCircle, XCircle, Loader2, FileText, Menu } from 'lucide-react'
 import { useToolHistory, formatTimeAgo } from '@/hooks/useToolHistory'
+import { useSidebar } from '@/hooks/useSidebar'
 import { useI18n } from '@/i18n/I18nContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -162,7 +163,7 @@ function SalesServiceForm({ fields, onChange, fieldErr }: { fields: Record<strin
 export function DocumentCreationPage() {
   const { t } = useI18n()
   const { history, reload: reloadHistory } = useToolHistory('create')
-  const [panelCollapsed, setPanelCollapsed] = useState(false)
+  const { panelCollapsed, togglePanel } = useSidebar()
   const [mobilePanelOpen, setMobilePanelOpen] = useState(false)
   const [docType, setDocType] = useState<DocType>('generic')
   const [outputLang, setOutputLang] = useState<'both' | 'indonesian'>('both')
@@ -340,18 +341,7 @@ export function DocumentCreationPage() {
       )}
 
       {/* Column 2 -- Form (top 75%) + History (bottom 25%) */}
-      {panelCollapsed ? (
-        <div className="hidden md:flex h-full w-[50px] shrink-0 flex-col items-center border-r border-border/50 py-4 gap-3">
-          <button
-            onClick={() => setPanelCollapsed(false)}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-            title={t('create.title')}
-          >
-            <ChevronRight className="h-4 w-4" />
-          </button>
-          <FilePlus className="h-4 w-4 text-muted-foreground" />
-        </div>
-      ) : (
+      {!panelCollapsed && (
       <div className="hidden md:flex w-[340px] shrink-0 flex-col border-r border-border/50">
 
         {/* Header -- fixed */}
@@ -360,8 +350,8 @@ export function DocumentCreationPage() {
             <h1 className="text-sm font-semibold">{t('create.title')}</h1>
             <p className="text-[10px] text-muted-foreground">Isi detail untuk membuat dokumen</p>
           </div>
-          <button onClick={() => setPanelCollapsed(true)} className="text-muted-foreground hover:text-foreground transition-colors focus-ring">
-            <ChevronLeft className="h-4 w-4" />
+          <button onClick={togglePanel} className="flex items-center justify-center h-8 w-8 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors focus-ring" title="Collapse sidebar">
+            <PanelLeftClose className="h-4 w-4" />
           </button>
         </div>
 
