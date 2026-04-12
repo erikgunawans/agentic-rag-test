@@ -11,10 +11,10 @@ export function AppLayout() {
 
   return (
     <ChatProvider value={chatState}>
-      <div className="flex h-screen bg-background">
+      <div className="flex h-screen bg-background mesh-bg overflow-hidden">
         <IconRail />
         {showThreadPanel && <ThreadPanel />}
-        <main className="flex flex-1 flex-col overflow-hidden">
+        <main className="relative z-10 flex flex-1 flex-col overflow-hidden">
           <Outlet />
         </main>
       </div>

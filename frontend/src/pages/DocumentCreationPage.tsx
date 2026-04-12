@@ -181,7 +181,7 @@ export function DocumentCreationPage() {
   return (
     <div className="flex h-full">
       {/* Column 2 — Form (top 75%) + History (bottom 25%) */}
-      <div className="flex w-[300px] shrink-0 flex-col border-r border-border/50">
+      <div className="flex w-[340px] shrink-0 flex-col border-r border-border/50">
 
         {/* Header — fixed */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-border/50 shrink-0">

@@ -39,7 +39,7 @@ export function ComplianceCheckPage() {
   return (
     <div className="flex h-full">
       {/* Column 2 — Form (75%) + History (25%) */}
-      <div className="flex w-[300px] shrink-0 flex-col border-r border-border/50">
+      <div className="flex w-[340px] shrink-0 flex-col border-r border-border/50">
         <div className="flex items-center justify-between px-5 py-3 border-b border-border/50 shrink-0">
           <div>
             <h1 className="text-sm font-semibold">{t('compliance.title')}</h1>

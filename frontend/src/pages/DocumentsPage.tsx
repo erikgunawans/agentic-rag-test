@@ -108,7 +108,7 @@ export function DocumentsPage() {
   return (
     <div className="flex h-full">
       {/* Column 2 — Sidebar panel (300px) */}
-      <div className="flex w-[300px] shrink-0 flex-col border-r border-border/50 overflow-y-auto">
+      <div className="flex w-[340px] shrink-0 flex-col border-r border-border/50 overflow-y-auto">
         {/* Section 1: Upload */}
         <div className="p-4 space-y-4 border-b border-border/50">
           <div className="flex items-center gap-2">
