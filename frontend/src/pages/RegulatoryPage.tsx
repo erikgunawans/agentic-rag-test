@@ -114,11 +114,12 @@ export function RegulatoryPage() {
             placeholder="Search regulations..."
             value={search}
             onChange={e => setSearch(e.target.value)}
+            aria-label="Search regulations"
           />
         </div>
         <div className="space-y-1.5">
           <label className="text-[10px] font-medium">Source Type</label>
-          <select className={inputClass} value={sourceTypeFilter} onChange={e => setSourceTypeFilter(e.target.value)}>
+          <select className={inputClass} value={sourceTypeFilter} onChange={e => setSourceTypeFilter(e.target.value)} aria-label="Filter by source type">
             {SOURCE_TYPES.map(st => (
               <option key={st} value={st}>{st === 'all' ? 'All Sources' : st.toUpperCase()}</option>
             ))}
@@ -220,6 +221,7 @@ export function RegulatoryPage() {
                 <button
                   key={update.id}
                   onClick={() => markAsRead(update.id)}
+                  aria-label={`${update.is_read ? '' : 'Mark as read: '}${update.title}`}
                   className={`w-full text-left rounded-lg border p-4 space-y-2 transition-colors hover:bg-accent/30 ${
                     !update.is_read ? 'border-l-4 border-l-primary border-t-border/50 border-r-border/50 border-b-border/50' : 'border-border/50'
                   }`}

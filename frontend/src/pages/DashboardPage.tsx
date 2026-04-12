@@ -158,7 +158,7 @@ export function DashboardPage() {
           {cards.map(card => {
             const Icon = card.icon
             return (
-              <div key={card.label} className={`rounded-lg border p-4 ${card.accentBg}`}>
+              <div key={card.label} className={`rounded-lg border p-4 ${card.accentBg}`} role="status" aria-label={`${card.label}: ${card.value} ${card.sub}`}>
                 <div className="flex items-center gap-2 mb-2">
                   <Icon className={`h-4 w-4 ${card.accent}`} />
                   <span className="text-[10px] font-medium text-muted-foreground uppercase">{card.label}</span>

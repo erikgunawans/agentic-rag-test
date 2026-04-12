@@ -104,7 +104,7 @@ export function IntegrationsPage() {
         )}
 
         {/* Dokmee Card */}
-        <div className="rounded-lg border border-border/50 bg-card p-5 space-y-4">
+        <section className="rounded-lg border border-border/50 bg-card p-5 space-y-4" aria-label="Dokmee DMS Integration">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-sm font-semibold">Dokmee DMS</h2>
@@ -141,10 +141,10 @@ export function IntegrationsPage() {
               Configure in Admin Settings
             </a>
           )}
-        </div>
+        </section>
 
         {/* Google Drive Card */}
-        <div className="rounded-lg border border-border/50 bg-card p-5 space-y-4">
+        <section className="rounded-lg border border-border/50 bg-card p-5 space-y-4" aria-label="Google Drive Integration">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-sm font-semibold">Google Drive</h2>
@@ -195,7 +195,7 @@ export function IntegrationsPage() {
               Connect Google Drive
             </Button>
           )}
-        </div>
+        </section>
       </div>
     </div>
   )

@@ -17,6 +17,9 @@ const navItems = [
   { path: '/analysis', icon: Scale, labelKey: 'nav.analysis' },
   { path: '/obligations', icon: ClipboardList, labelKey: 'nav.obligations' },
   { path: '/approvals', icon: FileCheck, labelKey: 'nav.approvals' },
+]
+
+const moreItems = [
   { path: '/regulatory', icon: BookOpen, labelKey: 'nav.regulatory' },
   { path: '/integrations', icon: Plug, labelKey: 'nav.integrations' },
 ]
@@ -59,7 +62,7 @@ export function IconRail({ panelCollapsed, onTogglePanel, showPanelToggle }: Ico
         )}
       </div>
 
-      <nav className="flex flex-col items-center gap-2">
+      <nav className="flex flex-col items-center gap-2 overflow-y-auto overflow-x-hidden flex-1 min-h-0 scrollbar-hide">
         {navItems.map(({ path, icon: Icon, labelKey, end }) => (
           <NavLink
             key={path}
@@ -83,15 +86,28 @@ export function IconRail({ panelCollapsed, onTogglePanel, showPanelToggle }: Ico
           >
             <LayoutGrid className="h-5 w-5" />
           </PopoverTrigger>
-          <PopoverContent side="right" align="start" className="w-48 p-2">
-            <p className="text-xs text-muted-foreground px-2 py-1">{t('nav.comingSoon')}</p>
+          <PopoverContent side="right" align="start" className="w-48 p-2 space-y-0.5">
+            {moreItems.map(({ path, icon: Icon, labelKey }) => (
+              <NavLink
+                key={path}
+                to={path}
+                onClick={() => setFlyoutOpen(false)}
+                className={({ isActive }) =>
+                  `flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
+                    isActive ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                  }`
+                }
+                aria-label={t(labelKey)}
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                {t(labelKey)}
+              </NavLink>
+            ))}
           </PopoverContent>
         </Popover>
       </div>
 
-      <div className="flex-1" />
-
-      <div className="flex flex-col items-center gap-3">
+      <div className="flex flex-col items-center gap-3 mt-3">
         <NavLink
           to="/settings"
           className={railButtonClass}
