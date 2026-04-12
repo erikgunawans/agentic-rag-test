@@ -21,7 +21,7 @@ export function WelcomeScreen() {
         <Sparkles className="h-10 w-10 text-primary animate-glow-pulse rounded-full" />
 
         <div className="text-center">
-          <h1 className="text-3xl font-bold text-foreground">
+          <h1 className="text-xl sm:text-3xl font-bold text-foreground">
             {t('welcome.greeting').split('{name}')[0]}
             <span className="gradient-text">{displayName}</span>
           </h1>

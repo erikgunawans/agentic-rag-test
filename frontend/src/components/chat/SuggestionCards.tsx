@@ -54,7 +54,7 @@ export function SuggestionCards() {
   return (
     <div className="flex flex-col gap-3 w-full stagger-children">
       {/* Row 1: two equal cards */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {cards.slice(0, 2).map(({ titleKey, descKey, icon: Icon, path, colorVar, borderColor }, index) => (
           <button
             key={path}
@@ -76,7 +76,7 @@ export function SuggestionCards() {
         ))}
       </div>
       {/* Row 2: left wider (3fr), right narrower (2fr) */}
-      <div className="grid grid-cols-[3fr_2fr] gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-[3fr_2fr] gap-3">
         {cards.slice(2, 4).map(({ titleKey, descKey, icon: Icon, path, colorVar, borderColor }, index) => (
           <button
             key={path}

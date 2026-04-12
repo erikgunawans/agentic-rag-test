@@ -272,3 +272,68 @@
 .stagger-children > *:nth-child(3) { animation-delay: 200ms; }
 .stagger-children > *:nth-child(4) { animation-delay: 300ms; }
 .stagger-children > *:nth-child(5) { animation-delay: 400ms; }
+
+/* ── Mobile overlay ──────────────────────────────────────────────────── */
+.mobile-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: oklch(0 0 0 / 0.6);
+  backdrop-filter: blur(4px);
+}
+.mobile-panel {
+  position: fixed;
+  inset-block: 0;
+  left: 0;
+  z-index: 50;
+  width: 85vw;
+  max-width: 340px;
+}
+
+/* ── Micro-interactions ──────────────────────────────────────────────── */
+.interactive-lift {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.interactive-lift:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+.interactive-lift:active {
+  transform: translateY(0);
+  transition-duration: 0.05s;
+}
+
+.focus-ring:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--background), 0 0 0 4px oklch(0.55 0.20 280 / 0.5);
+}
+
+/* ── Accessibility: respect reduced motion preference ────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in-up,
+  .animate-glow-pulse,
+  .animate-float,
+  .animate-float-slow,
+  .animate-float-delay,
+  .stagger-children > * {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  .pulse-ring {
+    display: none !important;
+  }
+  .gradient-border-animated::before {
+    animation: none !important;
+  }
+  .interactive-lift:hover {
+    transform: none !important;
+  }
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
