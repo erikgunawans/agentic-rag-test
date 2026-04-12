@@ -1,11 +1,11 @@
 import { useState } from 'react'
-import { Plus, ChevronLeft, ChevronRight, Search, Settings } from 'lucide-react'
+import { Plus, ChevronLeft, ChevronRight, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ThreadList } from '@/components/chat/ThreadList'
 import { useI18n } from '@/i18n/I18nContext'
 import { useAuth } from '@/contexts/AuthContext'
 import { useChatContext } from '@/contexts/ChatContext'
-import { deriveDisplayName, getInitials } from './UserAvatar'
+import { deriveDisplayName } from './UserAvatar'
 
 interface ThreadPanelProps {
   collapsed: boolean
@@ -31,7 +31,6 @@ export function ThreadPanel({ collapsed, onToggleCollapse }: ThreadPanelProps) {
     : threads
 
   const displayName = user?.email ? deriveDisplayName(user.email) : ''
-  const initials = user?.email ? getInitials(user.email) : ''
 
   if (collapsed) {
     return (
@@ -47,9 +46,6 @@ export function ThreadPanel({ collapsed, onToggleCollapse }: ThreadPanelProps) {
           <Plus className="h-4 w-4" />
         </Button>
         <div className="flex-1" />
-        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-[9px] font-semibold text-primary-foreground">
-          {initials}
-        </div>
       </div>
     )
   }
@@ -100,16 +96,10 @@ export function ThreadPanel({ collapsed, onToggleCollapse }: ThreadPanelProps) {
 
       <div className="border-t border-border/50 p-3">
         <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
-            {initials}
-          </div>
           <div className="flex-1 min-w-0">
             <p className="text-xs font-medium text-foreground truncate">{displayName}</p>
             <p className="text-[10px] text-muted-foreground">{t('sidebar.role')}</p>
           </div>
-          <button className="text-muted-foreground hover:text-foreground transition-colors focus-ring">
-            <Settings className="h-3.5 w-3.5" />
-          </button>
         </div>
       </div>
     </div>
