@@ -143,13 +143,14 @@ export function SettingsPage() {
       )}
 
       {/* Column 3 — Settings content */}
-      <div className="flex-1 flex flex-col overflow-y-auto">
-        <div className="max-w-xl p-8 space-y-6">
+      <div className="flex-1 flex flex-col items-center justify-center overflow-y-auto">
+        <div className="w-full max-w-md p-8 space-y-6">
           {activeSection === 'language' && (
-            <section className="space-y-4">
-              <div>
-                <h2 className="text-sm font-semibold">{t('settings.language')}</h2>
-                <p className="text-xs text-muted-foreground mt-0.5">{t('settings.languageDesc')}</p>
+            <section className="space-y-5">
+              <div className="text-center">
+                <Globe className="h-8 w-8 mx-auto text-muted-foreground/25 mb-3" strokeWidth={1.5} />
+                <h2 className="text-base font-semibold">{t('settings.language')}</h2>
+                <p className="text-xs text-muted-foreground mt-1">{t('settings.languageDesc')}</p>
               </div>
               <div className="space-y-2">
                 {LANGUAGES.map((lang) => (
@@ -175,10 +176,11 @@ export function SettingsPage() {
           )}
 
           {activeSection === 'notifications' && (
-            <section className="space-y-4">
-              <div>
-                <h2 className="text-sm font-semibold">{t('settings.notifications')}</h2>
-                <p className="text-xs text-muted-foreground mt-0.5">{t('settings.notificationsDesc')}</p>
+            <section className="space-y-5">
+              <div className="text-center">
+                <Bell className="h-8 w-8 mx-auto text-muted-foreground/25 mb-3" strokeWidth={1.5} />
+                <h2 className="text-base font-semibold">{t('settings.notifications')}</h2>
+                <p className="text-xs text-muted-foreground mt-1">{t('settings.notificationsDesc')}</p>
               </div>
               <label className="flex items-center gap-3 rounded-lg border p-3 cursor-pointer hover:bg-muted/50">
                 <input
