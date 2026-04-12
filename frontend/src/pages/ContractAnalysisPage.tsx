@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Scale, ChevronLeft, PanelLeftClose, Clock, CheckCircle, AlertTriangle, XCircle, Loader2, Menu } from 'lucide-react'
+import { Scale, ClipboardList, ChevronLeft, PanelLeftClose, Clock, CheckCircle, AlertTriangle, XCircle, Loader2, Menu } from 'lucide-react'
 import { useToolHistory, formatTimeAgo } from '@/hooks/useToolHistory'
 import { useSidebar } from '@/hooks/useSidebar'
 import { useI18n } from '@/i18n/I18nContext'
@@ -62,6 +62,8 @@ export function ContractAnalysisPage() {
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<AnalysisResult | null>(null)
   const [showErrors, setShowErrors] = useState(false)
+  const [importing, setImporting] = useState(false)
+  const [importResult, setImportResult] = useState<{ extracted: number } | null>(null)
 
   function toggleType(type: AnalysisType) {
     setTypes((prev) => {
@@ -95,6 +97,22 @@ export function ContractAnalysisPage() {
       setError(err instanceof Error ? err.message : 'Analysis failed')
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function handleImportObligations() {
+    if (!history.length) return
+    const latestId = history[0].id
+    setImporting(true)
+    setImportResult(null)
+    try {
+      const res = await apiFetch(`/obligations/extract/${latestId}`, { method: 'POST' })
+      const data = await res.json()
+      setImportResult({ extracted: data.extracted })
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to import obligations')
+    } finally {
+      setImporting(false)
     }
   }
 
@@ -408,6 +426,25 @@ export function ContractAnalysisPage() {
                 </div>
               </div>
             )}
+
+            {/* Import obligations button */}
+            <div className="flex items-center gap-3">
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-xs gap-1.5"
+                onClick={handleImportObligations}
+                disabled={importing || !history.length}
+              >
+                {importing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ClipboardList className="h-3.5 w-3.5" />}
+                {t('obligations.import')}
+              </Button>
+              {importResult && (
+                <span className="text-xs text-green-400">
+                  {t('obligations.imported')} ({importResult.extracted})
+                </span>
+              )}
+            </div>
 
             {/* Critical clauses */}
             {result.critical_clauses.length > 0 && (

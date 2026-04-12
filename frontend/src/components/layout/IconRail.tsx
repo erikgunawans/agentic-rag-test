@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import { Home, Folder, FilePlus, GitCompare, ShieldCheck, Scale, Settings, LayoutGrid, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import { Home, Folder, FilePlus, GitCompare, ShieldCheck, Scale, ClipboardList, Settings, LayoutGrid, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useAuth } from '@/contexts/AuthContext'
 import { useI18n } from '@/i18n/I18nContext'
@@ -13,6 +13,7 @@ const navItems = [
   { path: '/compare', icon: GitCompare, labelKey: 'nav.compare' },
   { path: '/compliance', icon: ShieldCheck, labelKey: 'nav.compliance' },
   { path: '/analysis', icon: Scale, labelKey: 'nav.analysis' },
+  { path: '/obligations', icon: ClipboardList, labelKey: 'nav.obligations' },
 ]
 
 function railButtonClass({ isActive }: { isActive: boolean }) {
