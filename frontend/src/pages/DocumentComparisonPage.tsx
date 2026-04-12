@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { GitCompare, ArrowLeftRight, ChevronLeft, ChevronRight, Clock, CheckCircle, Loader2, AlertTriangle } from 'lucide-react'
+import { GitCompare, ArrowLeftRight, ChevronLeft, ChevronRight, Clock, CheckCircle, XCircle, Loader2, AlertTriangle } from 'lucide-react'
 import { useToolHistory, formatTimeAgo } from '@/hooks/useToolHistory'
 import { useI18n } from '@/i18n/I18nContext'
 import { Button } from '@/components/ui/button'
