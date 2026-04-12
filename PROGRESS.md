@@ -319,8 +319,8 @@ Track your progress through the masterclass. Update this file as you complete mo
 
 - [x] Sparkle icon replaces "K" badge, gradient text for user name
 - [x] `WelcomeInput` — large card-style input with action bar (attach, doc icon, "Legal AI v1.0" label, mic, send)
-- [x] `SuggestionCards` — 4 cards navigating to feature pages, replacing small pill chips
-- [x] `ThreadPanel` — search bar, "Chat History" subtitle, collapse chevron, user profile card at bottom (name, role, settings gear)
+- [x] `SuggestionCards` — Bento grid: Row 1 equal halves (Create | Compare), Row 2 asymmetric (Compliance 60% | Analysis 40%)
+- [x] `ThreadPanel` — search bar, "Chat History" subtitle, collapsible (340px expanded ↔ 50px minimized strip), user profile card at bottom
 
 ### Page Layout Redesign ✅ COMPLETE
 
@@ -329,7 +329,8 @@ Track your progress through the masterclass. Update this file as you complete mo
 - [x] `DocumentComparisonPage` — same 3-column pattern with dual doc upload, swap button, comparison focus, blank results area
 - [x] `ComplianceCheckPage` — same 3-column pattern with framework selector, scope multi-select, blank results area
 - [x] `ContractAnalysisPage` — same 3-column pattern with analysis type, governing law, depth selector, blank results area
-- [x] All column 2 panels standardized to 300px width (including ThreadPanel)
+- [x] All column 2 panels standardized to 340px width (including ThreadPanel)
+- [x] Collapsible panels — ThreadPanel chevron toggles 340px ↔ 50px minimized strip
 
 ### 2026 Design Trends ✅ COMPLETE
 
@@ -337,9 +338,9 @@ Track your progress through the masterclass. Update this file as you complete mo
 - [x] **Glow effects** — `glow-primary` on active nav items and focus states, gradient send button with hover glow
 - [x] **Layered shadows** — `--shadow-xs/sm/md/lg` CSS variables, applied to cards, popovers, dropdowns
 - [x] **Gradient accents** — gradient user message bubbles, gradient text for user name, animated gradient card borders
-- [x] **Bento grid** — asymmetric suggestion card layout (hero card spans 2 columns, middle cards 1 each, footer spans 2)
+- [x] **Bento grid** — Row 1: equal halves, Row 2: wider left (3fr) + narrower right (2fr)
 - [x] **Animated gradient borders** — `gradient-border-animated` with shimmer effect on suggestion cards
-- [x] **Mesh gradient backgrounds** — multi-color radial gradients on welcome screen, empty states, auth page
+- [x] **Glowing mesh background** — base `#0B1120`, top-right purple radial glow (600px, rgba(76,29,149,0.06)), bottom-left blue glow (500px, rgba(10,31,61,0.3)), applied globally via AppLayout
 - [x] **Dot grid texture** — subtle pattern overlay on ThreadPanel and backgrounds
 - [x] **Floating orbs** — decorative gradient blur circles on welcome screen and auth page
 - [x] **Pulse rings** — concentric expanding ring animation on empty state icons
