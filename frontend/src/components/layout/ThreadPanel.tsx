@@ -38,12 +38,12 @@ export function ThreadPanel({ collapsed, onToggleCollapse }: ThreadPanelProps) {
       <div className="flex h-full w-[50px] shrink-0 flex-col items-center border-r border-border glass py-4 gap-3">
         <button
           onClick={onToggleCollapse}
-          className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+          className="flex h-10 w-10 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors focus-ring"
           title={t('sidebar.title')}
         >
           <ChevronRight className="h-4 w-4" />
         </button>
-        <Button onClick={handleCreateThread} size="icon" className="h-8 w-8">
+        <Button onClick={handleCreateThread} size="icon" className="h-10 w-10">
           <Plus className="h-4 w-4" />
         </Button>
         <div className="flex-1" />
@@ -70,14 +70,14 @@ export function ThreadPanel({ collapsed, onToggleCollapse }: ThreadPanelProps) {
       </div>
 
       <div className="px-3 pb-3">
-        <Button onClick={handleCreateThread} className="w-full gap-2" size="sm">
+        <Button onClick={handleCreateThread} className="w-full gap-2 h-10" size="sm">
           <Plus className="h-4 w-4" />
           {t('chat.newChat')}
         </Button>
       </div>
 
       <div className="px-3 pb-3">
-        <div className="flex items-center gap-2 rounded-md border border-border bg-secondary px-2 py-1.5 shadow-[var(--shadow-xs)]">
+        <div className="flex items-center gap-2 rounded-md border border-border bg-secondary px-2 py-2 shadow-[var(--shadow-xs)]">
           <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
           <input
             type="text"

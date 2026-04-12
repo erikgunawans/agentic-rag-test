@@ -225,19 +225,19 @@ export function DocumentsPage() {
             <div className="flex rounded-md border border-border">
               <button
                 onClick={() => setViewMode('grid')}
-                className={`p-1.5 transition-colors ${viewMode === 'grid' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+                className={`p-2 transition-colors ${viewMode === 'grid' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground'}`}
               >
                 <Grid3X3 className="h-3.5 w-3.5" />
               </button>
               <button
                 onClick={() => setViewMode('list')}
-                className={`p-1.5 transition-colors ${viewMode === 'list' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+                className={`p-2 transition-colors ${viewMode === 'list' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground'}`}
               >
                 <List className="h-3.5 w-3.5" />
               </button>
             </div>
             {/* New Document button */}
-            <button className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90 transition-opacity">
+            <button className="flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-xs font-medium text-primary-foreground hover:opacity-90 transition-opacity">
               <Plus className="h-3.5 w-3.5" />
               New Document
             </button>
