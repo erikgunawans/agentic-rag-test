@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, Search } from 'lucide-react'
+import { Plus, Search, PanelLeftClose } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ThreadList } from '@/components/chat/ThreadList'
 import { useI18n } from '@/i18n/I18nContext'
@@ -12,7 +12,7 @@ interface ThreadPanelProps {
   onToggleCollapse: () => void
 }
 
-export function ThreadPanel({ collapsed }: ThreadPanelProps) {
+export function ThreadPanel({ collapsed, onToggleCollapse }: ThreadPanelProps) {
   const { t } = useI18n()
   const { user } = useAuth()
   const {
@@ -44,6 +44,13 @@ export function ThreadPanel({ collapsed }: ThreadPanelProps) {
           <h2 className="text-sm font-bold text-sidebar-foreground">{t('sidebar.title')}</h2>
           <p className="text-xs text-muted-foreground">{t('sidebar.chatHistory')}</p>
         </div>
+        <button
+          onClick={onToggleCollapse}
+          className="flex items-center justify-center h-8 w-8 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors focus-ring"
+          title="Collapse sidebar"
+        >
+          <PanelLeftClose className="h-4 w-4" />
+        </button>
       </div>
 
       <div className="px-3 pb-3">
