@@ -34,7 +34,7 @@ export function AppLayout() {
 
         {/* Mobile top header bar — visible only on mobile */}
         <div className="md:hidden fixed top-0 inset-x-0 z-30 flex items-center justify-between px-4 h-14 bg-background/95 backdrop-blur-md border-b border-border/50">
-          <span className="text-sm font-bold text-foreground">Knowledge Hub</span>
+          <img src="/lexcore-full-dark.svg" alt="LexCore" className="h-6" />
           {showThreadPanel && (
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}

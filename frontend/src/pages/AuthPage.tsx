@@ -50,31 +50,9 @@ export function AuthPage() {
         }}
       >
 
-        {/* Pointillist logo halo */}
+        {/* Logo */}
         <div className="flex flex-col items-center mb-10">
-          <div className="relative mb-6">
-            <svg width="120" height="120" viewBox="0 0 120 120" className="block">
-              {Array.from({ length: 40 }).map((_, i) => {
-                const angle = (i / 40) * Math.PI * 2 - Math.PI / 2
-                const r = 48
-                const x = 60 + Math.cos(angle) * r
-                const y = 60 + Math.sin(angle) * r
-                const hue = (i / 40) * 300 + 20
-                return (
-                  <circle
-                    key={i}
-                    cx={x}
-                    cy={y}
-                    r={3.2 - (i % 3) * 0.4}
-                    fill={`hsl(${hue}, 80%, 65%)`}
-                    opacity={0.85}
-                  />
-                )
-              })}
-              <text x="60" y="68" textAnchor="middle" fill="#f5f5f7" fontSize="32" fontWeight="600" fontFamily="-apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui, sans-serif">K</text>
-            </svg>
-          </div>
-
+          <img src="/lexcore-full-dark.svg" alt="LexCore" className="h-20 mb-6" />
           <h1 className="text-[28px] font-bold tracking-tight text-center" style={{ color: '#f5f5f7', fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif' }}>
             {tab === 'login' ? t('auth.title') : t('auth.signupTitle') || 'Buat Akun'}
           </h1>

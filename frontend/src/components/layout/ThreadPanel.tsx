@@ -41,8 +41,8 @@ export function ThreadPanel({ collapsed, onToggleCollapse }: ThreadPanelProps) {
     <div className="flex h-full w-[340px] shrink-0 flex-col border-r border-border glass dot-grid transition-all duration-200">
       <div className="flex items-center justify-between p-4">
         <div>
-          <h2 className="text-sm font-bold text-sidebar-foreground">{t('sidebar.title')}</h2>
-          <p className="text-xs text-muted-foreground">{t('sidebar.chatHistory')}</p>
+          <img src="/lexcore-full-dark.svg" alt="LexCore" className="h-7" />
+          <p className="text-xs text-muted-foreground mt-1">{t('sidebar.chatHistory')}</p>
         </div>
         <button
           onClick={onToggleCollapse}
