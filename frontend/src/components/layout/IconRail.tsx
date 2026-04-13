@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import { Home, Folder, FilePlus, Library, GitCompare, ShieldCheck, Scale, ClipboardList, FileCheck, BookOpen, Plug, LayoutDashboard, Settings, LayoutGrid, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import { useAuth } from '@/contexts/AuthContext'
 import { useI18n } from '@/i18n/I18nContext'
 import { UserAvatar } from './UserAvatar'
@@ -52,40 +53,55 @@ export function IconRail({ panelCollapsed, onTogglePanel, showPanelToggle }: Ico
           K
         </div>
         {showPanelToggle && onTogglePanel && (
-          <button
-            onClick={onTogglePanel}
-            className="flex h-8 w-8 items-center justify-center rounded-md text-[var(--icon-rail-foreground)] hover:bg-accent hover:text-accent-foreground transition-all duration-200 focus-ring"
-            title={panelCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          >
-            <ToggleIcon className="h-4 w-4" />
-          </button>
+          <Tooltip>
+            <TooltipTrigger
+              onClick={onTogglePanel}
+              className="flex h-8 w-8 items-center justify-center rounded-md text-[var(--icon-rail-foreground)] hover:bg-accent hover:text-accent-foreground transition-all duration-200 focus-ring"
+            >
+              <ToggleIcon className="h-4 w-4" />
+            </TooltipTrigger>
+            <TooltipContent side="right" sideOffset={8}>
+              {panelCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            </TooltipContent>
+          </Tooltip>
         )}
       </div>
 
       <nav className="flex flex-col items-center gap-2 overflow-y-auto overflow-x-hidden flex-1 min-h-0 scrollbar-hide">
         {navItems.map(({ path, icon: Icon, labelKey, end }) => (
-          <NavLink
-            key={path}
-            to={path}
-            end={end}
-            className={railButtonClass}
-            aria-label={t(labelKey)}
-            title={t(labelKey)}
-          >
-            <Icon className="h-5 w-5" />
-          </NavLink>
+          <Tooltip key={path}>
+            <TooltipTrigger asChild>
+              <NavLink
+                to={path}
+                end={end}
+                className={railButtonClass}
+                aria-label={t(labelKey)}
+              >
+                <Icon className="h-5 w-5" />
+              </NavLink>
+            </TooltipTrigger>
+            <TooltipContent side="right" sideOffset={8}>
+              {t(labelKey)}
+            </TooltipContent>
+          </Tooltip>
         ))}
       </nav>
 
       <div className="mt-3 flex flex-col items-center">
         <Popover open={flyoutOpen} onOpenChange={setFlyoutOpen}>
-          <PopoverTrigger
-            className="flex h-11 w-11 items-center justify-center rounded-lg text-[var(--icon-rail-foreground)] hover:bg-accent hover:text-accent-foreground transition-all duration-200"
-            aria-label={t('nav.moreModules')}
-            title={t('nav.moreModules')}
-          >
-            <LayoutGrid className="h-5 w-5" />
-          </PopoverTrigger>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <PopoverTrigger
+                className="flex h-11 w-11 items-center justify-center rounded-lg text-[var(--icon-rail-foreground)] hover:bg-accent hover:text-accent-foreground transition-all duration-200"
+                aria-label={t('nav.moreModules')}
+              >
+                <LayoutGrid className="h-5 w-5" />
+              </PopoverTrigger>
+            </TooltipTrigger>
+            <TooltipContent side="right" sideOffset={8}>
+              {t('nav.moreModules')}
+            </TooltipContent>
+          </Tooltip>
           <PopoverContent side="right" align="start" className="w-48 p-2 space-y-0.5">
             {moreItems.map(({ path, icon: Icon, labelKey }) => (
               <NavLink
@@ -108,14 +124,20 @@ export function IconRail({ panelCollapsed, onTogglePanel, showPanelToggle }: Ico
       </div>
 
       <div className="flex flex-col items-center gap-3 mt-3">
-        <NavLink
-          to="/settings"
-          className={railButtonClass}
-          aria-label={t('nav.settings')}
-          title={t('nav.settings')}
-        >
-          <Settings className="h-5 w-5" />
-        </NavLink>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <NavLink
+              to="/settings"
+              className={railButtonClass}
+              aria-label={t('nav.settings')}
+            >
+              <Settings className="h-5 w-5" />
+            </NavLink>
+          </TooltipTrigger>
+          <TooltipContent side="right" sideOffset={8}>
+            {t('nav.settings')}
+          </TooltipContent>
+        </Tooltip>
         {user?.email && <UserAvatar email={user.email} />}
       </div>
     </div>

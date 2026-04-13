@@ -22,12 +22,14 @@ import { UserManagementPage } from '@/pages/UserManagementPage'
 import { AuthGuard } from '@/components/auth/AuthGuard'
 import { AdminGuard } from '@/components/auth/AdminGuard'
 import { AppLayout } from '@/layouts/AppLayout'
+import { TooltipProvider } from '@/components/ui/tooltip'
 
 export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
         <I18nProvider>
+          <TooltipProvider delay={300}>
           <Routes>
             <Route path="/auth" element={<AuthPage />} />
             <Route
@@ -86,6 +88,7 @@ export default function App() {
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
+          </TooltipProvider>
         </I18nProvider>
       </AuthProvider>
     </BrowserRouter>
