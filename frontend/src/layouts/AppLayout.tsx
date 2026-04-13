@@ -22,9 +22,9 @@ export function AppLayout() {
 
   return (
     <ChatProvider value={chatState}>
-      <div className="flex h-screen bg-background mesh-bg overflow-hidden">
+      <div className="flex h-screen bg-background mesh-bg" style={{ overflow: 'clip' }}>
         {/* Desktop icon rail — hidden on mobile */}
-        <div className="hidden md:flex">
+        <div className="hidden md:flex h-full shrink-0">
           <IconRail
             panelCollapsed={panelCollapsed}
             onTogglePanel={togglePanel}
@@ -60,7 +60,7 @@ export function AppLayout() {
 
         {/* Desktop sidebar — hidden on mobile */}
         {showThreadPanel && (
-          <div className="hidden md:flex">
+          <div className="hidden md:flex h-full overflow-hidden">
             <ThreadPanel
               collapsed={panelCollapsed}
               onToggleCollapse={togglePanel}
