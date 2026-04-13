@@ -89,6 +89,19 @@ User 2:
 - **Frontend**: `http://localhost:5173`
 - **Backend**: `http://localhost:8000`
 
+## Code Quality
+
+```bash
+# Frontend lint
+cd frontend && npm run lint
+
+# Frontend type check
+cd frontend && npx tsc --noEmit
+
+# Backend import check (no pytest suite yet)
+cd backend && source venv/bin/activate && python -c "from app.main import app; print('OK')"
+```
+
 ## Gotchas
 - `system_settings` is a single-row table with columns, NOT a key-value store. Use `get_system_settings()` from `system_settings_service.py`.
 - base-ui tooltips use `render` prop, not `asChild`. The shim in `tooltip.tsx` translates `asChild` to `render`.
