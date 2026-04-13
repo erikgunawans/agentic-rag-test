@@ -29,15 +29,6 @@ const STATUS_FILTERS: { value: StatusFilter; label: string; color: string }[] = 
   { value: 'pending', label: 'Pending', color: 'bg-gray-400' },
 ]
 
-const CATEGORY_COLORS: Record<string, string> = {
-  technical: 'text-blue-400',
-  legal: 'text-purple-400',
-  business: 'text-orange-400',
-  academic: 'text-teal-400',
-  personal: 'text-pink-400',
-  other: 'text-gray-400',
-}
-
 const STATUS_BADGE: Record<string, string> = {
   pending: 'bg-muted text-muted-foreground',
   processing: 'bg-amber-500/10 text-amber-400',

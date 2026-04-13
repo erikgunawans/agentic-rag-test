@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { BookOpen, Plus, Search, Menu, ChevronLeft, PanelLeftClose, Loader2 } from 'lucide-react'
 import { useSidebar } from '@/hooks/useSidebar'
-import { useI18n } from '@/i18n/I18nContext'
+
 import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
 import { apiFetch } from '@/lib/api'
@@ -49,7 +49,6 @@ function getRelevanceLevel(score: number): string {
 }
 
 export function RegulatoryPage() {
-  const { t } = useI18n()
   const { isAdmin } = useAuth()
   const { panelCollapsed, togglePanel } = useSidebar()
   const [mobilePanelOpen, setMobilePanelOpen] = useState(false)
