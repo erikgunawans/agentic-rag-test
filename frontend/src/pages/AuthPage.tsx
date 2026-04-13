@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useI18n } from '@/i18n/I18nContext'
-import { Sparkles, Shield } from 'lucide-react'
+import { Shield } from 'lucide-react'
 
 type Tab = 'login' | 'signup'
 
@@ -21,7 +21,6 @@ export function AuthPage() {
     setError('')
     setMessage('')
     setLoading(true)
-
     try {
       if (tab === 'login') {
         const { error } = await supabase.auth.signInWithPassword({ email, password })
@@ -40,38 +39,48 @@ export function AuthPage() {
   }
 
   return (
-    <div
-      className="flex min-h-screen items-start justify-center pt-[10vh] sm:pt-[12vh]"
-      style={{ backgroundColor: '#161617' }}
-    >
-      {/* Card — no border, no shadow, just a shade lighter */}
-      <div
-        className="w-full max-w-[580px] mx-4 rounded-[20px] px-14 pt-14 pb-12 sm:px-20 sm:pt-16 sm:pb-14"
-        style={{ backgroundColor: '#232326' }}
-      >
-        {/* Icon + Title */}
-        <div className="flex flex-col items-center mb-12">
-          <div
-            className="flex h-16 w-16 items-center justify-center rounded-full mb-6"
-            style={{ backgroundColor: '#333338' }}
-          >
-            <Sparkles className="h-7 w-7" style={{ color: '#e8e8ed' }} />
+    <div className="flex min-h-screen items-start justify-center pt-[8vh] sm:pt-[10vh]" style={{ backgroundColor: '#000000' }}>
+
+      {/* Floating card */}
+      <div className="w-full max-w-[580px] mx-4 rounded-[18px] px-12 pt-12 pb-10 sm:px-16 sm:pt-14 sm:pb-12" style={{ backgroundColor: '#1d1d1f' }}>
+
+        {/* Pointillist logo halo */}
+        <div className="flex flex-col items-center mb-10">
+          <div className="relative mb-6">
+            <svg width="120" height="120" viewBox="0 0 120 120" className="block">
+              {Array.from({ length: 40 }).map((_, i) => {
+                const angle = (i / 40) * Math.PI * 2 - Math.PI / 2
+                const r = 48
+                const x = 60 + Math.cos(angle) * r
+                const y = 60 + Math.sin(angle) * r
+                const hue = (i / 40) * 300 + 20
+                return (
+                  <circle
+                    key={i}
+                    cx={x}
+                    cy={y}
+                    r={3.2 - (i % 3) * 0.4}
+                    fill={`hsl(${hue}, 80%, 65%)`}
+                    opacity={0.85}
+                  />
+                )
+              })}
+              <text x="60" y="68" textAnchor="middle" fill="#f5f5f7" fontSize="32" fontWeight="600" fontFamily="-apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui, sans-serif">K</text>
+            </svg>
           </div>
-          <h1
-            className="text-[28px] font-semibold tracking-tight text-center"
-            style={{ color: '#f5f5f7' }}
-          >
+
+          <h1 className="text-[28px] font-bold tracking-tight text-center" style={{ color: '#f5f5f7', fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif' }}>
             {tab === 'login' ? t('auth.title') : t('auth.signupTitle') || 'Buat Akun'}
           </h1>
-          <p className="text-[14px] mt-2 text-center" style={{ color: '#86868b' }}>
+          <p className="text-[15px] mt-2 text-center" style={{ color: '#86868b' }}>
             {t('auth.subtitle')}
           </p>
         </div>
 
         {/* Form */}
         <form onSubmit={handleSubmit}>
-          {/* Email */}
-          <div className="mb-4">
+          {/* Email input — transparent bg, subtle border */}
+          <div className="mb-4 mx-auto" style={{ maxWidth: '400px' }}>
             <input
               id="email"
               type="email"
@@ -80,13 +89,15 @@ export function AuthPage() {
               onChange={(e) => setEmail(e.target.value)}
               required
               autoComplete="email"
-              className="w-full rounded-[12px] px-4 py-[14px] text-[17px] text-white/90 placeholder:text-[#56565a] focus:outline-none focus:ring-2 focus:ring-[#0071e3]/60 transition-all"
-              style={{ backgroundColor: '#1a1a1d', border: '1px solid #3d3d42' }}
+              className="w-full rounded-[12px] px-4 py-[14px] text-[17px] placeholder:text-[#48484a] focus:outline-none transition-all"
+              style={{ backgroundColor: 'transparent', border: '1px solid #424245', color: '#f5f5f7' }}
+              onFocus={(e) => e.currentTarget.style.borderColor = '#0071e3'}
+              onBlur={(e) => e.currentTarget.style.borderColor = '#424245'}
             />
           </div>
 
-          {/* Password */}
-          <div className="mb-3">
+          {/* Password input */}
+          <div className="mb-3 mx-auto" style={{ maxWidth: '400px' }}>
             <input
               id="password"
               type="password"
@@ -96,13 +107,15 @@ export function AuthPage() {
               required
               minLength={6}
               autoComplete={tab === 'login' ? 'current-password' : 'new-password'}
-              className="w-full rounded-[12px] px-4 py-[14px] text-[17px] text-white/90 placeholder:text-[#56565a] focus:outline-none focus:ring-2 focus:ring-[#0071e3]/60 transition-all"
-              style={{ backgroundColor: '#1a1a1d', border: '1px solid #3d3d42' }}
+              className="w-full rounded-[12px] px-4 py-[14px] text-[17px] placeholder:text-[#48484a] focus:outline-none transition-all"
+              style={{ backgroundColor: 'transparent', border: '1px solid #424245', color: '#f5f5f7' }}
+              onFocus={(e) => e.currentTarget.style.borderColor = '#0071e3'}
+              onBlur={(e) => e.currentTarget.style.borderColor = '#424245'}
             />
           </div>
 
-          {/* Toggle link */}
-          <div className="mb-8">
+          {/* Create account / switch link */}
+          <div className="mb-10 mx-auto" style={{ maxWidth: '400px' }}>
             <button
               type="button"
               onClick={() => { setTab(tab === 'login' ? 'signup' : 'login'); setError(''); setMessage('') }}
@@ -114,23 +127,24 @@ export function AuthPage() {
           </div>
 
           {/* Error / Message */}
-          {error && <p className="text-[13px] mb-4" style={{ color: '#ff453a' }}>{error}</p>}
-          {message && <p className="text-[13px] mb-4" style={{ color: '#30d158' }}>{message}</p>}
+          {error && <p className="text-[13px] mb-4 text-center" style={{ color: '#ff453a' }}>{error}</p>}
+          {message && <p className="text-[13px] mb-4 text-center" style={{ color: '#30d158' }}>{message}</p>}
 
-          {/* Info section */}
-          <div className="flex items-start gap-3 mb-8">
+          {/* Security info */}
+          <div className="flex items-start gap-3 mb-8 mx-auto" style={{ maxWidth: '420px' }}>
             <Shield className="h-6 w-6 shrink-0 mt-0.5" style={{ color: '#2997ff' }} />
-            <p className="text-[13px] leading-[1.6]" style={{ color: '#86868b' }}>
+            <p className="text-[12px] leading-[1.65] text-center" style={{ color: '#86868b' }}>
               {t('auth.securityNote') || 'Data Anda digunakan untuk masuk secara aman dan mengakses layanan. Kami menerapkan enkripsi untuk keamanan dan pelaporan.'}
             </p>
           </div>
 
-          {/* Buttons — two side by side like Apple */}
-          <div className="flex gap-3">
+          {/* Two pill buttons side by side */}
+          <div className="flex gap-3 mx-auto" style={{ maxWidth: '420px' }}>
+            {/* Primary: deep blue pill */}
             <button
               type="submit"
               disabled={loading}
-              className="flex-1 h-[44px] rounded-[10px] text-[15px] font-medium text-white disabled:opacity-50 transition-colors"
+              className="flex-1 h-[46px] rounded-[12px] text-[15px] font-medium text-white disabled:opacity-50 transition-colors"
               style={{ backgroundColor: '#0071e3' }}
               onMouseEnter={(e) => { if (!loading) e.currentTarget.style.backgroundColor = '#0077ed' }}
               onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#0071e3' }}
@@ -141,13 +155,15 @@ export function AuthPage() {
                 </span>
               ) : tab === 'login' ? t('auth.login') : t('auth.signup')}
             </button>
+
+            {/* Secondary: white/grey pill */}
             <button
               type="button"
               onClick={() => { setTab(tab === 'login' ? 'signup' : 'login'); setError(''); setMessage('') }}
-              className="flex-1 h-[44px] rounded-[10px] text-[15px] font-medium transition-colors"
-              style={{ backgroundColor: '#323236', color: '#f5f5f7' }}
-              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#3a3a3e'}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#323236'}
+              className="flex-1 h-[46px] rounded-[12px] text-[15px] font-medium transition-colors"
+              style={{ backgroundColor: '#e8e8ed', color: '#1d1d1f' }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#d2d2d7'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#e8e8ed'}
             >
               {tab === 'login' ? t('auth.signup') || 'Daftar' : t('auth.login') || 'Masuk'}
             </button>
