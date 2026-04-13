@@ -53,7 +53,7 @@ export function IntegrationsPage() {
 
   async function handleGoogleDisconnect() {
     try {
-      await apiFetch('/google/disconnect', { method: 'POST' })
+      await apiFetch('/google/disconnect', { method: 'DELETE' })
       setGoogleStatus(prev => prev ? { ...prev, connected: false } : prev)
     } catch {
       setMessage('Failed to disconnect Google Drive')
@@ -63,7 +63,7 @@ export function IntegrationsPage() {
 
   async function handleGoogleConnect() {
     try {
-      const res = await apiFetch('/google/connect')
+      const res = await apiFetch('/google/auth-url')
       const data = await res.json()
       if (data.auth_url) {
         window.open(data.auth_url, '_blank')

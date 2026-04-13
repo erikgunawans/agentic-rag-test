@@ -54,8 +54,19 @@ export function DashboardPage() {
         apiFetch('/dashboard/compliance-trend'),
       ])
       if (summaryRes.status === 'fulfilled') {
-        const data = await summaryRes.value.json()
-        setSummary(data)
+        const raw = await summaryRes.value.json()
+        setSummary({
+          documents_total: raw.documents?.total ?? 0,
+          documents_completed: raw.documents?.completed ?? 0,
+          obligations_active: raw.obligations?.active ?? 0,
+          obligations_overdue: raw.obligations?.overdue ?? 0,
+          approvals_pending: raw.approvals?.pending ?? 0,
+          compliance_pass: raw.compliance?.pass ?? 0,
+          compliance_review: raw.compliance?.review ?? 0,
+          compliance_fail: raw.compliance?.fail ?? 0,
+          regulatory_updates: raw.regulatory?.updates ?? 0,
+          regulatory_unread: raw.regulatory?.unread_alerts ?? 0,
+        })
       }
       if (timelineRes.status === 'fulfilled') {
         const data = await timelineRes.value.json()

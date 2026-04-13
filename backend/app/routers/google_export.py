@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from app.dependencies import get_current_user
 from app.database import get_supabase_authed_client, get_supabase_client
 from app.services.audit_service import log_action
+from app.services.system_settings_service import get_system_settings
 
 router = APIRouter(prefix="/google", tags=["google-export"])
 
@@ -17,10 +18,9 @@ class GoogleExport(BaseModel):
 
 
 def _is_google_configured() -> bool:
-    """Check if Google OAuth client ID is set in system_settings (single-row table)."""
-    client = get_supabase_client()
-    row = client.table("system_settings").select("google_client_id").eq("id", 1).execute()
-    return bool(row.data and row.data[0].get("google_client_id"))
+    """Check if Google OAuth client ID is set in cached system_settings."""
+    settings = get_system_settings()
+    return bool(settings.get("google_client_id"))
 
 
 def _user_has_token(user: dict) -> bool:

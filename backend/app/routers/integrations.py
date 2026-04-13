@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from app.dependencies import get_current_user
-from app.database import get_supabase_client
 from app.services.audit_service import log_action
+from app.services.system_settings_service import get_system_settings
 
 router = APIRouter(prefix="/integrations", tags=["integrations"])
 
@@ -20,12 +20,8 @@ class DokmeeExport(BaseModel):
 
 
 def _get_dokmee_config() -> dict:
-    """Read Dokmee settings from system_settings (single-row table)."""
-    client = get_supabase_client()
-    row = client.table("system_settings").select("dokmee_api_url, dokmee_api_key").eq("id", 1).execute()
-    if not row.data:
-        return {"configured": False, "api_url": None}
-    settings = row.data[0]
+    """Read Dokmee settings from cached system_settings."""
+    settings = get_system_settings()
     api_url = settings.get("dokmee_api_url")
     api_key = settings.get("dokmee_api_key")
     configured = bool(api_url and api_key)

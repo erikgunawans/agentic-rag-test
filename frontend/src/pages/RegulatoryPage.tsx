@@ -97,7 +97,7 @@ export function RegulatoryPage() {
 
   async function markAsRead(id: string) {
     try {
-      await apiFetch(`/regulatory/updates/${id}/read`, { method: 'POST' })
+      await apiFetch(`/regulatory/updates/${id}/read`, { method: 'PATCH' })
       setUpdates(prev => prev.map(u => u.id === id ? { ...u, is_read: true } : u))
     } catch {
       // silent
