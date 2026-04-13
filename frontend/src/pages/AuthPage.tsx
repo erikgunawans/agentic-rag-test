@@ -42,7 +42,13 @@ export function AuthPage() {
     <div className="flex min-h-screen items-start justify-center pt-[8vh] sm:pt-[10vh]" style={{ backgroundColor: '#000000' }}>
 
       {/* Floating card */}
-      <div className="w-full max-w-[580px] mx-4 rounded-[18px] px-12 pt-12 pb-10 sm:px-16 sm:pt-14 sm:pb-12" style={{ backgroundColor: '#1d1d1f' }}>
+      <div
+        className="w-full max-w-[580px] mx-4 rounded-[18px] px-12 pt-12 pb-10 sm:px-16 sm:pt-14 sm:pb-12"
+        style={{
+          backgroundColor: '#1d1d1f',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.4), 0 12px 40px rgba(0,0,0,0.5), 0 0 0 0.5px rgba(255,255,255,0.06)',
+        }}
+      >
 
         {/* Pointillist logo halo */}
         <div className="flex flex-col items-center mb-10">
