@@ -25,7 +25,7 @@ export function ChatPage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden">
+    <div className="flex flex-col h-full">
       <MessageView
         messages={messages}
         allMessages={allMessages}
