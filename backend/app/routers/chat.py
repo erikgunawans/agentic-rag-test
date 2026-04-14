@@ -5,21 +5,32 @@ from pydantic import BaseModel
 from app.dependencies import get_current_user
 from app.database import get_supabase_client
 from app.services.openrouter_service import OpenRouterService
-from app.services.embedding_service import EmbeddingService
+from app.services.tool_service import ToolService
+from app.services import agent_service
 from app.config import get_settings
-from app.routers.user_settings import get_or_create_settings
+from app.services.system_settings_service import get_system_settings
+from app.models.tools import ToolCallRecord, ToolCallSummary
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 openrouter_service = OpenRouterService()
-embedding_service = EmbeddingService()
+tool_service = ToolService()
 settings = get_settings()
 
-SYSTEM_PROMPT = "You are a helpful assistant."
+SYSTEM_PROMPT = """You are a helpful assistant with access to tools.
+
+When the user asks a question:
+1. If it's about the content of their uploaded documents, use the search_documents tool.
+2. If it's about document metadata (counts, categories, file sizes, titles), use the query_database tool.
+3. If your documents don't have the answer, or the question is about current events or general knowledge, use the web_search tool.
+4. For general conversation (greetings, simple questions), respond directly without tools.
+
+Always cite your sources. For document searches, mention the source filename. For web searches, include the source URLs."""
 
 
 class SendMessageRequest(BaseModel):
     thread_id: str
     message: str
+    parent_message_id: str | None = None
 
 
 @router.post("/stream")
@@ -35,75 +46,220 @@ async def stream_chat(
         .select("id")
         .eq("id", body.thread_id)
         .eq("user_id", user["id"])
-        .single()
+        .limit(1)
         .execute()
     )
     if not thread_result.data:
         raise HTTPException(status_code=404, detail="Thread not found")
 
-    # Load full chat history for this thread (stateless — send every time)
-    history = (
-        client.table("messages")
-        .select("role, content")
-        .eq("thread_id", body.thread_id)
-        .order("created_at")
-        .execute()
-    ).data or []
-
-    # Load user's model preferences
-    user_settings = get_or_create_settings(client, user["id"])
-
-    # Retrieve relevant document chunks via pgvector (using user's embedding model)
-    chunks = await embedding_service.retrieve_chunks(
-        query=body.message,
-        user_id=user["id"],
-        top_k=settings.rag_top_k,
-        threshold=settings.rag_similarity_threshold,
-        model=user_settings["embedding_model"],
-    )
-
-    # Build system prompt — inject RAG context when available
-    if chunks:
-        context_text = "\n\n---\n\n".join(chunks)
-        system_content = (
-            f"{SYSTEM_PROMPT} Use the following context to answer when relevant:\n\n"
-            f"{context_text}\n\n---"
-        )
+    # Load chat history — branch-aware when parent_message_id is provided
+    if body.parent_message_id:
+        # Branch mode: walk ancestor chain from the specified parent
+        all_messages = (
+            client.table("messages")
+            .select("id, role, content, parent_message_id")
+            .eq("thread_id", body.thread_id)
+            .eq("user_id", user["id"])
+            .execute()
+        ).data or []
+        msg_map = {m["id"]: m for m in all_messages}
+        chain = []
+        visited: set[str] = set()
+        current_id = body.parent_message_id
+        while current_id and current_id in msg_map and current_id not in visited:
+            visited.add(current_id)
+            chain.append(msg_map[current_id])
+            current_id = msg_map[current_id].get("parent_message_id")
+        chain.reverse()
+        history = [{"role": m["role"], "content": m["content"]} for m in chain]
     else:
-        system_content = SYSTEM_PROMPT
+        # Flat mode: all messages in order (existing behavior)
+        history = (
+            client.table("messages")
+            .select("role, content")
+            .eq("thread_id", body.thread_id)
+            .eq("user_id", user["id"])
+            .order("created_at")
+            .execute()
+        ).data or []
 
-    # Assemble messages: [system] + history + current user message
-    messages = (
-        [{"role": "system", "content": system_content}]
-        + [{"role": m["role"], "content": m["content"]} for m in history]
-        + [{"role": "user", "content": body.message}]
-    )
+    # Load system-level model config
+    sys_settings = get_system_settings()
+    llm_model = sys_settings["llm_model"]
 
-    # Persist user message before streaming
-    client.table("messages").insert({
+    # Persist user message before streaming (with parent link for branching)
+    user_msg_result = client.table("messages").insert({
         "thread_id": body.thread_id,
         "user_id": user["id"],
         "role": "user",
         "content": body.message,
+        "parent_message_id": body.parent_message_id,
     }).execute()
+    user_msg_id = user_msg_result.data[0]["id"]
+
+    # Tool execution context (passed to search_documents tool)
+    tool_context = {
+        "top_k": settings.rag_top_k,
+        "threshold": settings.rag_similarity_threshold,
+        "embedding_model": sys_settings["embedding_model"],
+        "llm_model": llm_model,
+    }
+
+    async def _run_tool_loop(messages, tools, max_iterations, user_id, tool_context):
+        """Shared tool-calling loop used by both agent and non-agent paths."""
+        tool_records = []
+        for _iteration in range(max_iterations):
+            if not tools:
+                break
+            result = await openrouter_service.complete_with_tools(
+                messages, tools, model=llm_model
+            )
+
+            if not result["tool_calls"]:
+                break
+
+            for tc in result["tool_calls"]:
+                func_name = tc["function"]["name"]
+                try:
+                    func_args = json.loads(tc["function"]["arguments"])
+                except json.JSONDecodeError:
+                    func_args = {}
+
+                yield "tool_start", {
+                    "type": "tool_start", "tool": func_name, "input": func_args,
+                }
+
+                try:
+                    tool_output = await tool_service.execute_tool(
+                        func_name, func_args, user_id, tool_context
+                    )
+                    tool_records.append(ToolCallRecord(
+                        tool=func_name, input=func_args, output=tool_output
+                    ))
+                except Exception as e:
+                    tool_output = {"error": str(e)}
+                    tool_records.append(ToolCallRecord(
+                        tool=func_name, input=func_args, output={}, error=str(e)
+                    ))
+
+                yield "tool_result", {
+                    "type": "tool_result", "tool": func_name, "output": tool_output,
+                }
+
+                messages.append({
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [tc],
+                })
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tc["id"],
+                    "content": json.dumps(tool_output),
+                })
+
+        # Expose collected records for persistence
+        yield "records", tool_records
 
     async def event_generator():
+        tool_records = []
         full_response = ""
+        agent_name = None
 
-        async for chunk in openrouter_service.stream_response(messages, model=user_settings["llm_model"]):
-            if not chunk["done"]:
-                full_response += chunk["delta"]
-                yield f"data: {json.dumps({'delta': chunk['delta'], 'done': False})}\n\n"
+        try:
+            if settings.agents_enabled:
+                # --- Multi-agent path ---
+                # 1. Orchestrator classification
+                try:
+                    orch_model = settings.agents_orchestrator_model or llm_model
+                    classification = await agent_service.classify_intent(
+                        body.message, history, openrouter_service, orch_model
+                    )
+                    agent_name = classification.agent
+                except Exception:
+                    agent_name = "general"
 
-        # Persist assistant message after streaming completes
-        client.table("messages").insert({
-            "thread_id": body.thread_id,
-            "user_id": user["id"],
-            "role": "assistant",
-            "content": full_response,
-        }).execute()
+                agent_def = agent_service.get_agent(agent_name)
 
-        yield f"data: {json.dumps({'delta': '', 'done': True})}\n\n"
+                # 2. SSE: agent_start
+                yield f"data: {json.dumps({'type': 'agent_start', 'agent': agent_name, 'display_name': agent_def.display_name})}\n\n"
+
+                # 3. Build messages with agent's system prompt
+                messages = (
+                    [{"role": "system", "content": agent_def.system_prompt}]
+                    + [{"role": m["role"], "content": m["content"]} for m in history]
+                    + [{"role": "user", "content": body.message}]
+                )
+
+                # 4. Get agent's tool subset
+                all_tools = tool_service.get_available_tools() if settings.tools_enabled else []
+                agent_tools = agent_service.get_agent_tools(agent_def, all_tools)
+
+                # 5. Sub-agent tool loop
+                async for event_type, data in _run_tool_loop(
+                    messages, agent_tools, agent_def.max_iterations,
+                    user["id"], tool_context,
+                ):
+                    if event_type == "records":
+                        tool_records = data
+                    else:
+                        yield f"data: {json.dumps(data)}\n\n"
+
+                # 6. Stream final text response
+                async for chunk in openrouter_service.stream_response(messages, model=llm_model):
+                    if not chunk["done"]:
+                        full_response += chunk["delta"]
+                        yield f"data: {json.dumps({'type': 'delta', 'delta': chunk['delta'], 'done': False})}\n\n"
+
+            else:
+                # --- Single-agent path (Module 7 behavior) ---
+                messages = (
+                    [{"role": "system", "content": SYSTEM_PROMPT}]
+                    + [{"role": m["role"], "content": m["content"]} for m in history]
+                    + [{"role": "user", "content": body.message}]
+                )
+
+                tools = tool_service.get_available_tools() if settings.tools_enabled else []
+
+                # Agentic tool-calling loop
+                async for event_type, data in _run_tool_loop(
+                    messages, tools, settings.tools_max_iterations,
+                    user["id"], tool_context,
+                ):
+                    if event_type == "records":
+                        tool_records = data
+                    else:
+                        yield f"data: {json.dumps(data)}\n\n"
+
+                # Stream final text response
+                async for chunk in openrouter_service.stream_response(messages, model=llm_model):
+                    if not chunk["done"]:
+                        full_response += chunk["delta"]
+                        yield f"data: {json.dumps({'type': 'delta', 'delta': chunk['delta'], 'done': False})}\n\n"
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).error("event_generator error: %s", exc, exc_info=True)
+
+        # SSE: agent_done (always emitted if agent was started)
+        if agent_name:
+            yield f"data: {json.dumps({'type': 'agent_done', 'agent': agent_name})}\n\n"
+
+        # Persist assistant message after streaming completes (chained to user message)
+        if full_response:
+            insert_data = {
+                "thread_id": body.thread_id,
+                "user_id": user["id"],
+                "role": "assistant",
+                "content": full_response,
+                "parent_message_id": user_msg_id,
+            }
+            if tool_records or agent_name:
+                insert_data["tool_calls"] = ToolCallSummary(
+                    agent=agent_name,
+                    calls=tool_records,
+                ).model_dump()
+            client.table("messages").insert(insert_data).execute()
+
+        yield f"data: {json.dumps({'type': 'delta', 'delta': '', 'done': True})}\n\n"
 
     return StreamingResponse(
         event_generator(),

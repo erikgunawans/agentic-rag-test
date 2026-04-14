@@ -25,3 +25,14 @@ Thumbs.db
 .idea/
 *.swp
 .gstack/
+
+# Worktrees
+.worktrees/
+
+# Design assets & screenshots
+*.png
+*.zip
+excalidraw.log
+.playwright-mcp/
+.vercel
+References/

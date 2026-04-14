@@ -1,14 +1,18 @@
 import { useState } from 'react'
-import { Send } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { X, GitFork } from 'lucide-react'
+import { useI18n } from '@/i18n/I18nContext'
+import { InputActionBar } from './InputActionBar'
 
 interface MessageInputProps {
   onSend: (message: string) => void
   disabled: boolean
+  forkParentId?: string | null
+  onCancelFork?: () => void
 }
 
-export function MessageInput({ onSend, disabled }: MessageInputProps) {
+export function MessageInput({ onSend, disabled, forkParentId, onCancelFork }: MessageInputProps) {
   const [value, setValue] = useState('')
+  const { t } = useI18n()
 
   function handleSend() {
     const trimmed = value.trim()
@@ -25,25 +29,30 @@ export function MessageInput({ onSend, disabled }: MessageInputProps) {
   }
 
   return (
-    <div className="border-t p-4">
-      <div className="flex gap-2 items-end">
+    <div className="shrink-0 p-4">
+      <div className="mx-auto max-w-2xl rounded-2xl border bg-card p-4 shadow-[var(--shadow-md)] transition-shadow focus-within:shadow-[var(--glow-primary)]">
+        {forkParentId && (
+          <div className="flex items-center gap-2 mb-2 rounded-md bg-primary/10 px-3 py-1.5 text-xs text-primary">
+            <GitFork className="h-3.5 w-3.5" />
+            <span>{t('branch.forkMode')}</span>
+            <button
+              onClick={onCancelFork}
+              className="ml-auto hover:text-foreground transition-colors"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
         <textarea
-          className="flex-1 resize-none rounded-md border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring min-h-[40px] max-h-[200px]"
-          placeholder="Send a message… (Enter to send, Shift+Enter for newline)"
+          className="w-full resize-none bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none min-h-[40px] max-h-[200px]"
+          placeholder={t('chat.placeholder')}
           value={value}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={handleKeyDown}
           disabled={disabled}
           rows={1}
         />
-        <Button
-          onClick={handleSend}
-          disabled={disabled || !value.trim()}
-          size="icon"
-          aria-label="Send message"
-        >
-          <Send className="h-4 w-4" />
-        </Button>
+        <InputActionBar onSend={handleSend} disabled={disabled || !value.trim()} />
       </div>
     </div>
   )
