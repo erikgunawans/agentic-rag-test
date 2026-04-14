@@ -8,10 +8,9 @@ interface MessageInputProps {
   disabled: boolean
   forkParentId?: string | null
   onCancelFork?: () => void
-  showVersion?: boolean
 }
 
-export function MessageInput({ onSend, disabled, forkParentId, onCancelFork, showVersion }: MessageInputProps) {
+export function MessageInput({ onSend, disabled, forkParentId, onCancelFork }: MessageInputProps) {
   const [value, setValue] = useState('')
   const { t } = useI18n()
 
@@ -53,7 +52,7 @@ export function MessageInput({ onSend, disabled, forkParentId, onCancelFork, sho
           disabled={disabled}
           rows={1}
         />
-        <InputActionBar onSend={handleSend} disabled={disabled || !value.trim()} showVersion={showVersion} />
+        <InputActionBar onSend={handleSend} disabled={disabled || !value.trim()} />
       </div>
     </div>
   )
