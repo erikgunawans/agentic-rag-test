@@ -30,8 +30,6 @@ export function SuggestionCards() {
         className="group flex items-start gap-2.5 rounded-xl border border-border/50 bg-card p-4 text-left transition-all duration-200 hover:bg-accent/50 hover:shadow-[var(--shadow-md)] cursor-pointer animate-fade-in-up interactive-lift focus-ring"
         style={{
           animationDelay: `${index * 100}ms`,
-          borderLeftWidth: '3px',
-          borderLeftColor: colorVar,
         }}
       >
         <div className="flex-1">
