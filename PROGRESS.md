@@ -1,6 +1,25 @@
 # Progress
 
-PJAA CLM Platform. Phase 1 (7/7) and Phase 2 (5/5) complete. 18 pages, 17 routers, 19 migrations. Deployed to Vercel + Railway. Version 0.1.1.0.
+PJAA CLM Platform. Phase 1 (7/7) and Phase 2 (5/5) complete. 18 pages, 17 routers, 19 migrations. Deployed to Vercel + Railway. Version 0.1.1.0. UI polish: unified dot-grid background, glass sidebars, minimal layout across all sections.
+
+## Checkpoint 2026-04-14 (Unified visual style across all sections)
+
+- **Session:** Applied chat section's atmospheric background (dot-grid + mesh-bg) and minimal layout to all other sections. Removed hard border-b separator bars, added glass sidebars.
+- **Branch:** master
+- **Done:**
+  - dot-grid CSS converted from background-image to ::before pseudo-element overlay (visible above child elements)
+  - dot-grid applied to AppLayout `<main>` — every page inherits the dot overlay automatically
+  - Removed redundant mesh-bg/dot-grid from WelcomeScreen (inherits from layout)
+  - DocumentsPage: removed border-b top bar, merged controls inline with content
+  - AuditTrailPage: removed double border-b bars (header + filters), flowed inline
+  - Added `glass` (backdrop-blur + semi-transparent bg) to all 10 desktop sidebar panels
+  - Extracted InputActionBar component shared by MessageInput + WelcomeInput
+  - handleNewChat() for lazy thread creation (no empty threads)
+- **Files changed:** 14 files (index.css, AppLayout.tsx, WelcomeScreen.tsx, InputActionBar.tsx, MessageInput.tsx, WelcomeInput.tsx, ThreadPanel.tsx, useChatState.ts, + 10 page files with glass sidebars)
+- **Tests:** TypeScript tsc clean
+- **Next:** Get PJAA stakeholder feedback, verify visual consistency across all pages, Phase 3 after validation
+
+---
 
 ## Checkpoint 2026-04-14 (Chat input UI consistency + new chat flow fix)
 

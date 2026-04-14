@@ -1,0 +1,135 @@
+<h2>Section 2: Typography, Buttons & Glass</h2>
+<p class="subtitle">Tighter headings, solid buttons, glass only for transient overlays.</p>
+
+<div class="section">
+  <h3>Typography</h3>
+  <div class="mockup">
+    <div class="mockup-header">Before → After</div>
+    <div class="mockup-body" style="padding: 24px;">
+      <div style="display: flex; gap: 48px;">
+        <div style="flex: 1;">
+          <p style="font-size: 11px; opacity: 0.4; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.05em;">CURRENT</p>
+          <h1 style="font-size: 28px; font-weight: 700; letter-spacing: 0; margin-bottom: 8px;">Dashboard Overview</h1>
+          <h2 style="font-size: 18px; font-weight: 700; letter-spacing: 0; margin-bottom: 8px;">Upcoming Obligations</h2>
+          <h3 style="font-size: 14px; font-weight: 600; letter-spacing: 0; margin-bottom: 8px;">Document Details</h3>
+          <p style="font-size: 14px; opacity: 0.6;">Body text at 14px, default tracking</p>
+          <p style="font-size: 10px; opacity: 0.4; margin-top: 4px;">Caption at 10px, default tracking</p>
+        </div>
+        <div style="flex: 1; border-left: 1px solid rgba(255,255,255,0.06); padding-left: 48px;">
+          <p style="font-size: 11px; opacity: 0.4; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.05em; color: #22c55e;">PROPOSED</p>
+          <h1 style="font-size: 28px; font-weight: 600; letter-spacing: -0.02em; margin-bottom: 8px;">Dashboard Overview</h1>
+          <h2 style="font-size: 18px; font-weight: 600; letter-spacing: -0.01em; margin-bottom: 8px;">Upcoming Obligations</h2>
+          <h3 style="font-size: 14px; font-weight: 500; letter-spacing: 0; margin-bottom: 8px;">Document Details</h3>
+          <p style="font-size: 14px; opacity: 0.6;">Body text at 14px, same tracking</p>
+          <p style="font-size: 10px; opacity: 0.4; margin-top: 4px; letter-spacing: 0.02em;">Caption at 10px, slightly wider</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p style="font-size: 13px; opacity: 0.6; margin-top: 12px;">Key: headings drop from 700→600 weight, gain negative letter-spacing. Feels calmer, more refined. Captions get slight positive tracking for readability at small sizes.</p>
+</div>
+
+<div class="section" style="margin-top: 32px;">
+  <h3>Primary Buttons</h3>
+  <div class="mockup">
+    <div class="mockup-header">Gradient → Solid Flat</div>
+    <div class="mockup-body" style="padding: 32px; display: flex; align-items: center; gap: 48px; justify-content: center;">
+      <div style="text-align: center;">
+        <p style="font-size: 11px; opacity: 0.4; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.05em;">CURRENT</p>
+        <button style="padding: 8px 20px; border-radius: 8px; border: none; font-size: 13px; font-weight: 500; color: white; background: linear-gradient(135deg, oklch(0.55 0.20 280), oklch(0.55 0.18 250)); cursor: pointer;">
+          Send Message
+        </button>
+        <p style="font-size: 11px; opacity: 0.3; margin-top: 8px;">gradient fill</p>
+      </div>
+      <div style="text-align: center;">
+        <p style="font-size: 11px; opacity: 0.4; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: #22c55e;">PROPOSED</p>
+        <button style="padding: 8px 20px; border-radius: 8px; border: none; font-size: 13px; font-weight: 500; color: white; background: oklch(0.55 0.20 280); cursor: pointer;">
+          Send Message
+        </button>
+        <p style="font-size: 11px; opacity: 0.3; margin-top: 8px;">solid flat fill</p>
+      </div>
+    </div>
+  </div>
+  <p style="font-size: 13px; opacity: 0.6; margin-top: 12px;">Flat fill is cleaner, loads faster, and is the 2026 enterprise standard. The gradient on the chat send button (InputActionBar) also becomes solid.</p>
+</div>
+
+<div class="section" style="margin-top: 32px;">
+  <h3>Glass Treatment</h3>
+  <div class="mockup">
+    <div class="mockup-header">Where Glass Lives Now vs Proposed</div>
+    <div class="mockup-body" style="padding: 24px;">
+      <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+        <thead>
+          <tr style="border-bottom: 1px solid rgba(255,255,255,0.1); text-align: left;">
+            <th style="padding: 8px 12px;">Element</th>
+            <th style="padding: 8px 12px;">Current</th>
+            <th style="padding: 8px 12px;">Proposed</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+            <td style="padding: 8px 12px;">ThreadPanel (sidebar)</td>
+            <td style="padding: 8px 12px;">✅ glass + dot-grid</td>
+            <td style="padding: 8px 12px;">Solid surface (#111113), no blur</td>
+          </tr>
+          <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+            <td style="padding: 8px 12px;">10 page sidebar panels</td>
+            <td style="padding: 8px 12px;">✅ glass</td>
+            <td style="padding: 8px 12px;">Solid surface (#111113), no blur</td>
+          </tr>
+          <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+            <td style="padding: 8px 12px;">Chat input card</td>
+            <td style="padding: 8px 12px;">✅ glass</td>
+            <td style="padding: 8px 12px;">Solid card surface (#18181B)</td>
+          </tr>
+          <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+            <td style="padding: 8px 12px;">Tooltips</td>
+            <td style="padding: 8px 12px;">✅ glass + blur</td>
+            <td style="padding: 8px 12px; color: #22c55e;">✅ Keep glass — transient overlay</td>
+          </tr>
+          <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+            <td style="padding: 8px 12px;">Popovers / dropdowns</td>
+            <td style="padding: 8px 12px;">Default</td>
+            <td style="padding: 8px 12px; color: #22c55e;">✅ Add glass — transient overlay</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 12px;">Mobile panel overlay</td>
+            <td style="padding: 8px 12px;">✅ backdrop-blur</td>
+            <td style="padding: 8px 12px; color: #22c55e;">✅ Keep — transient overlay</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <p style="font-size: 13px; opacity: 0.6; margin-top: 12px;">Rule: glass = transient only (tooltips, popovers, mobile overlays). Persistent panels get solid surfaces. This reduces GPU load and matches 2026 convention.</p>
+</div>
+
+<div class="section" style="margin-top: 32px;">
+  <h3>Transitions</h3>
+  <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+    <thead>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.1); text-align: left;">
+        <th style="padding: 8px 12px;">Interaction</th>
+        <th style="padding: 8px 12px;">Current</th>
+        <th style="padding: 8px 12px;">Proposed</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <td style="padding: 8px 12px;">All transitions</td>
+        <td style="padding: 8px 12px;"><code>ease</code> / <code>ease-in-out</code></td>
+        <td style="padding: 8px 12px;"><code>cubic-bezier(0.4, 0, 0.2, 1)</code></td>
+      </tr>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <td style="padding: 8px 12px;">Hover card lift</td>
+        <td style="padding: 8px 12px;">translateY(-1px)</td>
+        <td style="padding: 8px 12px;">translateY(-2px) + shadow boost</td>
+      </tr>
+      <tr>
+        <td style="padding: 8px 12px;">Button active</td>
+        <td style="padding: 8px 12px;">translateY(0)</td>
+        <td style="padding: 8px 12px;">scale(0.98) — press-in feel</td>
+      </tr>
+    </tbody>
+  </table>
+</div>

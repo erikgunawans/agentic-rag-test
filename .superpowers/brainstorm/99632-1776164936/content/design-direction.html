@@ -1,0 +1,92 @@
+<h2>2026 Design Refresh — Direction</h2>
+<p class="subtitle">Your current design already has strong 2026 foundations (OKLCH, glassmorphism, Geist, dot-grid). Here are two approaches for refinement.</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Calibrated Restraint (Recommended)</h3>
+      <p><strong>The Linear/Vercel aesthetic.</strong> Shift base color from navy-blue (#0B1120) to zinc-neutral (#09090B). Reduce border opacity from 8% to 5%. Remove glass from persistent panels (sidebars) — keep it only for transient overlays (tooltips, popovers). Flatten the gradient send button to solid fill. Tighten heading letter-spacing. Snappier transitions.</p>
+      <br>
+      <p style="font-size: 13px; opacity: 0.7;"><strong>What changes:</strong> Color palette (zinc base), border subtlety, sidebar treatment, button style, typography tracking, transition timing<br>
+      <strong>What stays:</strong> Dot-grid, mesh-bg, floating orbs, Geist font, overall layout structure<br>
+      <strong>Risk:</strong> Low — CSS-only changes, no component restructuring</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Enhanced Current (Preserve Navy Identity)</h3>
+      <p><strong>Keep the navy-blue personality.</strong> Stay with #0B1120 base but refine the supporting palette. Reduce border opacity slightly (8% → 6%). Keep glass sidebars but make them subtler (lower blur, higher transparency). Tighten typography. Add snappier easing curves. Keep gradient buttons but refine the gradient to be less saturated.</p>
+      <br>
+      <p style="font-size: 13px; opacity: 0.7;"><strong>What changes:</strong> Border subtlety, glass refinement, typography, transitions, gradient polish<br>
+      <strong>What stays:</strong> Navy color identity, glass sidebars, gradient buttons, all current effects<br>
+      <strong>Risk:</strong> Minimal — lighter touch, fewer changes</p>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top: 32px;">
+  <h3>Key Changes (Both Approaches)</h3>
+  <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+    <thead>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.1); text-align: left;">
+        <th style="padding: 8px 12px;">Property</th>
+        <th style="padding: 8px 12px;">Current</th>
+        <th style="padding: 8px 12px;">A: Calibrated Restraint</th>
+        <th style="padding: 8px 12px;">B: Enhanced Current</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <td style="padding: 8px 12px;">Background</td>
+        <td style="padding: 8px 12px;"><code>#0B1120</code> (navy)</td>
+        <td style="padding: 8px 12px;"><code>#09090B</code> (zinc)</td>
+        <td style="padding: 8px 12px;"><code>#0B1120</code> (keep)</td>
+      </tr>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <td style="padding: 8px 12px;">Card surface</td>
+        <td style="padding: 8px 12px;"><code>oklch(0.18 0.015 260)</code></td>
+        <td style="padding: 8px 12px;"><code>#18181B</code> (zinc-900)</td>
+        <td style="padding: 8px 12px;"><code>oklch(0.16 0.012 260)</code></td>
+      </tr>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <td style="padding: 8px 12px;">Border opacity</td>
+        <td style="padding: 8px 12px;">8%</td>
+        <td style="padding: 8px 12px;">5%</td>
+        <td style="padding: 8px 12px;">6%</td>
+      </tr>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <td style="padding: 8px 12px;">Sidebars</td>
+        <td style="padding: 8px 12px;">Glass (backdrop-blur)</td>
+        <td style="padding: 8px 12px;">Solid surface, no blur</td>
+        <td style="padding: 8px 12px;">Glass but subtler (blur-12)</td>
+      </tr>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <td style="padding: 8px 12px;">Primary button</td>
+        <td style="padding: 8px 12px;">Gradient (purple→blue)</td>
+        <td style="padding: 8px 12px;">Solid flat fill</td>
+        <td style="padding: 8px 12px;">Subtle gradient (lower sat)</td>
+      </tr>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <td style="padding: 8px 12px;">Heading tracking</td>
+        <td style="padding: 8px 12px;">Default (0)</td>
+        <td style="padding: 8px 12px;">-0.02em (tight)</td>
+        <td style="padding: 8px 12px;">-0.015em</td>
+      </tr>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <td style="padding: 8px 12px;">Font weight (headings)</td>
+        <td style="padding: 8px 12px;">font-bold (700)</td>
+        <td style="padding: 8px 12px;">font-semibold (600)</td>
+        <td style="padding: 8px 12px;">font-semibold (600)</td>
+      </tr>
+      <tr>
+        <td style="padding: 8px 12px;">Transition easing</td>
+        <td style="padding: 8px 12px;">ease / ease-in-out</td>
+        <td style="padding: 8px 12px;">cubic-bezier(0.4,0,0.2,1)</td>
+        <td style="padding: 8px 12px;">cubic-bezier(0.4,0,0.2,1)</td>
+      </tr>
+    </tbody>
+  </table>
+</div>

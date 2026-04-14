@@ -1,0 +1,3 @@
+{"type":"server-started","port":63662,"host":"127.0.0.1","url_host":"localhost","url":"http://localhost:63662","screen_dir":"/Users/erikgunawansupriatna/claude-code-agentic-rag-masterclass-1/.superpowers/brainstorm/11671-1776187091/content","state_dir":"/Users/erikgunawansupriatna/claude-code-agentic-rag-masterclass-1/.superpowers/brainstorm/11671-1776187091/state"}
+{"type":"screen-added","file":"/Users/erikgunawansupriatna/claude-code-agentic-rag-masterclass-1/.superpowers/brainstorm/11671-1776187091/content/grouping-options.html"}
+{"type":"server-stopped","reason":"idle timeout"}

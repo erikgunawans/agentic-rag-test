@@ -1,0 +1,115 @@
+<h2>Section 3: Backgrounds, Effects & Shadows</h2>
+<p class="subtitle">Refine the atmospheric effects to match the zinc palette. Keep the vibe, reduce the noise.</p>
+
+<div class="section">
+  <h3>Mesh Background</h3>
+  <div class="split">
+    <div class="mockup">
+      <div class="mockup-header">Current mesh-bg</div>
+      <div class="mockup-body" style="padding: 0; height: 200px; position: relative; overflow: hidden; background: #0B1120;">
+        <div style="position: absolute; top: -40px; right: -40px; width: 250px; height: 250px; border-radius: 50%; background: radial-gradient(circle, rgba(76, 29, 149, 0.06) 0%, transparent 70%);"></div>
+        <div style="position: absolute; bottom: -30px; left: -30px; width: 200px; height: 200px; border-radius: 50%; background: radial-gradient(circle, rgba(10, 31, 61, 0.3) 0%, transparent 70%);"></div>
+        <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;">
+          <span style="font-size: 12px; opacity: 0.4;">Purple glow (6%) + Blue glow (30%)</span>
+        </div>
+      </div>
+    </div>
+    <div class="mockup">
+      <div class="mockup-header">Proposed mesh-bg</div>
+      <div class="mockup-body" style="padding: 0; height: 200px; position: relative; overflow: hidden; background: #09090B;">
+        <div style="position: absolute; top: -40px; right: -40px; width: 300px; height: 300px; border-radius: 50%; background: radial-gradient(circle, rgba(139, 92, 246, 0.04) 0%, transparent 70%); filter: blur(40px);"></div>
+        <div style="position: absolute; bottom: -30px; left: -30px; width: 250px; height: 250px; border-radius: 50%; background: radial-gradient(circle, rgba(139, 92, 246, 0.03) 0%, transparent 70%); filter: blur(40px);"></div>
+        <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;">
+          <span style="font-size: 12px; opacity: 0.4;">Single-hue purple (4% + 3%), heavily blurred</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p style="font-size: 13px; opacity: 0.6; margin-top: 12px;">Change: Replace the navy-blue glow with a second purple glow. Both orbs use the same hue as your accent (#8B5CF6) at very low opacity, with added blur(40px) for a softer spread. Monochrome ambient glow reads cleaner on zinc surfaces.</p>
+</div>
+
+<div class="section" style="margin-top: 32px;">
+  <h3>Dot Grid</h3>
+  <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+    <thead>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.1); text-align: left;">
+        <th style="padding: 8px 12px;">Property</th>
+        <th style="padding: 8px 12px;">Current</th>
+        <th style="padding: 8px 12px;">Proposed</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <td style="padding: 8px 12px;">Dot opacity</td>
+        <td style="padding: 8px 12px;">4%</td>
+        <td style="padding: 8px 12px;">3% — slightly subtler</td>
+      </tr>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <td style="padding: 8px 12px;">Dot spacing</td>
+        <td style="padding: 8px 12px;">24px</td>
+        <td style="padding: 8px 12px;">24px — no change</td>
+      </tr>
+      <tr>
+        <td style="padding: 8px 12px;">Implementation</td>
+        <td style="padding: 8px 12px;">::before pseudo</td>
+        <td style="padding: 8px 12px;">::before pseudo — no change</td>
+      </tr>
+    </tbody>
+  </table>
+  <p style="font-size: 13px; opacity: 0.6; margin-top: 12px;">Just a slight opacity drop. On the darker zinc base, 4% dots are slightly more visible than on navy, so 3% restores the same perceptual subtlety.</p>
+</div>
+
+<div class="section" style="margin-top: 32px;">
+  <h3>Shadows</h3>
+  <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+    <thead>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.1); text-align: left;">
+        <th style="padding: 8px 12px;">Token</th>
+        <th style="padding: 8px 12px;">Current</th>
+        <th style="padding: 8px 12px;">Proposed</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <td style="padding: 8px 12px;">shadow-xs</td>
+        <td style="padding: 8px 12px;"><code>0 1px 2px 0.15</code></td>
+        <td style="padding: 8px 12px;">No change</td>
+      </tr>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <td style="padding: 8px 12px;">shadow-sm</td>
+        <td style="padding: 8px 12px;"><code>0 2px 6px 0.2, 0 1px 2px 0.1</code></td>
+        <td style="padding: 8px 12px;">No change</td>
+      </tr>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <td style="padding: 8px 12px;">shadow-md/lg</td>
+        <td style="padding: 8px 12px;">Multi-layer</td>
+        <td style="padding: 8px 12px;">No change — already flat enough</td>
+      </tr>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <td style="padding: 8px 12px;">glow-primary</td>
+        <td style="padding: 8px 12px;"><code>0 0 20px 0.15</code></td>
+        <td style="padding: 8px 12px;"><code>0 0 24px 0.12</code> — wider, subtler</td>
+      </tr>
+      <tr>
+        <td style="padding: 8px 12px;">glow-sm</td>
+        <td style="padding: 8px 12px;"><code>0 0 10px 0.10</code></td>
+        <td style="padding: 8px 12px;"><code>0 0 14px 0.08</code> — wider, subtler</td>
+      </tr>
+    </tbody>
+  </table>
+  <p style="font-size: 13px; opacity: 0.6; margin-top: 12px;">Shadows are already well-calibrated. Only the glow effects get a slight adjustment: wider spread, lower opacity — more ambient, less "laser pointer."</p>
+</div>
+
+<div class="section" style="margin-top: 32px;">
+  <h3>What Stays Unchanged</h3>
+  <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+    <span style="font-size: 12px; padding: 4px 12px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03);">Floating orbs (welcome screen)</span>
+    <span style="font-size: 12px; padding: 4px 12px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03);">Gradient text effect</span>
+    <span style="font-size: 12px; padding: 4px 12px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03);">Animated gradient border</span>
+    <span style="font-size: 12px; padding: 4px 12px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03);">Stagger children animations</span>
+    <span style="font-size: 12px; padding: 4px 12px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03);">Pulse rings</span>
+    <span style="font-size: 12px; padding: 4px 12px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03);">Focus ring style</span>
+    <span style="font-size: 12px; padding: 4px 12px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03);">Reduced motion support</span>
+    <span style="font-size: 12px; padding: 4px 12px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03);">Geist Variable font</span>
+  </div>
+</div>
