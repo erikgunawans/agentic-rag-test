@@ -84,25 +84,28 @@ function GroupPopover({ group }: { group: NavGroup }) {
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <PopoverTrigger
-            className={`flex h-11 w-11 items-center justify-center rounded-lg transition-all duration-200 focus-ring ${
-              isActive
-                ? 'bg-primary/15 text-primary relative before:absolute before:left-0 before:top-1 before:bottom-1 before:w-[3px] before:rounded-full before:bg-gradient-to-b before:from-primary before:to-[oklch(0.65_0.18_230)]'
-                : 'text-[var(--icon-rail-foreground)] hover:bg-accent hover:text-accent-foreground'
-            }`}
-            aria-label={t(group.labelKey)}
-          >
-            <Icon className="h-5 w-5" />
-          </PopoverTrigger>
-        </TooltipTrigger>
-        {!open && (
+      <div className="relative">
+        {isActive && (
+          <div className="absolute left-0 top-1 bottom-1 w-[3px] rounded-full bg-gradient-to-b from-primary to-[oklch(0.65_0.18_230)]" />
+        )}
+        <Tooltip open={open ? false : undefined}>
+          <TooltipTrigger asChild>
+            <PopoverTrigger
+              className={`flex h-11 w-11 items-center justify-center rounded-lg transition-all duration-200 focus-ring ${
+                isActive
+                  ? 'bg-primary/15 text-primary'
+                  : 'text-[var(--icon-rail-foreground)] hover:bg-accent hover:text-accent-foreground'
+              }`}
+              aria-label={t(group.labelKey)}
+            >
+              <Icon className="h-5 w-5" />
+            </PopoverTrigger>
+          </TooltipTrigger>
           <TooltipContent side="right" sideOffset={8}>
             {t(group.labelKey)}
           </TooltipContent>
-        )}
-      </Tooltip>
+        </Tooltip>
+      </div>
       <PopoverContent side="right" align="start" className="w-52 p-2">
         <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
           {t(group.labelKey)}
