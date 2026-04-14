@@ -122,6 +122,10 @@
     }
   html {
     @apply font-sans;
+    color-scheme: dark;
+    }
+  button, a, [role="button"] {
+    cursor: pointer;
     }
 
   /* Dark scrollbars */
