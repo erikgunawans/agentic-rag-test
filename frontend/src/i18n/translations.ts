@@ -57,8 +57,8 @@ export const translations: Record<Locale, Record<string, string>> = {
     'documents.yourDocs': 'Dokumen Anda',
 
     // Auth
-    'auth.title': 'RAG Chat',
-    'auth.subtitle': 'Powered by OpenAI + Supabase',
+    'auth.title': 'LexCore',
+    'auth.subtitle': 'Platform Manajemen Kontrak Cerdas',
     'auth.login': 'Masuk',
     'auth.signup': 'Daftar',
     'auth.email': 'Email',
@@ -485,8 +485,8 @@ export const translations: Record<Locale, Record<string, string>> = {
     'documents.yourDocs': 'Your Documents',
 
     // Auth
-    'auth.title': 'RAG Chat',
-    'auth.subtitle': 'Powered by OpenAI + Supabase',
+    'auth.title': 'LexCore',
+    'auth.subtitle': 'Smart Contract Lifecycle Management',
     'auth.login': 'Log In',
     'auth.signup': 'Sign Up',
     'auth.email': 'Email',
