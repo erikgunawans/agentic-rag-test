@@ -69,7 +69,7 @@ export function AppLayout() {
         )}
 
         {/* Main content — top padding on mobile for the header bar */}
-        <main className="relative z-10 flex flex-1 flex-col overflow-hidden pt-14 md:pt-0">
+        <main className="relative z-10 flex flex-1 flex-col overflow-hidden pt-14 md:pt-0 dot-grid">
           <Outlet context={{ panelCollapsed, togglePanel } satisfies SidebarContext} />
         </main>
       </div>
