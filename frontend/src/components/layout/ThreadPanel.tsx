@@ -38,7 +38,7 @@ export function ThreadPanel({ collapsed, onToggleCollapse }: ThreadPanelProps) {
   }
 
   return (
-    <div className="flex h-full w-[340px] shrink-0 flex-col border-r border-border glass dot-grid transition-all duration-200">
+    <div className="flex h-full w-[340px] shrink-0 flex-col border-r border-border bg-sidebar transition-all duration-200">
       <div className="flex items-center justify-between p-4">
         <div>
           <img src="/lexcore-full-dark.svg" alt="LexCore" className="h-7" />
