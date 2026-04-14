@@ -1,28 +1,60 @@
 import { useState } from 'react'
-import { NavLink } from 'react-router-dom'
-import { Home, Folder, FilePlus, Library, GitCompare, ShieldCheck, Scale, ClipboardList, FileCheck, BookOpen, Plug, LayoutDashboard, Settings, LayoutGrid, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import { NavLink, useLocation } from 'react-router-dom'
+import { Home, Folder, FilePlus, Library, GitCompare, ShieldCheck, Scale, ClipboardList, FileCheck, BookOpen, Plug, LayoutDashboard, Settings, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import { useAuth } from '@/contexts/AuthContext'
 import { useI18n } from '@/i18n/I18nContext'
 import { UserAvatar } from './UserAvatar'
+import type { LucideIcon } from 'lucide-react'
 
-const navItems = [
-  { path: '/dashboard', icon: LayoutDashboard, labelKey: 'nav.dashboard' },
+interface NavItem {
+  path: string
+  icon: LucideIcon
+  labelKey: string
+  end?: boolean
+}
+
+interface NavGroup {
+  labelKey: string
+  icon: LucideIcon
+  children: NavItem[]
+}
+
+const standaloneItems: NavItem[] = [
   { path: '/', icon: Home, labelKey: 'nav.chat', end: true },
-  { path: '/documents', icon: Folder, labelKey: 'nav.documents' },
-  { path: '/create', icon: FilePlus, labelKey: 'nav.create' },
-  { path: '/clause-library', icon: Library, labelKey: 'nav.clauseLibrary' },
-  { path: '/compare', icon: GitCompare, labelKey: 'nav.compare' },
-  { path: '/compliance', icon: ShieldCheck, labelKey: 'nav.compliance' },
-  { path: '/analysis', icon: Scale, labelKey: 'nav.analysis' },
-  { path: '/obligations', icon: ClipboardList, labelKey: 'nav.obligations' },
-  { path: '/approvals', icon: FileCheck, labelKey: 'nav.approvals' },
+  { path: '/dashboard', icon: LayoutDashboard, labelKey: 'nav.dashboard' },
 ]
 
-const moreItems = [
-  { path: '/regulatory', icon: BookOpen, labelKey: 'nav.regulatory' },
-  { path: '/integrations', icon: Plug, labelKey: 'nav.integrations' },
+const groups: NavGroup[] = [
+  {
+    labelKey: 'nav.documentsGroup',
+    icon: Folder,
+    children: [
+      { path: '/documents', icon: Folder, labelKey: 'nav.documents' },
+      { path: '/create', icon: FilePlus, labelKey: 'nav.create' },
+      { path: '/compare', icon: GitCompare, labelKey: 'nav.compare' },
+    ],
+  },
+  {
+    labelKey: 'nav.legalTools',
+    icon: Scale,
+    children: [
+      { path: '/clause-library', icon: Library, labelKey: 'nav.clauseLibrary' },
+      { path: '/compliance', icon: ShieldCheck, labelKey: 'nav.compliance' },
+      { path: '/analysis', icon: Scale, labelKey: 'nav.analysis' },
+      { path: '/obligations', icon: ClipboardList, labelKey: 'nav.obligations' },
+    ],
+  },
+  {
+    labelKey: 'nav.governance',
+    icon: ShieldCheck,
+    children: [
+      { path: '/approvals', icon: FileCheck, labelKey: 'nav.approvals' },
+      { path: '/regulatory', icon: BookOpen, labelKey: 'nav.regulatory' },
+      { path: '/integrations', icon: Plug, labelKey: 'nav.integrations' },
+    ],
+  },
 ]
 
 function railButtonClass({ isActive }: { isActive: boolean }) {
@@ -39,10 +71,71 @@ interface IconRailProps {
   showPanelToggle?: boolean
 }
 
+function GroupPopover({ group }: { group: NavGroup }) {
+  const [open, setOpen] = useState(false)
+  const location = useLocation()
+  const { t } = useI18n()
+
+  const isActive = group.children.some(child =>
+    child.end ? location.pathname === child.path : location.pathname.startsWith(child.path)
+  )
+
+  const Icon = group.icon
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <div className="relative">
+        {isActive && (
+          <div className="absolute left-0 top-1 bottom-1 w-[3px] rounded-full bg-gradient-to-b from-primary to-[oklch(0.65_0.18_230)]" />
+        )}
+        <Tooltip open={open ? false : undefined}>
+          <TooltipTrigger asChild>
+            <PopoverTrigger
+              className={`flex h-11 w-11 items-center justify-center rounded-lg transition-all duration-200 focus-ring ${
+                isActive
+                  ? 'bg-primary/15 text-primary'
+                  : 'text-[var(--icon-rail-foreground)] hover:bg-accent hover:text-accent-foreground'
+              }`}
+              aria-label={t(group.labelKey)}
+            >
+              <Icon className="h-5 w-5" />
+            </PopoverTrigger>
+          </TooltipTrigger>
+          <TooltipContent side="right" sideOffset={8}>
+            {t(group.labelKey)}
+          </TooltipContent>
+        </Tooltip>
+      </div>
+      <PopoverContent side="right" align="start" className="w-52 p-2">
+        <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          {t(group.labelKey)}
+        </p>
+        <div className="space-y-0.5">
+          {group.children.map(({ path, icon: ChildIcon, labelKey }) => (
+            <NavLink
+              key={path}
+              to={path}
+              onClick={() => setOpen(false)}
+              className={({ isActive: childActive }) =>
+                `flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
+                  childActive ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                }`
+              }
+              aria-label={t(labelKey)}
+            >
+              <ChildIcon className="h-4 w-4 shrink-0" />
+              {t(labelKey)}
+            </NavLink>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
 export function IconRail({ panelCollapsed, onTogglePanel, showPanelToggle }: IconRailProps) {
   const { user } = useAuth()
   const { t } = useI18n()
-  const [flyoutOpen, setFlyoutOpen] = useState(false)
 
   const ToggleIcon = panelCollapsed ? PanelLeftOpen : PanelLeftClose
 
@@ -65,8 +158,9 @@ export function IconRail({ panelCollapsed, onTogglePanel, showPanelToggle }: Ico
         )}
       </div>
 
-      <nav className="flex flex-col items-center gap-2 overflow-y-auto overflow-x-hidden flex-1 min-h-0 scrollbar-hide">
-        {navItems.map(({ path, icon: Icon, labelKey, end }) => (
+      <nav className="flex flex-col items-center gap-2 flex-1 min-h-0">
+        {/* Standalone: Chat + Dashboard */}
+        {standaloneItems.map(({ path, icon: Icon, labelKey, end }) => (
           <Tooltip key={path}>
             <TooltipTrigger asChild>
               <NavLink
@@ -83,43 +177,15 @@ export function IconRail({ panelCollapsed, onTogglePanel, showPanelToggle }: Ico
             </TooltipContent>
           </Tooltip>
         ))}
-      </nav>
 
-      <div className="mt-3 flex flex-col items-center">
-        <Popover open={flyoutOpen} onOpenChange={setFlyoutOpen}>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <PopoverTrigger
-                className="flex h-11 w-11 items-center justify-center rounded-lg text-[var(--icon-rail-foreground)] hover:bg-accent hover:text-accent-foreground transition-all duration-200"
-                aria-label={t('nav.moreModules')}
-              >
-                <LayoutGrid className="h-5 w-5" />
-              </PopoverTrigger>
-            </TooltipTrigger>
-            <TooltipContent side="right" sideOffset={8}>
-              {t('nav.moreModules')}
-            </TooltipContent>
-          </Tooltip>
-          <PopoverContent side="right" align="start" className="w-48 p-2 space-y-0.5">
-            {moreItems.map(({ path, icon: Icon, labelKey }) => (
-              <NavLink
-                key={path}
-                to={path}
-                onClick={() => setFlyoutOpen(false)}
-                className={({ isActive }) =>
-                  `flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
-                    isActive ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
-                  }`
-                }
-                aria-label={t(labelKey)}
-              >
-                <Icon className="h-4 w-4 shrink-0" />
-                {t(labelKey)}
-              </NavLink>
-            ))}
-          </PopoverContent>
-        </Popover>
-      </div>
+        {/* Separator */}
+        <div className="w-6 h-px bg-border my-1" />
+
+        {/* Groups: Documents, Legal Tools, Governance */}
+        {groups.map((group) => (
+          <GroupPopover key={group.labelKey} group={group} />
+        ))}
+      </nav>
 
       <div className="flex flex-col items-center gap-3 mt-3">
         <Tooltip>

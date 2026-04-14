@@ -105,8 +105,9 @@ export const translations: Record<Locale, Record<string, string>> = {
     'nav.compare': 'Perbandingan',
     'nav.compliance': 'Kepatuhan',
     'nav.analysis': 'Analisis',
-    'nav.moreModules': 'Modul Lainnya',
-    'nav.comingSoon': 'Segera hadir',
+    'nav.documentsGroup': 'Dokumen',
+    'nav.legalTools': 'Perangkat Hukum',
+    'nav.governance': 'Tata Kelola',
 
     // Shared components
     'shared.dropzone.title': 'Letakkan file di sini atau klik untuk memilih',
@@ -526,8 +527,9 @@ export const translations: Record<Locale, Record<string, string>> = {
     'nav.compare': 'Comparison',
     'nav.compliance': 'Compliance',
     'nav.analysis': 'Analysis',
-    'nav.moreModules': 'More Modules',
-    'nav.comingSoon': 'Coming soon',
+    'nav.documentsGroup': 'Documents',
+    'nav.legalTools': 'Legal Tools',
+    'nav.governance': 'Governance',
 
     // Shared components
     'shared.dropzone.title': 'Drop a file here or click to select',
