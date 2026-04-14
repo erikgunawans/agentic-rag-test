@@ -228,7 +228,7 @@ export function DocumentsPage() {
 
       {/* Column 2 — Sidebar panel (300px) */}
       {!panelCollapsed && (
-      <div className="hidden md:flex w-[340px] shrink-0 flex-col border-r border-border/50 glass overflow-y-auto">
+      <div className="hidden md:flex w-[340px] shrink-0 flex-col border-r border-border/50 bg-sidebar overflow-y-auto">
         {/* Section 1: Upload */}
         <div className="p-4 space-y-4 border-b border-border/50">
           <div className="flex items-center justify-between">
@@ -321,7 +321,7 @@ export function DocumentsPage() {
         {/* Header — inline with content */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
-            <h1 className="text-lg font-bold tracking-tight">{t('documents.title')}</h1>
+            <h1 className="text-lg tracking-tight">{t('documents.title')}</h1>
             <span className="text-xs text-muted-foreground">{filtered.length} documents</span>
           </div>
           <div className="flex items-center gap-2">

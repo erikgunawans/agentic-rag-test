@@ -28,7 +28,7 @@ export function InputActionBar({ onSend, disabled, showVersion }: InputActionBar
       <button
         onClick={onSend}
         disabled={disabled}
-        className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-[oklch(0.55_0.18_250)] text-primary-foreground transition-all disabled:opacity-50 hover:shadow-[var(--glow-sm)]"
+        className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground transition-all disabled:opacity-50 hover:shadow-[var(--glow-sm)] active:scale-[0.98]"
       >
         <Send className="h-4 w-4" />
       </button>
