@@ -1,6 +1,45 @@
 # Progress
 
-Track your progress through the masterclass. Update this file as you complete modules - Claude Code reads this to understand where you are in the project.
+PJAA CLM Platform. Phase 1 (7/7) and Phase 2 (5/5) complete. 18 pages, 17 routers, 19 migrations. Deployed to Vercel + Railway. Version 0.1.1.0.
+
+## Checkpoint 2026-04-14 (Chat input UI consistency + new chat flow fix)
+
+- **Session:** Fixed chat MessageInput to match WelcomeInput styling (glass card, action bar icons), fixed "Chat Baru" button to return to welcome screen instead of creating empty thread
+- **Branch:** master
+- **Done:**
+  - MessageInput restyled: glass card, rounded-2xl, gradient send button, Plus/FileText/Mic action bar (matches WelcomeInput)
+  - "Chat Baru" button now resets to welcome screen (centered input + suggestion cards) instead of creating an empty thread
+  - Added `handleNewChat()` to useChatState — clears activeThreadId without DB call; thread created lazily on first message send
+- **Files changed:** 3 files (MessageInput.tsx, ThreadPanel.tsx, useChatState.ts)
+- **Tests:** TypeScript tsc clean
+- **Next:** Verify chat input transition UX, get PJAA stakeholder feedback, Phase 3 after validation
+
+---
+
+## Checkpoint 2026-04-14 (Phase 1+2 complete, UI polish, chat layout fix)
+
+- **Session:** Built Phase 1 (F3, F5, F6), Phase 2 (F8-F12), code reviews (/simplify x2, /codex, /qa), auth page redesign, LexCore branding, chat layout fix
+- **Branch:** master
+- **Done:**
+  - F3: Clause library + document templates + 9 doc types + per-clause risk scoring
+  - F5: Approval workflow engine with admin inbox
+  - F6: MFA/security hardening + user management
+  - F8: Regulatory intelligence engine with 4 Indonesian sources
+  - F9: WhatsApp notification infrastructure
+  - F10: Executive dashboard with summary cards + trends
+  - F11: Dokmee DMS integration (stubs)
+  - F12: Google Workspace export (stubs)
+  - Auth page redesign (Apple iCloud style, true black bg, floating card)
+  - LexCore branding (logo, icon rail, thread panel, mobile header)
+  - Chat layout fix (overflow:clip prevents focus-triggered scroll)
+  - Styled glassmorphic tooltips on IconRail
+  - Vercel SPA rewrite for client-side routing
+  - 3 code reviews: /simplify, /codex (4 findings fixed), /qa (health 100)
+- **Files changed:** 40+ files across backend routers, frontend pages, migrations, i18n
+- **Tests:** TypeScript tsc -b clean, backend import check clean, QA health 100/100
+- **Next:** Get PJAA stakeholder feedback. Phase 3 (F13+F14) only after real user validation.
+
+---
 
 ## Convention
 
@@ -506,9 +545,9 @@ Full gap analysis and specs: `.agent/plans/15.pjaa-clm-gap-analysis-specs.md`
 | F2: Confidence & HITL | ✅ Done | `7c4b20e` | +553 |
 | Hardening (review fixes) | ✅ Done | `ca60078` | +30 |
 | F4: Obligation Tracker | ✅ Done | `d5ca1be` | +1,519 |
-| F3: Drafting Workbench | ✅ Done | (uncommitted) | +1,200 |
-| F5: Approval Workflows | ✅ Done | (uncommitted) | +600 |
-| F6: MFA & Security | ✅ Done | (uncommitted) | +400 |
+| F3: Drafting Workbench | ✅ Done | `55f7c05` | +1,200 |
+| F5: Approval Workflows | ✅ Done | `55f7c05` | +600 |
+| F6: MFA & Security | ✅ Done | `55f7c05` | +400 |
 
 **Phase 1 progress: 7 of 7 features complete** (F1, F2, F3, F4, F5, F6, F7) ✅ PHASE 1 COMPLETE
 

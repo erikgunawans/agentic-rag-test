@@ -201,6 +201,15 @@ export function useChatState() {
     await sendMessageToThread(activeThreadId, content)
   }
 
+  function handleNewChat() {
+    setActiveThreadId(null)
+    setAllMessages([])
+    setMessages([])
+    setBranchSelections(new Map())
+    setForkParentId(null)
+    setStreamingContent('')
+  }
+
   async function handleSendFirstMessage(content: string) {
     if (isStreaming) return
     const thread = await handleCreateThread()
@@ -223,6 +232,7 @@ export function useChatState() {
     handleCreateThread,
     handleDeleteThread,
     handleSendMessage,
+    handleNewChat,
     handleSendFirstMessage,
     handleSwitchBranch,
     handleForkAt,
