@@ -47,7 +47,7 @@ export function IconRail({ panelCollapsed, onTogglePanel, showPanelToggle }: Ico
   const ToggleIcon = panelCollapsed ? PanelLeftOpen : PanelLeftClose
 
   return (
-    <div className="flex h-full w-[60px] shrink-0 flex-col items-center border-r border-border bg-[var(--icon-rail)] glass py-4">
+    <div className="flex h-full w-[60px] shrink-0 flex-col items-center border-r border-border bg-[var(--icon-rail)] py-4">
       <div className="flex flex-col items-center gap-2 mb-6">
         <img src="/lexcore-logo-dark.svg" alt="LexCore" className="h-9 w-9 rounded-lg object-contain" />
         {showPanelToggle && onTogglePanel && (
