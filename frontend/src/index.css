@@ -238,10 +238,18 @@
   background: radial-gradient(circle, rgba(10, 31, 61, 0.3) 0%, transparent 70%);
 }
 
-/* 2026 Design — Dot grid pattern */
+/* 2026 Design — Dot grid pattern (pseudo-element overlay so it renders above child backgrounds) */
 .dot-grid {
-  background-image: radial-gradient(oklch(1 0 0 / 0.03) 1px, transparent 1px);
+  position: relative;
+}
+.dot-grid::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(oklch(1 0 0 / 0.04) 1px, transparent 1px);
   background-size: 24px 24px;
+  pointer-events: none;
+  z-index: 1;
 }
 
 /* 2026 Design — Floating orb */
