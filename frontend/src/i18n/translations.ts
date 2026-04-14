@@ -66,6 +66,8 @@ export const translations: Record<Locale, Record<string, string>> = {
     'auth.loading': 'Mohon tunggu…',
     'auth.confirmEmail': 'Periksa email Anda untuk tautan konfirmasi.',
     'auth.error': 'Terjadi kesalahan',
+    'auth.securityNote':
+      'Data Anda digunakan untuk masuk secara aman dan mengakses layanan. Kami menerapkan enkripsi untuk keamanan dan pelaporan.',
 
     // File upload
     'upload.drop': 'Letakkan file atau klik untuk mengunggah',
@@ -204,6 +206,10 @@ export const translations: Record<Locale, Record<string, string>> = {
     'approvals.status.rejected': 'Ditolak',
     'approvals.status.cancelled': 'Dibatalkan',
     'approvals.filterAll': 'Semua',
+    'approvals.section': 'Bagian',
+    'approvals.filterStatus': 'Filter Status',
+    'approvals.all': 'Semua',
+    'approvals.items': 'item',
 
     // User Management
     'settings.userManagement': 'Manajemen Pengguna',
@@ -488,6 +494,8 @@ export const translations: Record<Locale, Record<string, string>> = {
     'auth.loading': 'Please wait…',
     'auth.confirmEmail': 'Check your email for a confirmation link.',
     'auth.error': 'Something went wrong',
+    'auth.securityNote':
+      'Your data is used to sign in securely and access services. We use encryption for security and reporting.',
 
     // File upload
     'upload.drop': 'Drop a file or click to upload',
@@ -626,6 +634,10 @@ export const translations: Record<Locale, Record<string, string>> = {
     'approvals.status.rejected': 'Rejected',
     'approvals.status.cancelled': 'Cancelled',
     'approvals.filterAll': 'All',
+    'approvals.section': 'Section',
+    'approvals.filterStatus': 'Filter by Status',
+    'approvals.all': 'All',
+    'approvals.items': 'items',
 
     // User Management
     'settings.userManagement': 'User Management',
