@@ -168,7 +168,7 @@ export function SettingsPage() {
 
       {/* Column 2 — Settings nav panel */}
       {!panelCollapsed && (
-      <div className="hidden md:flex w-[340px] shrink-0 flex-col border-r border-border/50 glass">
+      <div className="hidden md:flex w-[340px] shrink-0 flex-col border-r border-border/50 bg-sidebar">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-border/50 shrink-0">
           <div>
