@@ -228,7 +228,7 @@ export function DocumentsPage() {
 
       {/* Column 2 — Sidebar panel (300px) */}
       {!panelCollapsed && (
-      <div className="hidden md:flex w-[340px] shrink-0 flex-col border-r border-border/50 overflow-y-auto">
+      <div className="hidden md:flex w-[340px] shrink-0 flex-col border-r border-border/50 glass overflow-y-auto">
         {/* Section 1: Upload */}
         <div className="p-4 space-y-4 border-b border-border/50">
           <div className="flex items-center justify-between">
@@ -317,16 +317,16 @@ export function DocumentsPage() {
       )}
 
       {/* Column 3 — Main document area */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Top bar */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border/50 shrink-0">
+      <div className="flex-1 overflow-y-auto p-6">
+        {/* Header — inline with content */}
+        <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
             <h1 className="text-lg font-bold tracking-tight">{t('documents.title')}</h1>
             <span className="text-xs text-muted-foreground">{filtered.length} documents</span>
           </div>
           <div className="flex items-center gap-2">
             {/* Search */}
-            <div className="flex items-center gap-2 rounded-md border border-border bg-secondary px-2.5 py-1.5 w-48">
+            <div className="flex items-center gap-2 rounded-lg border border-border/50 bg-secondary/50 px-2.5 py-1.5 w-48">
               <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
               <input
                 type="text"
@@ -337,7 +337,7 @@ export function DocumentsPage() {
               />
             </div>
             {/* View toggle */}
-            <div className="flex rounded-md border border-border">
+            <div className="flex rounded-lg border border-border/50">
               <button
                 onClick={() => setViewMode('grid')}
                 className={`p-2 transition-colors ${viewMode === 'grid' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground'}`}
@@ -352,7 +352,7 @@ export function DocumentsPage() {
               </button>
             </div>
             {/* New Document button */}
-            <button className="flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-xs font-medium text-primary-foreground hover:opacity-90 transition-opacity">
+            <button className="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-xs font-medium text-primary-foreground hover:opacity-90 transition-opacity">
               <Plus className="h-3.5 w-3.5" />
               New Document
             </button>
@@ -360,7 +360,7 @@ export function DocumentsPage() {
         </div>
 
         {/* Document grid/list */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div>
           {filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center">
               <FileText className="h-12 w-12 text-muted-foreground mb-3" />

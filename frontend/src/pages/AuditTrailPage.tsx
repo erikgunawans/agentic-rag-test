@@ -105,9 +105,9 @@ export function AuditTrailPage() {
   }
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
+    <div className="flex-1 overflow-auto p-6">
       {/* Header */}
-      <div className="flex items-center gap-3 border-b border-border/50 px-6 py-4">
+      <div className="flex items-center gap-3 mb-4">
         <FileText className="h-5 w-5 text-amber-400" />
         <h1 className="text-lg font-semibold">{t('audit.title')}</h1>
         <span className="rounded-full bg-amber-500/15 px-2.5 py-0.5 text-xs font-medium text-amber-400">
@@ -126,7 +126,7 @@ export function AuditTrailPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3 border-b border-border/30 px-6 py-3">
+      <div className="flex flex-wrap items-center gap-3 mb-6">
         <div className="flex items-center gap-1.5">
           <Filter className="h-3.5 w-3.5 text-muted-foreground" />
           <span className="text-xs text-muted-foreground">{t('audit.filters')}</span>
@@ -162,7 +162,7 @@ export function AuditTrailPage() {
       </div>
 
       {/* Table */}
-      <div className="flex-1 overflow-auto px-6 py-4">
+      <div>
         {error && (
           <div className="mb-4 rounded-lg bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-400">
             {error}
@@ -221,7 +221,7 @@ export function AuditTrailPage() {
 
       {/* Pagination */}
       {logs.length > 0 && (
-        <div className="flex items-center justify-between border-t border-border/50 px-6 py-3">
+        <div className="flex items-center justify-between pt-4 mt-4">
           <span className="text-xs text-muted-foreground">
             {t('audit.showing')} {offset + 1}\u2013{offset + logs.length}
           </span>

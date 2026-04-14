@@ -148,7 +148,7 @@ export function AdminSettingsPage() {
 
       {/* Column 2 — Admin nav panel */}
       {!panelCollapsed && (
-      <div className="hidden md:flex w-[340px] shrink-0 flex-col border-r border-border/50">
+      <div className="hidden md:flex w-[340px] shrink-0 flex-col border-r border-border/50 glass">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-border/50 shrink-0">
           <div className="flex items-center gap-2">

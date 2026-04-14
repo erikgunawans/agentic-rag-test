@@ -186,7 +186,7 @@ export function RegulatoryPage() {
 
       {/* Desktop filter panel */}
       {!panelCollapsed && (
-        <div className="hidden md:flex w-[340px] shrink-0 flex-col border-r border-border/50">
+        <div className="hidden md:flex w-[340px] shrink-0 flex-col border-r border-border/50 glass">
           <div className="flex items-center justify-between px-5 py-3 border-b border-border/50">
             <div>
               <h1 className="text-sm font-semibold">Regulatory Intelligence</h1>
