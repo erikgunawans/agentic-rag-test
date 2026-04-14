@@ -35,7 +35,17 @@ cd frontend && npm install && npm run dev
 - State: `useChatState` hook + `ChatContext`, `useSidebar` for panel collapse
 - i18n: Indonesian (default) + English via `I18nProvider`
 
-### Key patterns
+## Design System (2026 Calibrated Restraint)
+- Palette: Zinc-neutral (`#09090B` base), purple accent (`oklch(0.55 0.20 280)`)
+- Tokens: All in `frontend/src/index.css` `:root` block
+- Glass (backdrop-blur): Transient overlays ONLY (tooltips, popovers, mobile panels). Never on persistent panels (sidebars, input cards).
+- Sidebars: Solid `bg-sidebar` (`#111113`), no blur
+- Buttons: Solid flat `bg-primary`, no gradients. Gradients only on user chat bubbles in `MessageView.tsx`.
+- Typography: h1 `-0.02em`/600, h2 `-0.01em`/600, h3 500 (set in `@layer base`)
+- Background: `mesh-bg` (purple radial glows) + `dot-grid` (3% opacity `::before` pseudo-element overlay on `<main>`)
+- Spec: `docs/superpowers/specs/2026-04-14-design-2026-refresh.md`
+
+## Key Patterns
 - **Auth**: `get_current_user` dependency returns `{id, email, token, role}`, checks `user_profiles.is_active`
 - **Admin**: `require_admin` dependency, checks `role == "super_admin"`
 - **DB clients**: `get_supabase_authed_client(token)` for RLS-scoped, `get_supabase_client()` for service-role
@@ -60,8 +70,9 @@ cd frontend && npm install && npm run dev
 ## Deployment
 
 ```bash
-# Frontend (Vercel, auto-deploys from push)
-cd frontend && npx vercel --prod
+# Frontend (Vercel deploys from `main` branch)
+git push origin master:main   # sync master → main first
+cd frontend && npx vercel --prod  # or wait for auto-deploy from main
 
 # Backend (Railway)
 cd backend && railway up
@@ -103,8 +114,11 @@ cd backend && source venv/bin/activate && python -c "from app.main import app; p
 ```
 
 ## Gotchas
+
+- Vercel deploys from `main` branch, NOT `master`. Always run `git push origin master:main` after pushing to master, or deploy directly with `cd frontend && npx vercel --prod`.
 - `system_settings` is a single-row table with columns, NOT a key-value store. Use `get_system_settings()` from `system_settings_service.py`.
 - base-ui tooltips use `render` prop, not `asChild`. The shim in `tooltip.tsx` translates `asChild` to `render`.
+- Glass (`backdrop-blur`) must NEVER be added to persistent panels (sidebars, input cards). Only transient overlays (tooltips, popovers, mobile overlays).
 - Python 3.14 shows Pydantic v1 warning from langsmith. Non-blocking.
 - Supabase array containment filter: `.filter("col", "cs", "{value}")` not `.contains()`
 - Search params in PostgREST filters must sanitize commas and parentheses.
