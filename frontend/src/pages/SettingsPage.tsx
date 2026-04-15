@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Save, Shield, Globe, Bell, ChevronLeft, PanelLeftClose, Settings, User, Menu, FileText, ClipboardCheck, Users, KeyRound } from 'lucide-react'
+import { Save, Shield, Globe, Bell, ChevronLeft, PanelLeftClose, Settings, User, Menu, FileText, ClipboardCheck, Users, KeyRound, Palette, Sun, Moon, Monitor } from 'lucide-react'
 import { apiFetch } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { useSidebar } from '@/hooks/useSidebar'
 import { useAuth } from '@/contexts/AuthContext'
 import { useI18n } from '@/i18n/I18nContext'
+import { useTheme } from '@/theme/ThemeContext'
 import type { Locale } from '@/i18n/translations'
 
 interface UserPreferences {
@@ -13,7 +14,7 @@ interface UserPreferences {
   notifications_enabled: boolean
 }
 
-type SettingsSection = 'language' | 'notifications' | 'security'
+type SettingsSection = 'appearance' | 'language' | 'notifications' | 'security'
 
 const LANGUAGES: { value: Locale; label: string }[] = [
   { value: 'id', label: 'Bahasa Indonesia' },
@@ -21,21 +22,29 @@ const LANGUAGES: { value: Locale; label: string }[] = [
 ]
 
 const SECTIONS: { id: SettingsSection; icon: typeof Globe; labelKey: string }[] = [
+  { id: 'appearance', icon: Palette, labelKey: 'settings.appearance' },
   { id: 'language', icon: Globe, labelKey: 'settings.language' },
   { id: 'notifications', icon: Bell, labelKey: 'settings.notifications' },
   { id: 'security', icon: KeyRound, labelKey: 'settings.security' },
+]
+
+const THEME_OPTIONS = [
+  { value: 'light' as const, icon: Sun, labelKey: 'settings.themeLight' },
+  { value: 'dark' as const, icon: Moon, labelKey: 'settings.themeDark' },
+  { value: 'system' as const, icon: Monitor, labelKey: 'settings.themeSystem', descKey: 'settings.themeSystemDesc' },
 ]
 
 export function SettingsPage() {
   const navigate = useNavigate()
   const { isAdmin, user } = useAuth()
   const { t, locale, setLocale } = useI18n()
+  const { theme, setTheme } = useTheme()
   const [prefs, setPrefs] = useState<UserPreferences | null>(null)
   const [notifications, setNotifications] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [activeSection, setActiveSection] = useState<SettingsSection>('language')
+  const [activeSection, setActiveSection] = useState<SettingsSection>('appearance')
   const { panelCollapsed, togglePanel } = useSidebar()
   const [mobilePanelOpen, setMobilePanelOpen] = useState(false)
 
@@ -58,7 +67,7 @@ export function SettingsPage() {
       await apiFetch('/preferences', {
         method: 'PATCH',
         body: JSON.stringify({
-          theme: 'dark',
+          theme,
           notifications_enabled: notifications,
         }),
       })
@@ -241,6 +250,42 @@ export function SettingsPage() {
       {/* Column 3 — Settings content */}
       <div className="flex-1 flex flex-col items-center justify-center overflow-y-auto">
         <div className="w-full max-w-md p-8 space-y-6">
+          {activeSection === 'appearance' && (
+            <section className="space-y-5">
+              <div className="text-center">
+                <Palette className="h-8 w-8 mx-auto text-muted-foreground/25 mb-3" strokeWidth={1.5} />
+                <h2 className="text-base font-semibold">{t('settings.appearance')}</h2>
+                <p className="text-xs text-muted-foreground mt-1">{t('settings.appearanceDesc')}</p>
+              </div>
+              <div className="space-y-2">
+                {THEME_OPTIONS.map(({ value, icon: Icon, labelKey, descKey }) => (
+                  <label
+                    key={value}
+                    className={`flex items-start gap-3 rounded-lg border p-3 cursor-pointer transition-colors ${
+                      theme === value ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="theme"
+                      value={value}
+                      checked={theme === value}
+                      onChange={() => setTheme(value)}
+                      className="mt-0.5"
+                    />
+                    <div className="flex items-center gap-2">
+                      <Icon className="h-4 w-4 shrink-0" />
+                      <div>
+                        <p className="text-sm font-medium">{t(labelKey)}</p>
+                        {descKey && <p className="text-xs text-muted-foreground">{t(descKey)}</p>}
+                      </div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </section>
+          )}
+
           {activeSection === 'language' && (
             <section className="space-y-5">
               <div className="text-center">
