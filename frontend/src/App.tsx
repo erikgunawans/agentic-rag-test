@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from '@/contexts/AuthContext'
+import { ThemeProvider } from '@/theme/ThemeContext'
 import { I18nProvider } from '@/i18n/I18nContext'
 import { AuthPage } from '@/pages/AuthPage'
 import { ChatPage } from '@/pages/ChatPage'
@@ -28,6 +29,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <ThemeProvider>
         <I18nProvider>
           <TooltipProvider delay={300}>
           <Routes>
@@ -90,6 +92,7 @@ export default function App() {
           </Routes>
           </TooltipProvider>
         </I18nProvider>
+        </ThemeProvider>
       </AuthProvider>
     </BrowserRouter>
   )
