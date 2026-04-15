@@ -118,7 +118,8 @@ If confidence < 95%:
 
 ### Step 4: Report
 Include at the bottom of every plan:
-```
+
+```text
 Confidence: XX%
 Verification passes: N
 [If any items were fixed: list what changed between passes]
