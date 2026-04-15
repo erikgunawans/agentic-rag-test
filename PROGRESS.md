@@ -1,6 +1,22 @@
 # Progress
 
-PJAA CLM Platform. Phase 1 (7/7) and Phase 2 (5/5) complete. 18 pages, 17 routers, 19 migrations. Deployed to Vercel + Railway. Version 0.1.1.0. UI polish: unified dot-grid background, glass sidebars, minimal layout across all sections.
+PJAA CLM Platform (LexCore). Phase 1 (7/7) and Phase 2 (5/5) complete. 18 pages, 17 routers, 19 migrations. Deployed to Vercel + Railway. Light/dark/system theme support added. Design audit fixes applied. 60 TSX + 11 TS files. TypeScript clean.
+
+## Checkpoint 2026-04-15 (Light theme + design audit)
+
+- **Session:** Full design audit (8 findings, 7 fixed), then light theme implementation (10 steps)
+- **Branch:** master
+- **Done:**
+  - Design audit: removed AI slop (colored left-border cards), added cursor:pointer globally, fixed auth branding ("RAG Chat" to "LexCore"), fixed H1 weight, added color-scheme:dark, increased touch targets
+  - Light theme: restructured CSS (`:root` = light, `.dark` = dark), added `@custom-variant dark` for Tailwind v4, created ThemeContext (light/dark/system with localStorage + matchMedia), FOUC prevention script, Settings "Tampilan" section with radio picker, theme-aware Logo component (CSS filter), AuthPage refactored to use Tailwind theme classes, bulk color audit (160 text-*-400 occurrences fixed across 21 files), gradient endpoints moved to CSS vars
+  - Vercel env vars cleaned (trailing newlines removed from VITE_API_BASE_URL and VITE_SUPABASE_ANON_KEY)
+  - Database cleanup: 21 empty test threads deleted
+  - Plan Verification Protocol added to CLAUDE.md
+- **Files changed:** 25+ files (index.css, ThemeContext.tsx, App.tsx, index.html, translations.ts, SettingsPage.tsx, AuthPage.tsx, Logo.tsx, IconRail.tsx, ThreadPanel.tsx, AppLayout.tsx, DashboardPage.tsx, DocumentsPage.tsx, MessageView.tsx, + 11 more pages)
+- **Tests:** TypeScript tsc clean
+- **Next:** Visual QA of light theme on production, tune oklch values if needed, Phase 3 after stakeholder feedback
+
+---
 
 ## Checkpoint 2026-04-14 (Unified visual style across all sections)
 
