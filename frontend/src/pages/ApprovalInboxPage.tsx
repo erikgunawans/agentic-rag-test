@@ -20,10 +20,10 @@ interface ApprovalRequest {
 }
 
 const STATUS_STYLE: Record<string, { color: string; bg: string; label: string }> = {
-  pending: { color: 'text-amber-400', bg: 'border-amber-500/30 bg-amber-500/5', label: 'PENDING' },
-  in_progress: { color: 'text-blue-400', bg: 'border-blue-500/30 bg-blue-500/5', label: 'IN PROGRESS' },
-  approved: { color: 'text-green-400', bg: 'border-green-500/30 bg-green-500/5', label: 'APPROVED' },
-  rejected: { color: 'text-red-400', bg: 'border-red-500/30 bg-red-500/5', label: 'REJECTED' },
+  pending: { color: 'text-amber-600 dark:text-amber-400', bg: 'border-amber-500/30 bg-amber-500/5', label: 'PENDING' },
+  in_progress: { color: 'text-blue-600 dark:text-blue-400', bg: 'border-blue-500/30 bg-blue-500/5', label: 'IN PROGRESS' },
+  approved: { color: 'text-green-600 dark:text-green-400', bg: 'border-green-500/30 bg-green-500/5', label: 'APPROVED' },
+  rejected: { color: 'text-red-600 dark:text-red-400', bg: 'border-red-500/30 bg-red-500/5', label: 'REJECTED' },
   cancelled: { color: 'text-gray-400', bg: 'border-gray-500/30 bg-gray-500/5', label: 'CANCELLED' },
 }
 
@@ -267,7 +267,7 @@ export function ApprovalInboxPage() {
                       <Button
                         size="sm"
                         variant="ghost"
-                        className="text-[10px] h-6 px-2 text-green-400 hover:text-green-300 hover:bg-green-500/10"
+                        className="text-[10px] h-6 px-2 text-green-600 dark:text-green-400 hover:text-green-300 hover:bg-green-500/10"
                         disabled={actingOn === request.id}
                         onClick={() => handleAction(request.id, 'approve')}
                       >
@@ -277,7 +277,7 @@ export function ApprovalInboxPage() {
                       <Button
                         size="sm"
                         variant="ghost"
-                        className="text-[10px] h-6 px-2 text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                        className="text-[10px] h-6 px-2 text-red-600 dark:text-red-400 hover:text-red-300 hover:bg-red-500/10"
                         disabled={actingOn === request.id}
                         onClick={() => handleAction(request.id, 'reject')}
                       >
@@ -287,7 +287,7 @@ export function ApprovalInboxPage() {
                       <Button
                         size="sm"
                         variant="ghost"
-                        className="text-[10px] h-6 px-2 text-amber-400 hover:text-amber-300 hover:bg-amber-500/10"
+                        className="text-[10px] h-6 px-2 text-amber-600 dark:text-amber-400 hover:text-amber-300 hover:bg-amber-500/10"
                         disabled={actingOn === request.id}
                         onClick={() => handleAction(request.id, 'return')}
                       >

@@ -40,12 +40,12 @@ interface AnalysisResult {
 const inputClass = "w-full rounded-lg border border-border bg-secondary text-foreground px-3 py-2 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
 
 const STATUS_ICON: Record<string, typeof CheckCircle> = { low: CheckCircle, medium: AlertTriangle, high: XCircle }
-const STATUS_COLOR: Record<string, string> = { low: 'text-green-400', medium: 'text-amber-400', high: 'text-red-400' }
+const STATUS_COLOR: Record<string, string> = { low: 'text-green-600 dark:text-green-400', medium: 'text-amber-600 dark:text-amber-400', high: 'text-red-600 dark:text-red-400' }
 
 const RISK_STYLE: Record<string, { color: string; bg: string; label: string }> = {
-  high: { color: 'text-red-400', bg: 'border-red-500/30 bg-red-500/5', label: 'HIGH RISK' },
-  medium: { color: 'text-amber-400', bg: 'border-amber-500/30 bg-amber-500/5', label: 'MEDIUM RISK' },
-  low: { color: 'text-green-400', bg: 'border-green-500/30 bg-green-500/5', label: 'LOW RISK' },
+  high: { color: 'text-red-600 dark:text-red-400', bg: 'border-red-500/30 bg-red-500/5', label: 'HIGH RISK' },
+  medium: { color: 'text-amber-600 dark:text-amber-400', bg: 'border-amber-500/30 bg-amber-500/5', label: 'MEDIUM RISK' },
+  low: { color: 'text-green-600 dark:text-green-400', bg: 'border-green-500/30 bg-green-500/5', label: 'LOW RISK' },
 }
 
 export function ContractAnalysisPage() {
@@ -144,11 +144,11 @@ export function ContractAnalysisPage() {
             <div className="min-h-0 overflow-y-auto" style={{ flex: '3 1 0' }}>
               <div className="px-5 py-4 space-y-4">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium">{t('analysis.document')} <span className="text-red-400">*</span></label>
+                  <label className="text-xs font-medium">{t('analysis.document')} <span className="text-red-600 dark:text-red-400">*</span></label>
                   <div className={showErrors && !file ? 'rounded-lg border border-red-500/50' : ''}>
                     <DropZone onFileSelect={setFile} />
                   </div>
-                  {showErrors && !file && <p className="text-[10px] text-red-400">Please upload a document</p>}
+                  {showErrors && !file && <p className="text-[10px] text-red-600 dark:text-red-400">Please upload a document</p>}
                 </div>
 
                 <div className="space-y-1.5">
@@ -207,7 +207,7 @@ export function ContractAnalysisPage() {
                   </Button>
                 </div>
 
-                {error && <p className="text-xs text-red-400">{error}</p>}
+                {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
               </div>
             </div>
 
@@ -233,7 +233,7 @@ export function ContractAnalysisPage() {
                         <p className="text-[11px] font-medium truncate">{item.title}</p>
                         <p className="text-[9px] text-muted-foreground">{params.depth} &middot; {risk} risk &middot; {formatTimeAgo(item.created_at)}</p>
                       </div>
-                      <StatusIcon className={`h-3.5 w-3.5 shrink-0 ${STATUS_COLOR[risk] ?? 'text-green-400'}`} />
+                      <StatusIcon className={`h-3.5 w-3.5 shrink-0 ${STATUS_COLOR[risk] ?? 'text-green-600 dark:text-green-400'}`} />
                     </div>
                   )
                 })}
@@ -259,11 +259,11 @@ export function ContractAnalysisPage() {
         <div className="min-h-0 overflow-y-auto" style={{ flex: '3 1 0' }}>
           <div className="px-5 py-4 space-y-4">
             <div className="space-y-1.5">
-              <label className="text-xs font-medium">{t('analysis.document')} <span className="text-red-400">*</span></label>
+              <label className="text-xs font-medium">{t('analysis.document')} <span className="text-red-600 dark:text-red-400">*</span></label>
               <div className={showErrors && !file ? 'rounded-lg border border-red-500/50' : ''}>
                 <DropZone onFileSelect={setFile} />
               </div>
-              {showErrors && !file && <p className="text-[10px] text-red-400">Please upload a document</p>}
+              {showErrors && !file && <p className="text-[10px] text-red-600 dark:text-red-400">Please upload a document</p>}
             </div>
 
             <div className="space-y-1.5">
@@ -322,7 +322,7 @@ export function ContractAnalysisPage() {
               </Button>
             </div>
 
-            {error && <p className="text-xs text-red-400">{error}</p>}
+            {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
           </div>
         </div>
 
@@ -348,7 +348,7 @@ export function ContractAnalysisPage() {
                     <p className="text-[11px] font-medium truncate">{item.title}</p>
                     <p className="text-[9px] text-muted-foreground">{params.depth} &middot; {risk} risk &middot; {formatTimeAgo(item.created_at)}</p>
                   </div>
-                  <StatusIcon className={`h-3.5 w-3.5 shrink-0 ${STATUS_COLOR[risk] ?? 'text-green-400'}`} />
+                  <StatusIcon className={`h-3.5 w-3.5 shrink-0 ${STATUS_COLOR[risk] ?? 'text-green-600 dark:text-green-400'}`} />
                 </div>
               )
             })}
@@ -440,7 +440,7 @@ export function ContractAnalysisPage() {
                 {t('obligations.import')}
               </Button>
               {importResult && (
-                <span className="text-xs text-green-400">
+                <span className="text-xs text-green-600 dark:text-green-400">
                   {t('obligations.imported')} ({importResult.extracted})
                 </span>
               )}
@@ -461,7 +461,7 @@ export function ContractAnalysisPage() {
             {/* Missing provisions */}
             {result.missing_provisions.length > 0 && (
               <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-4 space-y-2">
-                <h3 className="text-sm font-semibold text-amber-400">Missing Provisions</h3>
+                <h3 className="text-sm font-semibold text-amber-600 dark:text-amber-400">Missing Provisions</h3>
                 <ul className="list-disc list-inside space-y-1">
                   {result.missing_provisions.map((p, i) => (
                     <li key={i} className="text-xs">{p}</li>

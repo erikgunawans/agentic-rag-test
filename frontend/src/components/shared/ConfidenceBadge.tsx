@@ -4,16 +4,16 @@ interface ConfidenceBadgeProps {
 }
 
 const LEVEL_STYLE: Record<string, { color: string; bg: string }> = {
-  high: { color: 'text-green-400', bg: 'bg-green-500/10 border-green-500/30' },
-  medium: { color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/30' },
-  low: { color: 'text-red-400', bg: 'bg-red-500/10 border-red-500/30' },
+  high: { color: 'text-green-600 dark:text-green-400', bg: 'bg-green-500/10 border-green-500/30' },
+  medium: { color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-500/10 border-amber-500/30' },
+  low: { color: 'text-red-600 dark:text-red-400', bg: 'bg-red-500/10 border-red-500/30' },
 }
 
 const REVIEW_STYLE: Record<string, { color: string; bg: string }> = {
-  auto_approved: { color: 'text-green-400', bg: 'bg-green-500/10 border-green-500/30' },
-  pending_review: { color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/30' },
-  approved: { color: 'text-green-400', bg: 'bg-green-500/10 border-green-500/30' },
-  rejected: { color: 'text-red-400', bg: 'bg-red-500/10 border-red-500/30' },
+  auto_approved: { color: 'text-green-600 dark:text-green-400', bg: 'bg-green-500/10 border-green-500/30' },
+  pending_review: { color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-500/10 border-amber-500/30' },
+  approved: { color: 'text-green-600 dark:text-green-400', bg: 'bg-green-500/10 border-green-500/30' },
+  rejected: { color: 'text-red-600 dark:text-red-400', bg: 'bg-red-500/10 border-red-500/30' },
 }
 
 const REVIEW_LABEL: Record<string, string> = {

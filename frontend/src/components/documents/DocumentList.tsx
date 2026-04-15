@@ -10,14 +10,14 @@ interface DocumentListProps {
 
 const STATUS_STYLES: Record<Document['status'], string> = {
   pending: 'bg-muted text-muted-foreground',
-  processing: 'bg-yellow-500/10 text-yellow-400',
-  completed: 'bg-green-500/10 text-green-400',
-  failed: 'bg-red-500/10 text-red-400',
+  processing: 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400',
+  completed: 'bg-green-500/10 text-green-600 dark:text-green-400',
+  failed: 'bg-red-500/10 text-red-600 dark:text-red-400',
 }
 
 const CATEGORY_STYLES: Record<string, string> = {
-  technical: 'bg-blue-500/10 text-blue-400',
-  legal: 'bg-purple-500/10 text-purple-400',
+  technical: 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
+  legal: 'bg-purple-500/10 text-purple-600 dark:text-purple-400',
   business: 'bg-orange-500/10 text-orange-400',
   academic: 'bg-teal-500/10 text-teal-400',
   personal: 'bg-pink-500/10 text-pink-400',

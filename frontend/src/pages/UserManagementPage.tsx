@@ -95,9 +95,9 @@ export function UserManagementPage() {
         {/* Header */}
         <div>
           <div className="flex items-center gap-3 mb-1">
-            <Shield className="h-5 w-5 text-amber-400" />
+            <Shield className="h-5 w-5 text-amber-600 dark:text-amber-400" />
             <h1 className="text-lg font-semibold">{t('userManagement.title')}</h1>
-            <span className="rounded-full bg-amber-500/15 px-2.5 py-0.5 text-xs font-medium text-amber-400">
+            <span className="rounded-full bg-amber-500/15 px-2.5 py-0.5 text-xs font-medium text-amber-600 dark:text-amber-400">
               Admin
             </span>
           </div>
@@ -120,7 +120,7 @@ export function UserManagementPage() {
 
         {/* Error */}
         {error && (
-          <div className="rounded-lg bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-400">
+          <div className="rounded-lg bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-600 dark:text-red-400">
             {error}
           </div>
         )}
@@ -155,12 +155,12 @@ export function UserManagementPage() {
                     </span>
                     {/* Status badge */}
                     {user.is_active ? (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-green-500/15 px-2 py-0.5 text-xs font-medium text-green-400">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-green-500/15 px-2 py-0.5 text-xs font-medium text-green-600 dark:text-green-400">
                         <UserCheck className="h-3 w-3" />
                         {t('userManagement.active')}
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-red-500/15 px-2 py-0.5 text-xs font-medium text-red-400">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-red-500/15 px-2 py-0.5 text-xs font-medium text-red-600 dark:text-red-400">
                         <UserX className="h-3 w-3" />
                         {t('userManagement.deactivated')}
                       </span>
@@ -170,7 +170,7 @@ export function UserManagementPage() {
                     {user.department && <span>{user.department}</span>}
                     <span>Joined {formatDate(user.created_at)}</span>
                     {!user.is_active && user.deactivated_at && (
-                      <span className="text-red-400/70">
+                      <span className="text-red-600 dark:text-red-400/70">
                         Deactivated {formatDate(user.deactivated_at)}
                       </span>
                     )}
@@ -185,7 +185,7 @@ export function UserManagementPage() {
                       size="sm"
                       onClick={() => handleDeactivate(user)}
                       disabled={actionLoading === user.id}
-                      className="gap-1.5 border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                      className="gap-1.5 border-red-500/30 text-red-600 dark:text-red-400 hover:bg-red-500/10 hover:text-red-300"
                     >
                       <UserX className="h-3.5 w-3.5" />
                       {t('userManagement.deactivate')}
@@ -196,7 +196,7 @@ export function UserManagementPage() {
                       size="sm"
                       onClick={() => handleReactivate(user)}
                       disabled={actionLoading === user.id}
-                      className="gap-1.5 border-green-500/30 text-green-400 hover:bg-green-500/10 hover:text-green-300"
+                      className="gap-1.5 border-green-500/30 text-green-600 dark:text-green-400 hover:bg-green-500/10 hover:text-green-300"
                     >
                       <UserCheck className="h-3.5 w-3.5" />
                       {t('userManagement.reactivate')}

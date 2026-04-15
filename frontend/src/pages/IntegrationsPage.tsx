@@ -98,7 +98,7 @@ export function IntegrationsPage() {
 
         {/* Notification message */}
         {message && (
-          <div className="rounded-lg bg-amber-500/10 border border-amber-500/20 px-4 py-3 text-sm text-amber-400">
+          <div className="rounded-lg bg-amber-500/10 border border-amber-500/20 px-4 py-3 text-sm text-amber-600 dark:text-amber-400">
             {message}
           </div>
         )}
@@ -111,7 +111,7 @@ export function IntegrationsPage() {
               <p className="text-xs text-muted-foreground mt-0.5">Document management system integration</p>
             </div>
             {dokmeeStatus?.configured ? (
-              <span className="inline-flex items-center gap-1 rounded-full bg-green-500/15 px-2.5 py-0.5 text-xs font-medium text-green-400">
+              <span className="inline-flex items-center gap-1 rounded-full bg-green-500/15 px-2.5 py-0.5 text-xs font-medium text-green-600 dark:text-green-400">
                 <CheckCircle className="h-3 w-3" />
                 Configured
               </span>
@@ -152,7 +152,7 @@ export function IntegrationsPage() {
             </div>
             <div className="flex items-center gap-2">
               {googleStatus?.configured ? (
-                <span className="inline-flex items-center gap-1 rounded-full bg-green-500/15 px-2.5 py-0.5 text-xs font-medium text-green-400">
+                <span className="inline-flex items-center gap-1 rounded-full bg-green-500/15 px-2.5 py-0.5 text-xs font-medium text-green-600 dark:text-green-400">
                   <CheckCircle className="h-3 w-3" />
                   Configured
                 </span>
@@ -164,7 +164,7 @@ export function IntegrationsPage() {
               )}
               {googleStatus?.configured && (
                 googleStatus.connected ? (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-cyan-500/15 px-2.5 py-0.5 text-xs font-medium text-cyan-400">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-cyan-500/15 px-2.5 py-0.5 text-xs font-medium text-cyan-600 dark:text-cyan-400">
                     Connected
                   </span>
                 ) : (
@@ -186,7 +186,7 @@ export function IntegrationsPage() {
               <p className="text-xs text-muted-foreground">
                 Documents can be exported to your connected Google Drive account.
               </p>
-              <Button size="sm" variant="outline" className="gap-1.5 text-xs border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-300" onClick={handleGoogleDisconnect}>
+              <Button size="sm" variant="outline" className="gap-1.5 text-xs border-red-500/30 text-red-600 dark:text-red-400 hover:bg-red-500/10 hover:text-red-300" onClick={handleGoogleDisconnect}>
                 Disconnect
               </Button>
             </div>

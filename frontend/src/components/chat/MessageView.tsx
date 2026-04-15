@@ -98,7 +98,7 @@ export function MessageView({
               <div
                 className={`rounded-lg px-4 py-2 text-sm ${
                   msg.role === 'user'
-                    ? 'bg-gradient-to-br from-primary to-[oklch(0.50_0.18_260)] text-primary-foreground'
+                    ? 'bg-gradient-to-br from-primary to-[oklch(0.40_0.15_260)] dark:to-[oklch(0.50_0.18_260)] text-primary-foreground'
                     : 'bg-muted/80 text-foreground backdrop-blur-sm'
                 }`}
               >

@@ -87,6 +87,43 @@ cd backend && railway up
 - Naming: `{sequence}.{plan-name}.md`
 - Complexity indicators: ✅ Simple, ⚠️ Medium, 🔴 Complex
 
+## Plan Verification Protocol
+
+Every implementation plan MUST go through a verification loop before presenting to the user.
+
+### Step 1: Create the initial plan
+Write the plan as normal.
+
+### Step 2: Self-verify
+Before presenting, review the plan against these criteria:
+
+| Check | Question |
+|-------|----------|
+| Completeness | Does every requirement from the user have a corresponding action item? |
+| Correctness | Do the file paths, function names, and schemas match the actual codebase? |
+| Ordering | Are dependencies respected — does step N depend on something from step N+1? |
+| Side effects | Could any step break existing functionality? Have I checked the blast radius? |
+| Verification | Is there a concrete way to verify each step worked (test command, curl, visual check)? |
+| Existing code | Am I reusing existing utilities, or reinventing something that already exists? |
+
+Rate confidence: 0-100%.
+
+### Step 3: Loop if needed
+If confidence < 95%:
+1. List what's uncertain or weak
+2. Investigate (read files, grep patterns, check schemas)
+3. Update the plan with findings
+4. Re-rate confidence
+5. Repeat until confidence >= 95%
+
+### Step 4: Report
+Include at the bottom of every plan:
+```
+Confidence: XX%
+Verification passes: N
+[If any items were fixed: list what changed between passes]
+```
+
 ## Testing
 
 User 1 (admin):

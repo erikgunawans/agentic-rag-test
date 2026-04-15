@@ -135,7 +135,7 @@ export function AdminSettingsPage() {
             <div className="px-5 py-3 border-t border-border/50">
               <div className="flex items-center gap-2">
                 <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-medium ${
-                  isDirty ? 'bg-amber-500/10 text-amber-400' : 'bg-green-500/10 text-green-400'
+                  isDirty ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400' : 'bg-green-500/10 text-green-600 dark:text-green-400'
                 }`}>
                   <span className={`h-1.5 w-1.5 rounded-full ${isDirty ? 'bg-amber-400' : 'bg-green-400'}`} />
                   {isDirty ? 'Unsaved changes' : 'All saved'}
@@ -183,7 +183,7 @@ export function AdminSettingsPage() {
         <div className="px-5 py-3 border-t border-border/50">
           <div className="flex items-center gap-2">
             <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-medium ${
-              isDirty ? 'bg-amber-500/10 text-amber-400' : 'bg-green-500/10 text-green-400'
+              isDirty ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400' : 'bg-green-500/10 text-green-600 dark:text-green-400'
             }`}>
               <span className={`h-1.5 w-1.5 rounded-full ${isDirty ? 'bg-amber-400' : 'bg-green-400'}`} />
               {isDirty ? 'Unsaved changes' : 'All saved'}
@@ -411,10 +411,10 @@ export function AdminSettingsPage() {
               <div className="rounded-lg border border-border bg-secondary/30 p-4 space-y-2">
                 <p className="text-xs font-medium">{t('admin.hitl.preview')}</p>
                 <div className="flex items-center gap-2 text-[10px]">
-                  <span className="rounded-full border px-2 py-0.5 bg-green-500/10 border-green-500/30 text-green-400 font-bold">
+                  <span className="rounded-full border px-2 py-0.5 bg-green-500/10 border-green-500/30 text-green-600 dark:text-green-400 font-bold">
                     &ge; {((form.confidence_threshold ?? 0.85) * 100).toFixed(0)}% &rarr; AUTO-APPROVED
                   </span>
-                  <span className="rounded-full border px-2 py-0.5 bg-amber-500/10 border-amber-500/30 text-amber-400 font-bold">
+                  <span className="rounded-full border px-2 py-0.5 bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400 font-bold">
                     &lt; {((form.confidence_threshold ?? 0.85) * 100).toFixed(0)}% &rarr; PENDING REVIEW
                   </span>
                 </div>

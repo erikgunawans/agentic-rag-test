@@ -82,7 +82,7 @@ export function FileUpload({ onUploaded }: FileUploadProps) {
       </p>
       <p className="text-xs text-muted-foreground mt-1">{t('upload.formats')}</p>
       {error && <p className="text-xs text-destructive mt-2">{error}</p>}
-      {info && <p className="text-xs text-blue-400 mt-2">{info}</p>}
+      {info && <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">{info}</p>}
     </div>
   )
 }

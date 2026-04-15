@@ -142,28 +142,28 @@ export function SettingsPage() {
                   <div className="my-3 border-t border-border/50" />
                   <button
                     onClick={() => navigate('/admin/settings')}
-                    className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-xs font-medium text-amber-400 hover:bg-amber-500/10 transition-colors"
+                    className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-xs font-medium text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 transition-colors"
                   >
                     <Shield className="h-3.5 w-3.5 shrink-0" />
                     {t('settings.admin')}
                   </button>
                   <button
                     onClick={() => navigate('/admin/audit')}
-                    className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-xs font-medium text-amber-400 hover:bg-amber-500/10 transition-colors"
+                    className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-xs font-medium text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 transition-colors"
                   >
                     <FileText className="h-3.5 w-3.5 shrink-0" />
                     {t('settings.auditTrail')}
                   </button>
                   <button
                     onClick={() => navigate('/admin/reviews')}
-                    className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-xs font-medium text-amber-400 hover:bg-amber-500/10 transition-colors"
+                    className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-xs font-medium text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 transition-colors"
                   >
                     <ClipboardCheck className="h-3.5 w-3.5 shrink-0" />
                     {t('settings.reviewQueue')}
                   </button>
                   <button
                     onClick={() => navigate('/admin/users')}
-                    className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-xs font-medium text-amber-400 hover:bg-amber-500/10 transition-colors"
+                    className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-xs font-medium text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 transition-colors"
                   >
                     <Users className="h-3.5 w-3.5 shrink-0" />
                     {t('settings.userManagement') || 'User Management'}
@@ -222,21 +222,21 @@ export function SettingsPage() {
               <div className="my-3 border-t border-border/50" />
               <button
                 onClick={() => navigate('/admin/settings')}
-                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-xs font-medium text-amber-400 hover:bg-amber-500/10 transition-colors"
+                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-xs font-medium text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 transition-colors"
               >
                 <Shield className="h-3.5 w-3.5 shrink-0" />
                 {t('settings.admin')}
               </button>
               <button
                 onClick={() => navigate('/admin/audit')}
-                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-xs font-medium text-amber-400 hover:bg-amber-500/10 transition-colors"
+                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-xs font-medium text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 transition-colors"
               >
                 <FileText className="h-3.5 w-3.5 shrink-0" />
                 {t('settings.auditTrail')}
               </button>
               <button
                 onClick={() => navigate('/admin/reviews')}
-                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-xs font-medium text-amber-400 hover:bg-amber-500/10 transition-colors"
+                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-xs font-medium text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 transition-colors"
               >
                 <ClipboardCheck className="h-3.5 w-3.5 shrink-0" />
                 {t('settings.reviewQueue')}
@@ -361,7 +361,7 @@ export function SettingsPage() {
                   </div>
                 </div>
                 <div className="rounded-lg bg-amber-500/10 border border-amber-500/30 p-3">
-                  <p className="text-xs text-amber-400">{t('settings.mfaNote') || 'MFA enrollment is managed through Supabase Auth. Contact your administrator to enable MFA requirement for the organization.'}</p>
+                  <p className="text-xs text-amber-600 dark:text-amber-400">{t('settings.mfaNote') || 'MFA enrollment is managed through Supabase Auth. Contact your administrator to enable MFA requirement for the organization.'}</p>
                 </div>
               </div>
 

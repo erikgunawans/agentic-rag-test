@@ -32,7 +32,7 @@ export function DropZone({ label, onFileSelect }: DropZoneProps) {
   if (file) {
     return (
       <div className="flex items-center gap-3 rounded-lg border border-green-500/30 bg-green-500/5 p-3">
-        <FileText className="h-5 w-5 shrink-0 text-green-400" />
+        <FileText className="h-5 w-5 shrink-0 text-green-600 dark:text-green-400" />
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium truncate">{file.name}</p>
           <p className="text-xs text-muted-foreground">{t('shared.dropzone.attached')}</p>

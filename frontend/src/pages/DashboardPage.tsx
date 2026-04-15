@@ -32,8 +32,8 @@ interface ComplianceTrend {
 }
 
 const PRIORITY_STYLE: Record<string, string> = {
-  critical: 'text-red-400 bg-red-500/10',
-  high: 'text-amber-400 bg-amber-500/10',
+  critical: 'text-red-600 dark:text-red-400 bg-red-500/10',
+  high: 'text-amber-600 dark:text-amber-400 bg-amber-500/10',
   medium: 'text-foreground bg-secondary',
   low: 'text-muted-foreground bg-secondary',
 }
@@ -112,7 +112,7 @@ export function DashboardPage() {
       value: summary?.documents_total ?? 0,
       sub: `${summary?.documents_completed ?? 0} completed`,
       icon: Folder,
-      accent: 'text-cyan-400',
+      accent: 'text-cyan-600 dark:text-cyan-400',
       accentBg: 'bg-cyan-500/10 border-cyan-500/30',
     },
     {
@@ -120,7 +120,7 @@ export function DashboardPage() {
       value: summary?.obligations_active ?? 0,
       sub: `${summary?.obligations_overdue ?? 0} overdue`,
       icon: ClipboardList,
-      accent: 'text-amber-400',
+      accent: 'text-amber-600 dark:text-amber-400',
       accentBg: 'bg-amber-500/10 border-amber-500/30',
     },
     {
@@ -128,7 +128,7 @@ export function DashboardPage() {
       value: summary?.approvals_pending ?? 0,
       sub: 'pending',
       icon: FileCheck,
-      accent: 'text-purple-400',
+      accent: 'text-purple-600 dark:text-purple-400',
       accentBg: 'bg-purple-500/10 border-purple-500/30',
     },
     {
@@ -136,7 +136,7 @@ export function DashboardPage() {
       value: summary?.compliance_pass ?? 0,
       sub: `${summary?.compliance_review ?? 0} review / ${summary?.compliance_fail ?? 0} fail`,
       icon: ShieldCheck,
-      accent: 'text-green-400',
+      accent: 'text-green-600 dark:text-green-400',
       accentBg: 'bg-green-500/10 border-green-500/30',
     },
     {
@@ -144,7 +144,7 @@ export function DashboardPage() {
       value: summary?.regulatory_updates ?? 0,
       sub: `${summary?.regulatory_unread ?? 0} unread alerts`,
       icon: BookOpen,
-      accent: 'text-red-400',
+      accent: 'text-red-600 dark:text-red-400',
       accentBg: 'bg-red-500/10 border-red-500/30',
     },
   ]
@@ -186,7 +186,7 @@ export function DashboardPage() {
           {/* Obligation timeline */}
           <div className="rounded-lg border border-border/50 p-4">
             <h2 className="text-sm font-semibold mb-3 flex items-center gap-2">
-              <ClipboardList className="h-4 w-4 text-amber-400" />
+              <ClipboardList className="h-4 w-4 text-amber-600 dark:text-amber-400" />
               Upcoming Obligations
             </h2>
             {timeline.length === 0 ? (
@@ -220,7 +220,7 @@ export function DashboardPage() {
           {/* Compliance trend */}
           <div className="rounded-lg border border-border/50 p-4">
             <h2 className="text-sm font-semibold mb-3 flex items-center gap-2">
-              <ShieldCheck className="h-4 w-4 text-green-400" />
+              <ShieldCheck className="h-4 w-4 text-green-600 dark:text-green-400" />
               Compliance Trend
             </h2>
             {trend.length === 0 ? (
@@ -262,9 +262,9 @@ export function DashboardPage() {
                         )}
                       </div>
                       <div className="flex items-center gap-3 mt-0.5">
-                        <span className="text-[8px] text-green-400">{row.pass} pass</span>
-                        <span className="text-[8px] text-amber-400">{row.review} review</span>
-                        <span className="text-[8px] text-red-400">{row.fail} fail</span>
+                        <span className="text-[8px] text-green-600 dark:text-green-400">{row.pass} pass</span>
+                        <span className="text-[8px] text-amber-600 dark:text-amber-400">{row.review} review</span>
+                        <span className="text-[8px] text-red-600 dark:text-red-400">{row.fail} fail</span>
                       </div>
                     </div>
                   )

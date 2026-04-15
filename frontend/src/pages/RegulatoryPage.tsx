@@ -26,17 +26,17 @@ interface RegulatorySource {
 }
 
 const RELEVANCE_STYLE: Record<string, { color: string; bg: string; label: string }> = {
-  high: { color: 'text-red-400', bg: 'bg-red-500/10', label: 'HIGH' },
-  medium: { color: 'text-amber-400', bg: 'bg-amber-500/10', label: 'MEDIUM' },
-  low: { color: 'text-green-400', bg: 'bg-green-500/10', label: 'LOW' },
+  high: { color: 'text-red-600 dark:text-red-400', bg: 'bg-red-500/10', label: 'HIGH' },
+  medium: { color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-500/10', label: 'MEDIUM' },
+  low: { color: 'text-green-600 dark:text-green-400', bg: 'bg-green-500/10', label: 'LOW' },
 }
 
 const SOURCE_TYPES = ['all', 'jdih', 'idx', 'ojk', 'perda', 'custom']
 
 const STATUS_BADGE: Record<string, { color: string; bg: string }> = {
-  active: { color: 'text-green-400', bg: 'bg-green-500/15' },
+  active: { color: 'text-green-600 dark:text-green-400', bg: 'bg-green-500/15' },
   inactive: { color: 'text-muted-foreground', bg: 'bg-secondary' },
-  error: { color: 'text-red-400', bg: 'bg-red-500/15' },
+  error: { color: 'text-red-600 dark:text-red-400', bg: 'bg-red-500/15' },
 }
 
 const inputBase = "w-full rounded-lg bg-secondary text-foreground px-3 py-2 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"

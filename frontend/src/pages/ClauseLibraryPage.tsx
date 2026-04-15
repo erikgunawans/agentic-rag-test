@@ -18,9 +18,9 @@ interface Clause {
 }
 
 const RISK_STYLE: Record<string, { color: string; bg: string; label: string }> = {
-  high: { color: 'text-red-400', bg: 'border-red-500/30 bg-red-500/5', label: 'HIGH' },
-  medium: { color: 'text-amber-400', bg: 'border-amber-500/30 bg-amber-500/5', label: 'MEDIUM' },
-  low: { color: 'text-green-400', bg: 'border-green-500/30 bg-green-500/5', label: 'LOW' },
+  high: { color: 'text-red-600 dark:text-red-400', bg: 'border-red-500/30 bg-red-500/5', label: 'HIGH' },
+  medium: { color: 'text-amber-600 dark:text-amber-400', bg: 'border-amber-500/30 bg-amber-500/5', label: 'MEDIUM' },
+  low: { color: 'text-green-600 dark:text-green-400', bg: 'border-green-500/30 bg-green-500/5', label: 'LOW' },
 }
 
 const CATEGORIES = [
@@ -161,11 +161,11 @@ export function ClauseLibraryPage() {
             <button onClick={resetForm} className="text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /></button>
           </div>
           <div className="space-y-1.5">
-            <label className="text-[10px] font-medium">Title <span className="text-red-400">*</span></label>
+            <label className="text-[10px] font-medium">Title <span className="text-red-600 dark:text-red-400">*</span></label>
             <input className={inputClass} value={formTitle} onChange={e => setFormTitle(e.target.value)} placeholder="Clause title" />
           </div>
           <div className="space-y-1.5">
-            <label className="text-[10px] font-medium">{t('clauseLibrary.content')} <span className="text-red-400">*</span></label>
+            <label className="text-[10px] font-medium">{t('clauseLibrary.content')} <span className="text-red-600 dark:text-red-400">*</span></label>
             <textarea className={textareaClass} value={formContent} onChange={e => setFormContent(e.target.value)} placeholder="Clause text..." />
           </div>
           <div className="grid grid-cols-2 gap-2">
@@ -329,7 +329,7 @@ export function ClauseLibraryPage() {
                         <button onClick={() => startEdit(clause)} className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted/50">
                           <Pencil className="h-3 w-3" />
                         </button>
-                        <button onClick={() => handleDelete(clause.id)} className="p-1 rounded text-muted-foreground hover:text-red-400 hover:bg-red-500/10">
+                        <button onClick={() => handleDelete(clause.id)} className="p-1 rounded text-muted-foreground hover:text-red-600 dark:text-red-400 hover:bg-red-500/10">
                           <Trash2 className="h-3 w-3" />
                         </button>
                       </div>

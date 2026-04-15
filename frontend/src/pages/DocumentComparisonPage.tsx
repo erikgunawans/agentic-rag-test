@@ -31,9 +31,9 @@ const inputClass = "w-full rounded-lg border border-border bg-secondary text-for
 
 
 const SIG_STYLE: Record<string, { icon: typeof AlertTriangle; color: string; bg: string }> = {
-  high: { icon: XCircle, color: 'text-red-400', bg: 'border-red-500/30 bg-red-500/5' },
-  medium: { icon: AlertTriangle, color: 'text-amber-400', bg: 'border-amber-500/30 bg-amber-500/5' },
-  low: { icon: CheckCircle, color: 'text-green-400', bg: 'border-green-500/30 bg-green-500/5' },
+  high: { icon: XCircle, color: 'text-red-600 dark:text-red-400', bg: 'border-red-500/30 bg-red-500/5' },
+  medium: { icon: AlertTriangle, color: 'text-amber-600 dark:text-amber-400', bg: 'border-amber-500/30 bg-amber-500/5' },
+  low: { icon: CheckCircle, color: 'text-green-600 dark:text-green-400', bg: 'border-green-500/30 bg-green-500/5' },
 }
 
 export function DocumentComparisonPage() {
@@ -103,11 +103,11 @@ export function DocumentComparisonPage() {
             <div className="min-h-0 overflow-y-auto" style={{ flex: '3 1 0' }}>
               <div className="px-5 py-4 space-y-4">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium">{t('compare.doc1')} <span className="text-red-400">*</span></label>
+                  <label className="text-xs font-medium">{t('compare.doc1')} <span className="text-red-600 dark:text-red-400">*</span></label>
                   <div className={showErrors && !docA ? 'rounded-lg border border-red-500/50' : ''}>
                     <DropZone label={t('compare.doc1')} onFileSelect={setDocA} />
                   </div>
-                  {showErrors && !docA && <p className="text-[10px] text-red-400">Please upload a document</p>}
+                  {showErrors && !docA && <p className="text-[10px] text-red-600 dark:text-red-400">Please upload a document</p>}
                 </div>
 
                 <div className="flex justify-center">
@@ -117,11 +117,11 @@ export function DocumentComparisonPage() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium">{t('compare.doc2')} <span className="text-red-400">*</span></label>
+                  <label className="text-xs font-medium">{t('compare.doc2')} <span className="text-red-600 dark:text-red-400">*</span></label>
                   <div className={showErrors && !docB ? 'rounded-lg border border-red-500/50' : ''}>
                     <DropZone label={t('compare.doc2')} onFileSelect={setDocB} />
                   </div>
-                  {showErrors && !docB && <p className="text-[10px] text-red-400">Please upload a document</p>}
+                  {showErrors && !docB && <p className="text-[10px] text-red-600 dark:text-red-400">Please upload a document</p>}
                 </div>
 
                 <div className="space-y-1.5 pt-2">
@@ -153,10 +153,10 @@ export function DocumentComparisonPage() {
                   </Button>
                 </div>
                 {showErrors && (!docA || !docB) && (
-                  <p className="text-[10px] text-red-400">Please upload both documents to compare</p>
+                  <p className="text-[10px] text-red-600 dark:text-red-400">Please upload both documents to compare</p>
                 )}
 
-                {error && <p className="text-xs text-red-400">{error}</p>}
+                {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
               </div>
             </div>
 
@@ -178,7 +178,7 @@ export function DocumentComparisonPage() {
                       <p className="text-[11px] font-medium truncate">{item.title}</p>
                       <p className="text-[9px] text-muted-foreground">{(item.input_params as Record<string, string>).focus} &middot; {formatTimeAgo(item.created_at)}</p>
                     </div>
-                    <CheckCircle className="h-3.5 w-3.5 shrink-0 text-green-400" />
+                    <CheckCircle className="h-3.5 w-3.5 shrink-0 text-green-600 dark:text-green-400" />
                   </div>
                 ))}
               </div>
@@ -203,11 +203,11 @@ export function DocumentComparisonPage() {
         <div className="min-h-0 overflow-y-auto" style={{ flex: '3 1 0' }}>
           <div className="px-5 py-4 space-y-4">
             <div className="space-y-1.5">
-              <label className="text-xs font-medium">{t('compare.doc1')} <span className="text-red-400">*</span></label>
+              <label className="text-xs font-medium">{t('compare.doc1')} <span className="text-red-600 dark:text-red-400">*</span></label>
               <div className={showErrors && !docA ? 'rounded-lg border border-red-500/50' : ''}>
                 <DropZone label={t('compare.doc1')} onFileSelect={setDocA} />
               </div>
-              {showErrors && !docA && <p className="text-[10px] text-red-400">Please upload a document</p>}
+              {showErrors && !docA && <p className="text-[10px] text-red-600 dark:text-red-400">Please upload a document</p>}
             </div>
 
             <div className="flex justify-center">
@@ -217,11 +217,11 @@ export function DocumentComparisonPage() {
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-medium">{t('compare.doc2')} <span className="text-red-400">*</span></label>
+              <label className="text-xs font-medium">{t('compare.doc2')} <span className="text-red-600 dark:text-red-400">*</span></label>
               <div className={showErrors && !docB ? 'rounded-lg border border-red-500/50' : ''}>
                 <DropZone label={t('compare.doc2')} onFileSelect={setDocB} />
               </div>
-              {showErrors && !docB && <p className="text-[10px] text-red-400">Please upload a document</p>}
+              {showErrors && !docB && <p className="text-[10px] text-red-600 dark:text-red-400">Please upload a document</p>}
             </div>
 
             <div className="space-y-1.5 pt-2">
@@ -253,10 +253,10 @@ export function DocumentComparisonPage() {
               </Button>
             </div>
             {showErrors && (!docA || !docB) && (
-              <p className="text-[10px] text-red-400">Please upload both documents to compare</p>
+              <p className="text-[10px] text-red-600 dark:text-red-400">Please upload both documents to compare</p>
             )}
 
-            {error && <p className="text-xs text-red-400">{error}</p>}
+            {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
           </div>
         </div>
 
@@ -278,7 +278,7 @@ export function DocumentComparisonPage() {
                   <p className="text-[11px] font-medium truncate">{item.title}</p>
                   <p className="text-[9px] text-muted-foreground">{(item.input_params as Record<string, string>).focus} &middot; {formatTimeAgo(item.created_at)}</p>
                 </div>
-                <CheckCircle className="h-3.5 w-3.5 shrink-0 text-green-400" />
+                <CheckCircle className="h-3.5 w-3.5 shrink-0 text-green-600 dark:text-green-400" />
               </div>
             ))}
           </div>

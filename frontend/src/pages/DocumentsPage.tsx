@@ -31,9 +31,9 @@ const STATUS_FILTERS: { value: StatusFilter; label: string; color: string }[] = 
 
 const STATUS_BADGE: Record<string, string> = {
   pending: 'bg-muted text-muted-foreground',
-  processing: 'bg-amber-500/10 text-amber-400',
-  completed: 'bg-green-500/10 text-green-400',
-  failed: 'bg-red-500/10 text-red-400',
+  processing: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
+  completed: 'bg-green-500/10 text-green-600 dark:text-green-400',
+  failed: 'bg-red-500/10 text-red-600 dark:text-red-400',
 }
 
 const CATEGORY_BORDER_COLORS: Record<string, string> = {
@@ -46,12 +46,12 @@ const CATEGORY_BORDER_COLORS: Record<string, string> = {
 }
 
 function getFileBadge(filename: string): { label: string; className: string } {
-  if (filename.endsWith('.pdf')) return { label: 'PDF', className: 'bg-red-500/15 text-red-400' }
-  if (filename.endsWith('.docx') || filename.endsWith('.doc')) return { label: 'DOC', className: 'bg-blue-500/15 text-blue-400' }
+  if (filename.endsWith('.pdf')) return { label: 'PDF', className: 'bg-red-500/15 text-red-600 dark:text-red-400' }
+  if (filename.endsWith('.docx') || filename.endsWith('.doc')) return { label: 'DOC', className: 'bg-blue-500/15 text-blue-600 dark:text-blue-400' }
   if (filename.endsWith('.md')) return { label: 'MD', className: 'bg-emerald-500/15 text-emerald-400' }
-  if (filename.endsWith('.csv')) return { label: 'CSV', className: 'bg-amber-500/15 text-amber-400' }
-  if (filename.endsWith('.json')) return { label: 'JSON', className: 'bg-purple-500/15 text-purple-400' }
-  return { label: 'TXT', className: 'bg-cyan-500/15 text-cyan-400' }
+  if (filename.endsWith('.csv')) return { label: 'CSV', className: 'bg-amber-500/15 text-amber-600 dark:text-amber-400' }
+  if (filename.endsWith('.json')) return { label: 'JSON', className: 'bg-purple-500/15 text-purple-600 dark:text-purple-400' }
+  return { label: 'TXT', className: 'bg-cyan-500/15 text-cyan-600 dark:text-cyan-400' }
 }
 
 function formatBytes(bytes: number): string {
@@ -157,7 +157,7 @@ export function DocumentsPage() {
                 <div key={doc.id} className="flex items-center gap-2 text-xs">
                   <div className={`h-1.5 w-1.5 rounded-full shrink-0 ${doc.status === 'completed' ? 'bg-green-400' : doc.status === 'processing' ? 'bg-amber-400' : 'bg-gray-400'}`} />
                   <span className="truncate flex-1 text-muted-foreground">{doc.filename}</span>
-                  {doc.status === 'processing' && <Loader2 className="h-3 w-3 animate-spin text-amber-400 shrink-0" />}
+                  {doc.status === 'processing' && <Loader2 className="h-3 w-3 animate-spin text-amber-600 dark:text-amber-400 shrink-0" />}
                 </div>
               ))}
 
@@ -172,7 +172,7 @@ export function DocumentsPage() {
                 </div>
                 <div className="h-1.5 rounded-full bg-secondary overflow-hidden">
                   <div
-                    className="h-full rounded-full bg-gradient-to-r from-primary to-[oklch(0.65_0.18_230)]"
+                    className="h-full rounded-full bg-gradient-to-r from-primary to-[var(--gradient-accent-to)]"
                     style={{ width: `${Math.min((totalSize / (50 * 1024 * 1024)) * 100, 100)}%` }}
                   />
                 </div>
@@ -248,7 +248,7 @@ export function DocumentsPage() {
             <div key={doc.id} className="flex items-center gap-2 text-xs">
               <div className={`h-1.5 w-1.5 rounded-full shrink-0 ${doc.status === 'completed' ? 'bg-green-400' : doc.status === 'processing' ? 'bg-amber-400' : 'bg-gray-400'}`} />
               <span className="truncate flex-1 text-muted-foreground">{doc.filename}</span>
-              {doc.status === 'processing' && <Loader2 className="h-3 w-3 animate-spin text-amber-400 shrink-0" />}
+              {doc.status === 'processing' && <Loader2 className="h-3 w-3 animate-spin text-amber-600 dark:text-amber-400 shrink-0" />}
             </div>
           ))}
 
@@ -263,7 +263,7 @@ export function DocumentsPage() {
             </div>
             <div className="h-1.5 rounded-full bg-secondary overflow-hidden">
               <div
-                className="h-full rounded-full bg-gradient-to-r from-primary to-[oklch(0.65_0.18_230)]"
+                className="h-full rounded-full bg-gradient-to-r from-primary to-[var(--gradient-accent-to)]"
                 style={{ width: `${Math.min((totalSize / (50 * 1024 * 1024)) * 100, 100)}%` }}
               />
             </div>

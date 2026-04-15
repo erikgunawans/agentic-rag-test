@@ -61,7 +61,7 @@ const groups: NavGroup[] = [
 function railButtonClass({ isActive }: { isActive: boolean }) {
   return `flex h-11 w-11 items-center justify-center rounded-lg transition-all duration-200 focus-ring ${
     isActive
-      ? 'bg-primary/15 text-primary relative before:absolute before:left-0 before:top-1 before:bottom-1 before:w-[3px] before:rounded-full before:bg-gradient-to-b before:from-primary before:to-[oklch(0.65_0.18_230)]'
+      ? 'bg-primary/15 text-primary relative before:absolute before:left-0 before:top-1 before:bottom-1 before:w-[3px] before:rounded-full before:bg-gradient-to-b before:from-primary before:to-[var(--gradient-accent-to)]'
       : 'text-[var(--icon-rail-foreground)] hover:bg-accent hover:text-accent-foreground'
   }`
 }
@@ -87,7 +87,7 @@ function GroupPopover({ group }: { group: NavGroup }) {
     <Popover open={open} onOpenChange={setOpen}>
       <div className="relative">
         {isActive && (
-          <div className="absolute left-0 top-1 bottom-1 w-[3px] rounded-full bg-gradient-to-b from-primary to-[oklch(0.65_0.18_230)]" />
+          <div className="absolute left-0 top-1 bottom-1 w-[3px] rounded-full bg-gradient-to-b from-primary to-[var(--gradient-accent-to)]" />
         )}
         <Tooltip open={open ? false : undefined}>
           <TooltipTrigger asChild>

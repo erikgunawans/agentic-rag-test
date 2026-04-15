@@ -47,9 +47,9 @@ interface GeneratedDocument {
 }
 
 const RISK_STYLE: Record<string, { color: string; bg: string }> = {
-  high: { color: 'text-red-400', bg: 'border-red-500/30 bg-red-500/5' },
-  medium: { color: 'text-amber-400', bg: 'border-amber-500/30 bg-amber-500/5' },
-  low: { color: 'text-green-400', bg: 'border-green-500/30 bg-green-500/5' },
+  high: { color: 'text-red-600 dark:text-red-400', bg: 'border-red-500/30 bg-red-500/5' },
+  medium: { color: 'text-amber-600 dark:text-amber-400', bg: 'border-amber-500/30 bg-amber-500/5' },
+  low: { color: 'text-green-600 dark:text-green-400', bg: 'border-green-500/30 bg-green-500/5' },
 }
 
 // --- Form field helper ---
@@ -57,10 +57,10 @@ function FormField({ label, required, error, children }: { label: string; requir
   return (
     <div className="space-y-1.5">
       <label className="text-xs font-medium">
-        {label} {required && <span className="text-red-400">*</span>}
+        {label} {required && <span className="text-red-600 dark:text-red-400">*</span>}
       </label>
       {children}
-      {error && <p className="text-[10px] text-red-400">This field is required</p>}
+      {error && <p className="text-[10px] text-red-600 dark:text-red-400">This field is required</p>}
     </div>
   )
 }
@@ -500,7 +500,7 @@ export function DocumentCreationPage() {
               <div key={clause.id} className={`flex items-center gap-1 rounded-md border px-2 py-1 text-[10px] ${style.bg} ${mismatch ? 'opacity-60' : ''}`}>
                 <span className={`font-semibold ${style.color}`}>{clause.risk_level?.charAt(0).toUpperCase()}</span>
                 <span className="truncate max-w-[120px]">{clause.title}</span>
-                {mismatch && <span className="text-amber-400 text-[9px]" title="Clause may not apply to this doc type">!</span>}
+                {mismatch && <span className="text-amber-600 dark:text-amber-400 text-[9px]" title="Clause may not apply to this doc type">!</span>}
                 <button onClick={() => setSelectedClauses(prev => prev.filter(c => c.id !== clause.id))} className="ml-0.5 text-muted-foreground hover:text-foreground">
                   <XCircle className="h-3 w-3" />
                 </button>
@@ -668,10 +668,10 @@ export function DocumentCreationPage() {
                   <BookmarkPlus className="mr-1.5 h-3 w-3" /> Save as Template
                 </Button>
                 {showErrors && !canGenerate && (
-                  <p className="text-[10px] text-red-400">Please fill in all required fields marked with *</p>
+                  <p className="text-[10px] text-red-600 dark:text-red-400">Please fill in all required fields marked with *</p>
                 )}
 
-                {error && <p className="text-xs text-red-400">{error}</p>}
+                {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
               </div>
             </div>
 
@@ -697,7 +697,7 @@ export function DocumentCreationPage() {
                           <span className="text-primary/70">{(item.input_params as Record<string, string>).doc_type}</span> &middot; {formatTimeAgo(item.created_at)}
                         </p>
                       </div>
-                      <CheckCircle className="h-3.5 w-3.5 shrink-0 text-green-400" />
+                      <CheckCircle className="h-3.5 w-3.5 shrink-0 text-green-600 dark:text-green-400" />
                     </div>
                   ))}
                 </div>
@@ -783,10 +783,10 @@ export function DocumentCreationPage() {
                 <BookmarkPlus className="mr-1.5 h-3 w-3" /> Save as Template
               </Button>
               {showErrors && !canGenerate && (
-                <p className="text-[10px] text-red-400">Please fill in all required fields marked with *</p>
+                <p className="text-[10px] text-red-600 dark:text-red-400">Please fill in all required fields marked with *</p>
               )}
 
-              {error && <p className="text-xs text-red-400">{error}</p>}
+              {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
             </div>
         </div>
 
@@ -812,7 +812,7 @@ export function DocumentCreationPage() {
                       <span className="text-primary/70">{(item.input_params as Record<string, string>).doc_type}</span> &middot; {formatTimeAgo(item.created_at)}
                     </p>
                   </div>
-                  <CheckCircle className="h-3.5 w-3.5 shrink-0 text-green-400" />
+                  <CheckCircle className="h-3.5 w-3.5 shrink-0 text-green-600 dark:text-green-400" />
                 </div>
               ))}
             </div>

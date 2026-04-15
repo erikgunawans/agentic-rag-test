@@ -32,16 +32,16 @@ interface Summary {
 }
 
 const STATUS_STYLE: Record<string, { color: string; bg: string; icon: typeof CheckCircle }> = {
-  active: { color: 'text-blue-400', bg: 'bg-blue-500/10 border-blue-500/30', icon: Clock },
-  upcoming: { color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/30', icon: AlertTriangle },
-  overdue: { color: 'text-red-400', bg: 'bg-red-500/10 border-red-500/30', icon: XCircle },
-  completed: { color: 'text-green-400', bg: 'bg-green-500/10 border-green-500/30', icon: CheckCircle },
+  active: { color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-500/10 border-blue-500/30', icon: Clock },
+  upcoming: { color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-500/10 border-amber-500/30', icon: AlertTriangle },
+  overdue: { color: 'text-red-600 dark:text-red-400', bg: 'bg-red-500/10 border-red-500/30', icon: XCircle },
+  completed: { color: 'text-green-600 dark:text-green-400', bg: 'bg-green-500/10 border-green-500/30', icon: CheckCircle },
   cancelled: { color: 'text-muted-foreground', bg: 'bg-secondary border-border', icon: XCircle },
 }
 
 const PRIORITY_STYLE: Record<string, string> = {
-  critical: 'text-red-400',
-  high: 'text-amber-400',
+  critical: 'text-red-600 dark:text-red-400',
+  high: 'text-amber-600 dark:text-amber-400',
   medium: 'text-foreground',
   low: 'text-muted-foreground',
 }
@@ -185,7 +185,7 @@ export function ObligationsPage() {
         </div>
 
         {error && (
-          <div className="rounded-lg bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-400">
+          <div className="rounded-lg bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-600 dark:text-red-400">
             {error}
           </div>
         )}
@@ -233,7 +233,7 @@ export function ObligationsPage() {
                         {ob.notes && <p className="text-[10px] text-muted-foreground truncate mt-0.5">{ob.notes}</p>}
                       </td>
                       <td className="px-4 py-2.5 whitespace-nowrap">
-                        <span className={ob.status === 'overdue' ? 'text-red-400 font-medium' : ''}>
+                        <span className={ob.status === 'overdue' ? 'text-red-600 dark:text-red-400 font-medium' : ''}>
                           {formatDeadline(ob.deadline)}
                         </span>
                       </td>

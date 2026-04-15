@@ -95,22 +95,22 @@ export function AuditTrailPage() {
   }
 
   const actionBadgeColor: Record<string, string> = {
-    upload: 'bg-blue-500/15 text-blue-400',
-    delete: 'bg-red-500/15 text-red-400',
-    create: 'bg-green-500/15 text-green-400',
-    update: 'bg-amber-500/15 text-amber-400',
+    upload: 'bg-blue-500/15 text-blue-600 dark:text-blue-400',
+    delete: 'bg-red-500/15 text-red-600 dark:text-red-400',
+    create: 'bg-green-500/15 text-green-600 dark:text-green-400',
+    update: 'bg-amber-500/15 text-amber-600 dark:text-amber-400',
     compliance: 'bg-emerald-500/15 text-emerald-400',
-    analyze: 'bg-purple-500/15 text-purple-400',
-    compare: 'bg-cyan-500/15 text-cyan-400',
+    analyze: 'bg-purple-500/15 text-purple-600 dark:text-purple-400',
+    compare: 'bg-cyan-500/15 text-cyan-600 dark:text-cyan-400',
   }
 
   return (
     <div className="flex-1 overflow-auto p-6">
       {/* Header */}
       <div className="flex items-center gap-3 mb-4">
-        <FileText className="h-5 w-5 text-amber-400" />
+        <FileText className="h-5 w-5 text-amber-600 dark:text-amber-400" />
         <h1 className="text-lg font-semibold">{t('audit.title')}</h1>
-        <span className="rounded-full bg-amber-500/15 px-2.5 py-0.5 text-xs font-medium text-amber-400">
+        <span className="rounded-full bg-amber-500/15 px-2.5 py-0.5 text-xs font-medium text-amber-600 dark:text-amber-400">
           {t('admin.badge')}
         </span>
         <div className="flex-1" />
@@ -164,7 +164,7 @@ export function AuditTrailPage() {
       {/* Table */}
       <div>
         {error && (
-          <div className="mb-4 rounded-lg bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-400">
+          <div className="mb-4 rounded-lg bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-600 dark:text-red-400">
             {error}
           </div>
         )}
