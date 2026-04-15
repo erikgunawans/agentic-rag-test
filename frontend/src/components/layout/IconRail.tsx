@@ -6,6 +6,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip
 import { useAuth } from '@/contexts/AuthContext'
 import { useI18n } from '@/i18n/I18nContext'
 import { UserAvatar } from './UserAvatar'
+import { Logo } from '@/components/shared/Logo'
 import type { LucideIcon } from 'lucide-react'
 
 interface NavItem {
@@ -142,7 +143,7 @@ export function IconRail({ panelCollapsed, onTogglePanel, showPanelToggle }: Ico
   return (
     <div className="flex h-full w-[60px] shrink-0 flex-col items-center border-r border-border bg-[var(--icon-rail)] py-4">
       <div className="flex flex-col items-center gap-2 mb-6">
-        <img src="/lexcore-logo-dark.svg" alt="LexCore" className="h-9 w-9 rounded-lg object-contain" />
+        <Logo variant="icon" className="h-9 w-9 rounded-lg object-contain" />
         {showPanelToggle && onTogglePanel && (
           <Tooltip>
             <TooltipTrigger

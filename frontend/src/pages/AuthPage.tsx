@@ -2,15 +2,14 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useI18n } from '@/i18n/I18nContext'
-import { useTheme } from '@/theme/ThemeContext'
 import { Shield } from 'lucide-react'
+import { Logo } from '@/components/shared/Logo'
 
 type Tab = 'login' | 'signup'
 
 export function AuthPage() {
   const navigate = useNavigate()
   const { t } = useI18n()
-  const { resolvedTheme } = useTheme()
   const [tab, setTab] = useState<Tab>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -40,8 +39,6 @@ export function AuthPage() {
     }
   }
 
-  const logoSrc = resolvedTheme === 'dark' ? '/lexcore-full-dark.svg' : '/lexcore-full-light.svg'
-
   return (
     <div className="flex min-h-screen items-start justify-center pt-[8vh] sm:pt-[10vh] bg-background">
 
@@ -50,7 +47,7 @@ export function AuthPage() {
 
         {/* Logo */}
         <div className="flex flex-col items-center mb-10">
-          <img src={logoSrc} alt="LexCore" className="h-20 mb-6" />
+          <Logo className="h-20 mb-6" />
           <h1 className="text-[28px] font-bold tracking-tight text-center text-foreground">
             {tab === 'login' ? t('auth.title') : t('auth.signupTitle') || 'Buat Akun'}
           </h1>

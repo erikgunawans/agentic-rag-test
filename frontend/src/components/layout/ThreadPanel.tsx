@@ -6,6 +6,7 @@ import { useI18n } from '@/i18n/I18nContext'
 import { useAuth } from '@/contexts/AuthContext'
 import { useChatContext } from '@/contexts/ChatContext'
 import { deriveDisplayName } from './UserAvatar'
+import { Logo } from '@/components/shared/Logo'
 
 interface ThreadPanelProps {
   collapsed: boolean
@@ -41,7 +42,7 @@ export function ThreadPanel({ collapsed, onToggleCollapse }: ThreadPanelProps) {
     <div className="flex h-full w-[340px] shrink-0 flex-col border-r border-border bg-sidebar transition-all duration-200">
       <div className="flex items-center justify-between p-4">
         <div>
-          <img src="/lexcore-full-dark.svg" alt="LexCore" className="h-7" />
+          <Logo className="h-7" />
           <p className="text-xs text-muted-foreground mt-1">{t('sidebar.chatHistory')}</p>
         </div>
         <button

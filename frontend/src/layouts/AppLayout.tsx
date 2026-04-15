@@ -5,6 +5,7 @@ import { IconRail } from '@/components/layout/IconRail'
 import { ThreadPanel } from '@/components/layout/ThreadPanel'
 import { ChatProvider } from '@/contexts/ChatContext'
 import { useChatState } from '@/hooks/useChatState'
+import { Logo } from '@/components/shared/Logo'
 
 export interface SidebarContext {
   panelCollapsed: boolean
@@ -34,7 +35,7 @@ export function AppLayout() {
 
         {/* Mobile top header bar — visible only on mobile */}
         <div className="md:hidden fixed top-0 inset-x-0 z-30 flex items-center justify-between px-4 h-14 bg-background/95 backdrop-blur-md border-b border-border/50">
-          <img src="/lexcore-full-dark.svg" alt="LexCore" className="h-6" />
+          <Logo className="h-6" />
           {showThreadPanel && (
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
