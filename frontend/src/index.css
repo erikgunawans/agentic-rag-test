@@ -3,6 +3,8 @@
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme inline {
     --font-heading: var(--font-sans);
     --font-sans: 'Geist Variable', sans-serif;
@@ -49,8 +51,78 @@
     --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/* ══════════════════════════════════════════════════════════════════════
+   Light theme (default) — 2026 Calibrated Restraint, warm neutrals
+   ══════════════════════════════════════════════════════════════════════ */
 :root {
-    /* Zinc-neutral palette — 2026 Calibrated Restraint */
+    --background: oklch(0.975 0.003 80);
+    --foreground: oklch(0.15 0.005 280);
+    --card: oklch(0.995 0.001 80);
+    --card-foreground: oklch(0.15 0.005 280);
+    --popover: oklch(0.995 0.001 80);
+    --popover-foreground: oklch(0.15 0.005 280);
+    --primary: oklch(0.48 0.18 280);
+    --primary-foreground: oklch(0.99 0 0);
+    --secondary: oklch(0.94 0.005 80);
+    --secondary-foreground: oklch(0.20 0.005 280);
+    --muted: oklch(0.94 0.005 80);
+    --muted-foreground: oklch(0.40 0.01 260);
+    --accent: oklch(0.92 0.005 80);
+    --accent-foreground: oklch(0.15 0.005 280);
+    --destructive: oklch(0.55 0.22 25);
+    --border: oklch(0 0 0 / 8%);
+    --input: oklch(0 0 0 / 6%);
+    --ring: oklch(0.48 0.18 280);
+    --chart-1: oklch(0.48 0.18 280);
+    --chart-2: oklch(0.55 0.13 200);
+    --chart-3: oklch(0.58 0.13 150);
+    --chart-4: oklch(0.50 0.13 50);
+    --chart-5: oklch(0.55 0.17 320);
+    --radius: 0.625rem;
+
+    --sidebar: oklch(0.975 0.006 80);
+    --sidebar-foreground: oklch(0.20 0.005 280);
+    --sidebar-primary: oklch(0.48 0.18 280);
+    --sidebar-primary-foreground: oklch(0.99 0 0);
+    --sidebar-accent: oklch(0.92 0.005 80);
+    --sidebar-accent-foreground: oklch(0.15 0.005 280);
+    --sidebar-border: oklch(0 0 0 / 6%);
+    --sidebar-ring: oklch(0.48 0.18 280);
+
+    --icon-rail: oklch(0.965 0.008 80);
+    --icon-rail-foreground: oklch(0.45 0.01 260);
+    --icon-rail-active: oklch(0.48 0.18 280);
+
+    --feature-creation: oklch(0.50 0.20 280);
+    --feature-management: oklch(0.55 0.13 195);
+    --feature-compliance: oklch(0.58 0.15 160);
+    --feature-analysis: oklch(0.55 0.16 85);
+
+    --glow-primary: 0 0 24px oklch(0.48 0.18 280 / 0.08);
+    --glow-sm: 0 0 14px oklch(0.48 0.18 280 / 0.06);
+    --shadow-xs: 0 1px 2px oklch(0 0 0 / 0.06);
+    --shadow-sm: 0 2px 6px oklch(0 0 0 / 0.08), 0 1px 2px oklch(0 0 0 / 0.04);
+    --shadow-md: 0 4px 14px oklch(0 0 0 / 0.10), 0 1px 4px oklch(0 0 0 / 0.06);
+    --shadow-lg: 0 8px 30px oklch(0 0 0 / 0.14), 0 2px 8px oklch(0 0 0 / 0.08);
+
+    --glass-bg: oklch(0.98 0.008 270 / 0.72);
+    --glass-border: oklch(0 0 0 / 6%);
+    --glass-blur: 16px;
+
+    --dot-grid-color: oklch(0 0 0 / 0.035);
+    --dot-grid-size: 1.2px;
+    --mesh-opacity: 0.025;
+    --gradient-text-from: oklch(0.45 0.20 280);
+    --gradient-text-to: oklch(0.50 0.16 230);
+    --gradient-accent-to: oklch(0.55 0.16 230);
+    --scrollbar-thumb: oklch(0.82 0.003 80);
+    --scrollbar-thumb-hover: oklch(0.75 0.003 80);
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   Dark theme — original Zinc-neutral palette
+   ══════════════════════════════════════════════════════════════════════ */
+.dark {
     --background: #09090B;
     --foreground: #FAFAFA;
     --card: #18181B;
@@ -74,9 +146,7 @@
     --chart-3: oklch(0.65 0.15 150);
     --chart-4: oklch(0.55 0.15 50);
     --chart-5: oklch(0.60 0.20 320);
-    --radius: 0.625rem;
 
-    /* Sidebar */
     --sidebar: #111113;
     --sidebar-foreground: #E4E4E7;
     --sidebar-primary: oklch(0.55 0.20 280);
@@ -86,31 +156,34 @@
     --sidebar-border: oklch(1 0 0 / 5%);
     --sidebar-ring: oklch(0.55 0.20 280);
 
-    /* Icon rail */
     --icon-rail: #0C0C0E;
     --icon-rail-foreground: #71717A;
     --icon-rail-active: oklch(0.55 0.20 280);
 
-    /* Feature accent colors — unchanged */
     --feature-creation: oklch(0.55 0.24 280);
     --feature-management: oklch(0.70 0.15 195);
     --feature-compliance: oklch(0.72 0.17 160);
     --feature-analysis: oklch(0.70 0.18 85);
 
-    /* 2026 Design — Glow shadows (wider, subtler) */
     --glow-primary: 0 0 24px oklch(0.55 0.20 280 / 0.12);
     --glow-sm: 0 0 14px oklch(0.55 0.20 280 / 0.08);
-
-    /* 2026 Design — Layered shadows — unchanged */
     --shadow-xs: 0 1px 2px oklch(0 0 0 / 0.15);
     --shadow-sm: 0 2px 6px oklch(0 0 0 / 0.2), 0 1px 2px oklch(0 0 0 / 0.1);
     --shadow-md: 0 4px 14px oklch(0 0 0 / 0.25), 0 1px 4px oklch(0 0 0 / 0.15);
     --shadow-lg: 0 8px 30px oklch(0 0 0 / 0.3), 0 2px 8px oklch(0 0 0 / 0.2);
 
-    /* 2026 Design — Glassmorphism (zinc-neutral, transient only) */
     --glass-bg: oklch(0.14 0 0 / 0.75);
     --glass-border: oklch(1 0 0 / 8%);
     --glass-blur: 16px;
+
+    --dot-grid-color: oklch(1 0 0 / 0.03);
+    --dot-grid-size: 1px;
+    --mesh-opacity: 0.04;
+    --gradient-text-from: oklch(0.60 0.22 280);
+    --gradient-text-to: oklch(0.65 0.18 230);
+    --gradient-accent-to: oklch(0.65 0.18 230);
+    --scrollbar-thumb: #3F3F46;
+    --scrollbar-thumb-hover: #52525B;
 }
 
 @layer base {
@@ -122,16 +195,19 @@
     }
   html {
     @apply font-sans;
+    color-scheme: light;
+    }
+  html.dark {
     color-scheme: dark;
     }
   button, a, [role="button"] {
     cursor: pointer;
     }
 
-  /* Dark scrollbars */
+  /* Scrollbars — theme-aware */
   * {
     scrollbar-width: thin;
-    scrollbar-color: #3F3F46 transparent;
+    scrollbar-color: var(--scrollbar-thumb) transparent;
   }
   *::-webkit-scrollbar {
     width: 6px;
@@ -141,11 +217,11 @@
     background: transparent;
   }
   *::-webkit-scrollbar-thumb {
-    background: #3F3F46;
+    background: var(--scrollbar-thumb);
     border-radius: 3px;
   }
   *::-webkit-scrollbar-thumb:hover {
-    background: #52525B;
+    background: var(--scrollbar-thumb-hover);
   }
 
   /* 2026 Typography — tighter headings */
@@ -175,7 +251,7 @@
 }
 
 .gradient-text {
-  background: linear-gradient(135deg, oklch(0.60 0.22 280), oklch(0.65 0.18 230));
+  background: linear-gradient(135deg, var(--gradient-text-from), var(--gradient-text-to));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -188,8 +264,8 @@
 }
 
 @keyframes glow-pulse {
-  0%, 100% { box-shadow: 0 0 15px oklch(0.55 0.20 280 / 0.08); }
-  50% { box-shadow: 0 0 30px oklch(0.55 0.20 280 / 0.20); }
+  0%, 100% { box-shadow: var(--glow-sm); }
+  50% { box-shadow: var(--glow-primary); }
 }
 
 .animate-fade-in-up {
@@ -245,7 +321,7 @@
   right: -100px;
   width: 600px;
   height: 600px;
-  background: radial-gradient(circle, rgba(139, 92, 246, 0.04) 0%, transparent 70%);
+  background: radial-gradient(circle, oklch(0.55 0.20 280 / var(--mesh-opacity)) 0%, transparent 70%);
   filter: blur(40px);
 }
 .mesh-bg::after {
@@ -253,7 +329,7 @@
   left: -80px;
   width: 500px;
   height: 500px;
-  background: radial-gradient(circle, rgba(139, 92, 246, 0.03) 0%, transparent 70%);
+  background: radial-gradient(circle, oklch(0.55 0.20 280 / calc(var(--mesh-opacity) * 0.75)) 0%, transparent 70%);
   filter: blur(40px);
 }
 
@@ -265,7 +341,7 @@
   content: '';
   position: absolute;
   inset: 0;
-  background-image: radial-gradient(oklch(1 0 0 / 0.03) 1px, transparent 1px);
+  background-image: radial-gradient(var(--dot-grid-color) var(--dot-grid-size), transparent var(--dot-grid-size));
   background-size: 24px 24px;
   pointer-events: none;
   z-index: 1;
@@ -336,6 +412,15 @@
   box-shadow: 0 0 0 2px var(--background), 0 0 0 4px oklch(0.55 0.20 280 / 0.5);
 }
 
+/* ── Theme transition (applied temporarily during theme switch) ────── */
+.theme-transition,
+.theme-transition *,
+.theme-transition *::before,
+.theme-transition *::after {
+  transition: background-color 0.3s ease, color 0.2s ease, border-color 0.3s ease, box-shadow 0.3s ease !important;
+  transition-delay: 0s !important;
+}
+
 /* ── Accessibility: respect reduced motion preference ────────────── */
 @media (prefers-reduced-motion: reduce) {
   .animate-fade-in-up,
@@ -356,6 +441,12 @@
   }
   .interactive-lift:hover {
     transform: none !important;
+  }
+  .theme-transition,
+  .theme-transition *,
+  .theme-transition *::before,
+  .theme-transition *::after {
+    transition-duration: 0.01ms !important;
   }
   *,
   *::before,
