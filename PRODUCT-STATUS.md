@@ -62,7 +62,7 @@ Pivoted from generic RAG to legal-specific tools: document creation (NDAs, contr
 
 **Market signal:** Indonesian legal professionals need tools that understand local regulatory frameworks (OJK) alongside international standards (GDPR). Bilingual output is not optional, it is the default.
 
-### Phase 5: Design Maturity (Current)
+### Phase 5: Design Maturity
 **Period:** 2026-04-12
 **Focus:** Production-grade UI/UX
 
@@ -101,6 +101,9 @@ Comprehensive design overhaul: mobile responsive layout, accessibility complianc
 | Mobile responsive | Shipped | Phase 5 | Hamburger menu, panel overlays, FABs |
 | Accessibility (a11y) | Shipped | Phase 5 | Reduced motion, focus-visible |
 | i18n (Indonesian + English) | Shipped | Phase 4 | Full coverage, localStorage persist |
+| Clause library | Shipped | Phase 3 | Global + user-scoped, reusable in doc creation |
+| Document templates | Shipped | Phase 3 | Pre-built templates with field defaults |
+| LLM e2e pipeline | Validated | Phase 5 | Upload → embed → RAG chat → tool-calling → streaming verified |
 
 ---
 
@@ -113,8 +116,8 @@ Comprehensive design overhaul: mobile responsive layout, accessibility complianc
 4. **Document comparison** for contract version tracking. Teams compare draft vs final, v1 vs v2.
 
 ### What could come next (backlog, unvalidated)
-- **Template library** — pre-built templates for common Indonesian legal documents
-- **Clause library** — reusable clauses that can be inserted into generated documents
+- **Point-in-Time Compliance Querying** — query documents against regulations as of a specific date
+- **UU PDP Compliance Toolkit** — Indonesian data protection law (UU PDP) specific checks
 - **Collaboration** — multiple users reviewing/editing the same document
 - **Export** — PDF/DOCX download of generated documents
 - **Audit trail** — track who generated/reviewed/approved each document

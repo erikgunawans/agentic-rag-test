@@ -26,7 +26,7 @@ A hands-on course where you collaborate with Claude Code to build a full-feature
 | Frontend | React, TypeScript, Tailwind, shadcn/ui, Vite |
 | Backend | Python, FastAPI |
 | Database | Supabase (Postgres + pgvector + Auth + Storage) |
-| Doc Processing | Docling |
+| Doc Processing | PyMuPDF, python-docx, BeautifulSoup |
 | AI Models | Local (LM Studio) or Cloud (OpenAI, OpenRouter) |
 | Observability | LangSmith |
 
@@ -54,6 +54,8 @@ A hands-on course where you collaborate with Claude Code to build a full-feature
 - [PRD.md](./PRD.md) — What to build (the 8 modules in detail)
 - [CLAUDE.md](./CLAUDE.md) — Context for Claude Code
 - [PROGRESS.md](./PROGRESS.md) — Track your build progress
+- [PRODUCT-STATUS.md](./PRODUCT-STATUS.md) — Product evolution and feature matrix
+- [CHANGELOG.md](./CHANGELOG.md) — Release history
 
 ## Join the Community
 

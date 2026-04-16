@@ -1,0 +1,61 @@
+PERJANJIAN KERAHASIAAN (NON-DISCLOSURE AGREEMENT)
+
+Nomor: NDA/2025/001
+
+Pada hari ini, Senin tanggal 15 Januari 2025, bertempat di Jakarta, telah dibuat dan ditandatangani Perjanjian Kerahasiaan ini oleh dan antara:
+
+1. PT MAJU BERSAMA INDONESIA, berkedudukan di Jakarta Selatan, Jl. Sudirman No. 45, yang dalam hal ini diwakili oleh Budi Santoso selaku Direktur Utama, selanjutnya disebut sebagai "Pihak Pertama";
+
+2. PT TEKNOLOGI NUSANTARA DIGITAL, berkedudukan di Bandung, Jl. Asia Afrika No. 120, yang dalam hal ini diwakili oleh Siti Rahayu selaku Direktur Utama, selanjutnya disebut sebagai "Pihak Kedua".
+
+Pihak Pertama dan Pihak Kedua secara bersama-sama disebut sebagai "Para Pihak".
+
+PASAL 1 - DEFINISI INFORMASI RAHASIA
+
+Informasi Rahasia meliputi seluruh data, dokumen, rencana bisnis, strategi pemasaran, data keuangan, informasi teknis, kode sumber perangkat lunak, daftar pelanggan, dan segala informasi lainnya yang disampaikan oleh satu pihak kepada pihak lainnya, baik secara lisan, tertulis, maupun dalam bentuk elektronik, yang ditandai sebagai "rahasia" atau yang secara wajar dapat dianggap sebagai informasi rahasia.
+
+PASAL 2 - KEWAJIBAN KERAHASIAAN
+
+Para Pihak sepakat untuk:
+a) Menjaga kerahasiaan seluruh Informasi Rahasia yang diterima dari pihak lainnya;
+b) Tidak mengungkapkan Informasi Rahasia kepada pihak ketiga manapun tanpa persetujuan tertulis terlebih dahulu;
+c) Menggunakan Informasi Rahasia hanya untuk tujuan yang telah disepakati bersama;
+d) Membatasi akses terhadap Informasi Rahasia hanya kepada karyawan yang memerlukan informasi tersebut untuk pelaksanaan kerjasama.
+
+PASAL 3 - JANGKA WAKTU
+
+Perjanjian ini berlaku selama 2 (dua) tahun sejak tanggal penandatanganan dan dapat diperpanjang dengan persetujuan tertulis kedua belah pihak. Kewajiban kerahasiaan akan tetap berlaku selama 3 (tiga) tahun setelah berakhirnya perjanjian ini.
+
+PASAL 4 - PENGECUALIAN
+
+Kewajiban kerahasiaan sebagaimana dimaksud dalam Pasal 2 tidak berlaku terhadap informasi yang:
+a) Telah menjadi informasi publik bukan karena pelanggaran perjanjian ini;
+b) Telah dimiliki oleh Pihak Penerima sebelum pengungkapan;
+c) Diperoleh secara sah dari pihak ketiga yang tidak terikat kewajiban kerahasiaan;
+d) Diwajibkan untuk diungkapkan berdasarkan perintah pengadilan atau peraturan perundang-undangan yang berlaku.
+
+PASAL 5 - SANKSI DAN GANTI RUGI
+
+Apabila salah satu pihak melanggar ketentuan dalam perjanjian ini, pihak yang melanggar wajib membayar ganti rugi kepada pihak yang dirugikan sebesar kerugian yang diderita, dengan jumlah minimum sebesar Rp 500.000.000 (lima ratus juta rupiah). Pihak yang dirugikan juga berhak untuk mengajukan tuntutan hukum sesuai dengan ketentuan hukum yang berlaku di Republik Indonesia.
+
+PASAL 6 - FORCE MAJEURE
+
+Para Pihak tidak bertanggung jawab atas kegagalan atau keterlambatan pelaksanaan kewajiban berdasarkan perjanjian ini yang disebabkan oleh keadaan di luar kendali yang wajar, termasuk namun tidak terbatas pada bencana alam, perang, kerusuhan, epidemi, kebijakan pemerintah, atau gangguan sistem teknologi informasi yang bersifat massal.
+
+PASAL 7 - PENYELESAIAN SENGKETA
+
+Setiap perselisihan yang timbul dari atau sehubungan dengan perjanjian ini akan diselesaikan secara musyawarah untuk mufakat. Apabila musyawarah tidak mencapai kesepakatan dalam waktu 30 (tiga puluh) hari, maka sengketa akan diselesaikan melalui Badan Arbitrase Nasional Indonesia (BANI) di Jakarta, dengan menggunakan peraturan dan prosedur BANI yang berlaku pada saat itu.
+
+PASAL 8 - HUKUM YANG BERLAKU
+
+Perjanjian ini tunduk pada dan ditafsirkan berdasarkan hukum Republik Indonesia.
+
+Demikian perjanjian ini dibuat dalam rangkap 2 (dua), masing-masing bermeterai cukup dan mempunyai kekuatan hukum yang sama.
+
+Jakarta, 15 Januari 2025
+
+PIHAK PERTAMA                          PIHAK KEDUA
+PT MAJU BERSAMA INDONESIA              PT TEKNOLOGI NUSANTARA DIGITAL
+
+Budi Santoso                           Siti Rahayu
+Direktur Utama                         Direktur Utama

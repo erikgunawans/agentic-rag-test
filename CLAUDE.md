@@ -147,9 +147,30 @@ cd frontend && npm run lint
 # Frontend type check
 cd frontend && npx tsc --noEmit
 
-# Backend import check (no pytest suite yet)
+# Backend API tests (41 tests across 5 files)
+cd backend && source venv/bin/activate && \
+  TEST_EMAIL="test@test.com" TEST_PASSWORD='!*-3-3?3uZ?b$v&' \
+  TEST_EMAIL_2="test-2@test.com" TEST_PASSWORD_2='fK4$Wd?HGKmb#A2' \
+  API_BASE_URL="https://api-production-cde1.up.railway.app" \
+  pytest tests/api/ -v --tb=short
+
+# Backend import check
 cd backend && source venv/bin/activate && python -c "from app.main import app; print('OK')"
 ```
+
+## LLM Pipeline
+- **Multi-agent**: `agents_enabled` in config. Research Agent auto-selected for document queries via `agent_service.classify_intent()`
+- **Tool dispatch**: `ToolService.execute_tool()` dispatches `search_documents`, `query_database`, `web_search`
+- **RAG**: `HybridRetrievalService.retrieve()` — vector (pgvector) + fulltext (tsvector) + RRF fusion. Optional LLM reranking.
+- **Document tools**: `_llm_json()` helper in `document_tool_service.py` — OpenRouter with `json_object` response format, Pydantic validation
+- **Confidence gating**: Results with `confidence_score >= 0.85` are `auto_approved`, below → `pending_review`
+- **SSE events**: `agent_start` → `tool_start` → `tool_result` → `delta` (progressive) → `done:true`
+
+## Automations
+- **Hooks**: PostToolUse auto-lints .ts/.tsx (ESLint + tsc) and .py (py_compile). PreToolUse blocks .env edits.
+- **Skills**: `/deploy-lexcore` (full deploy pipeline), `/run-api-tests` (pytest with credentials)
+- **Agents**: `security-reviewer` (RLS bypass, missing auth, SQL injection, audit gaps)
+- **MCP**: context7 (live docs), Supabase (direct DB), Playwright (browser automation)
 
 ## Gotchas
 
@@ -161,7 +182,9 @@ cd backend && source venv/bin/activate && python -c "from app.main import app; p
 - Supabase array containment filter: `.filter("col", "cs", "{value}")` not `.contains()`
 - Search params in PostgREST filters must sanitize commas and parentheses.
 - `get_current_user` makes a `user_profiles` DB call on every request (checks `is_active`, auto-creates for new signups).
+- Headless browser (gstack browse): Special chars in passwords require native input setter (`Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set`), not `fill` command. React state won't update with standard input methods.
+- Browse server restarts between `$B` calls — use `$B chain < file.json` to maintain session state across multiple commands (login + navigation + actions).
 
 ## Progress
 
-Check PROGRESS.md for current status. Phase 1 (7/7) and Phase 2 (5/5) complete.
+Check PROGRESS.md for current status. Phase 1 (7/7) and Phase 2 (5/5) complete. LLM e2e test passed.

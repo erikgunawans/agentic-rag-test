@@ -1,6 +1,38 @@
 # Progress
 
-PJAA CLM Platform (LexCore). Phase 1 (7/7) and Phase 2 (5/5) complete. 18 pages, 17 routers, 19 migrations. Deployed to Vercel + Railway. Light/dark/system theme support added. Design audit fixes applied. 60 TSX + 11 TS files. TypeScript clean.
+PJAA CLM Platform (LexCore). Phase 1 (7/7) and Phase 2 (5/5) complete. 18 pages, 18 routers, 20 migrations. Deployed to Vercel + Railway. Light/dark/system theme support. 71 TSX/TS + 41 Python files. TypeScript clean. Production QA passed. LLM e2e test passed.
+
+## Checkpoint 2026-04-17 (LLM end-to-end test PASSED)
+
+- **Session:** Full AI pipeline validation on production
+- **Test document:** `sample_indonesian_nda.txt` — Indonesian NDA between PT Maju Bersama and PT Teknologi Nusantara
+- **Results (all PASS):**
+  - Document upload + ingestion: status=completed, 3 chunks, embeddings stored, metadata extracted (title, category=legal, summary in Indonesian, tags)
+  - Chat with RAG: Multi-agent routing active (Research Agent), search_documents tool called, 4 chunks retrieved, response references specific NDA clauses
+  - Follow-up chat: Correctly searched for "force majeure", retrieved relevant chunk
+  - SSE streaming: Progressive token-by-token delivery, correct event ordering (agent_start → tool_start → tool_result → delta → done:true)
+  - Document creation: Generated 4,801-char NDA, confidence=1.0, auto_approved
+  - Compliance check (OJK): overall_status=pass, 2 findings (both pass), 0 missing provisions, confidence=0.95
+  - Contract analysis: overall_risk=medium, 3 risks, 2 obligations, 6 critical clauses, 3 missing provisions, confidence=0.85
+  - Error handling: 401 (invalid token), 404 (bad thread), 400 (empty file) all correct
+  - Tool history: 3 entries recorded with correct tool_type, confidence, review_status
+- **What's next:** Stakeholder demo → Phase 3 planning (F13: Point-in-Time Compliance, F14: UU PDP Toolkit)
+
+## Checkpoint 2026-04-16 (Production visual QA passed)
+
+- **Session:** Visual QA of production site (light theme). Logged in, screenshotted 7 key pages, checked console errors, verified backend health.
+- **Branch:** master (clean, synced with origin + main)
+- **Done:**
+  - DocumentsPage fix already committed (`45886d6`)
+  - Production QA: Auth, Welcome/Chat, Dashboard, Documents, Create, Settings, Clause Library, Approvals — all pass
+  - Zero console errors across all pages
+  - Backend health check: `{"status":"ok"}`
+  - master synced to main (Vercel production up to date)
+- **Files changed:** 0 (working tree clean)
+- **Tests:** TypeScript tsc clean
+- **Next:** End-to-end LLM test with real Indonesian document → PJAA stakeholder feedback → Phase 3 planning
+
+---
 
 ## Checkpoint 2026-04-16 (Session resume — pending QA pass)
 
