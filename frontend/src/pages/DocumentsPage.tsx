@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { Search, Grid3X3, List, Plus, Upload, HardDrive, FileText, Trash2, Loader2, Menu, PanelLeftClose } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { apiFetch } from '@/lib/api'
@@ -352,10 +353,10 @@ export function DocumentsPage() {
               </button>
             </div>
             {/* New Document button */}
-            <button className="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-xs font-medium text-primary-foreground hover:opacity-90 transition-opacity">
+            <Link to="/create" className="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-xs font-medium text-primary-foreground hover:opacity-90 transition-opacity">
               <Plus className="h-3.5 w-3.5" />
               New Document
-            </button>
+            </Link>
           </div>
         </div>
 

@@ -2,6 +2,19 @@
 
 PJAA CLM Platform (LexCore). Phase 1 (7/7) and Phase 2 (5/5) complete. 18 pages, 17 routers, 19 migrations. Deployed to Vercel + Railway. Light/dark/system theme support added. Design audit fixes applied. 60 TSX + 11 TS files. TypeScript clean.
 
+## Checkpoint 2026-04-16 (Session resume — pending QA pass)
+
+- **Session:** Resumed from design refresh + grouped rail checkpoint. Identified uncommitted fix in DocumentsPage.tsx.
+- **Branch:** master
+- **Done:**
+  - Session context restored via /checkpoint resume
+  - Identified uncommitted change: DocumentsPage "New Document" button converted from `<button>` to `<Link to="/create">` for correct SPA routing
+- **Files changed:** 1 file (frontend/src/pages/DocumentsPage.tsx — staged, not committed)
+- **Tests:** TypeScript tsc clean
+- **Next:** Commit DocumentsPage fix → Visual QA of light theme on production → End-to-end LLM test with real Indonesian document → PJAA stakeholder feedback
+
+---
+
 ## Checkpoint 2026-04-15 (Light theme + design audit)
 
 - **Session:** Full design audit (8 findings, 7 fixed), then light theme implementation (10 steps)
