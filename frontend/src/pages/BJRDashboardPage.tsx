@@ -83,7 +83,7 @@ export function BJRDashboardPage() {
       const [decisionsRes, summaryRes, risksRes] = await Promise.all([
         apiFetch(`/bjr/decisions?${params}`),
         apiFetch('/bjr/summary'),
-        apiFetch('/bjr/risks?status=open'),
+        apiFetch('/bjr/risks?status=open&is_global=true'),
       ])
       const [decisionsData, summaryData, risksData] = await Promise.all([
         decisionsRes.json(),
@@ -92,7 +92,7 @@ export function BJRDashboardPage() {
       ])
       setDecisions(decisionsData.data || [])
       setSummary(summaryData)
-      setGlobalRisks((risksData.data || []).filter((r: Risk) => r.is_global))
+      setGlobalRisks(risksData.data || [])
     } catch {
       // silent
     } finally {

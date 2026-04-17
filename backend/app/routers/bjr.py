@@ -1,11 +1,11 @@
+import json
 import logging
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, Query
 from app.dependencies import get_current_user, require_admin
 from app.database import get_supabase_authed_client, get_supabase_client
 from app.services.audit_service import log_action
-from app.services.bjr_service import assess_evidence, calculate_bjr_score, bjr_advance_phase
+from app.services.bjr_service import assess_evidence, calculate_bjr_score
 from app.services.system_settings_service import get_system_settings
-from app.services.ingestion_service import parse_text
 from app.models.bjr import (
     DecisionCreate, DecisionUpdate,
     EvidenceCreate, RiskCreate, RiskUpdate,
@@ -224,12 +224,12 @@ async def assess_evidence_endpoint(evidence_id: str, user: dict = Depends(get_cu
     elif evidence["evidence_type"] == "tool_result" and evidence.get("reference_id"):
         tool_result = client.table("document_tool_results").select("result, title").eq("id", evidence["reference_id"]).execute()
         if tool_result.data:
-            import json
+
             evidence_text = f"Tool Result: {tool_result.data[0].get('title', '')}\n{json.dumps(tool_result.data[0].get('result', {}), indent=2, ensure_ascii=False)}"
     elif evidence["evidence_type"] == "document" and evidence.get("reference_id"):
         doc = client.table("documents").select("filename, metadata").eq("id", evidence["reference_id"]).execute()
         if doc.data:
-            import json
+
             evidence_text = f"Document: {doc.data[0].get('filename', '')}\nMetadata: {json.dumps(doc.data[0].get('metadata', {}), indent=2, ensure_ascii=False)}"
     elif evidence["evidence_type"] == "external_link":
         evidence_text = f"External link: {evidence.get('external_url', '')}\nNotes: {evidence.get('notes', '')}"
@@ -345,12 +345,15 @@ async def get_phase_status(decision_id: str, user: dict = Depends(get_current_us
 async def list_risks(
     decision_id: str | None = Query(None),
     status: str | None = Query(None),
+    is_global: bool | None = Query(None),
     user: dict = Depends(get_current_user),
 ):
     client = get_supabase_authed_client(user["token"])
     query = client.table("bjr_risk_register").select("*")
     if decision_id:
         query = query.or_(f"decision_id.eq.{decision_id},is_global.eq.true")
+    if is_global is not None:
+        query = query.eq("is_global", is_global)
     if status:
         query = query.eq("status", status)
     query = query.order("risk_level").order("created_at", desc=True)

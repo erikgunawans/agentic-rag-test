@@ -93,13 +93,15 @@ export function BJRDecisionPage() {
       setChecklist(data.checklist)
       setEvidence(data.evidence)
       setRisks(data.risks)
-      if (!selectedPhase) setSelectedPhase(data.decision.current_phase === 'completed' ? 'post_decision' : data.decision.current_phase)
+      setSelectedPhase(prev =>
+        prev || (data.decision.current_phase === 'completed' ? 'post_decision' : data.decision.current_phase)
+      )
     } catch {
       // error
     } finally {
       setLoading(false)
     }
-  }, [id, selectedPhase])
+  }, [id])
 
   useEffect(() => { loadData() }, [loadData])
 

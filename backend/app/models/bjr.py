@@ -14,11 +14,16 @@ class BJREvidenceAssessment(BaseModel):
 
 # ── Request Models ────────────────────────────────────────────
 
+DECISION_TYPES = Literal["investment", "procurement", "partnership", "divestment", "capex", "policy", "other"]
+RISK_LEVELS = Literal["critical", "high", "medium", "low"]
+RISK_STATUSES = Literal["open", "mitigated", "accepted", "closed"]
+
+
 class DecisionCreate(BaseModel):
     title: str
     description: str = ""
-    decision_type: str = "other"
-    risk_level: str | None = None
+    decision_type: DECISION_TYPES = "other"
+    risk_level: RISK_LEVELS | None = None
     estimated_value: float | None = None
     gcg_aspect_ids: list[str] = []
     metadata: dict = {}
@@ -48,7 +53,7 @@ class RiskCreate(BaseModel):
     decision_id: str | None = None
     risk_title: str
     description: str = ""
-    risk_level: str = "medium"
+    risk_level: RISK_LEVELS = "medium"
     mitigation: str = ""
     owner_role: str = ""
     is_global: bool = False
@@ -57,9 +62,9 @@ class RiskCreate(BaseModel):
 class RiskUpdate(BaseModel):
     risk_title: str | None = None
     description: str | None = None
-    risk_level: str | None = None
+    risk_level: RISK_LEVELS | None = None
     mitigation: str | None = None
-    status: str | None = None
+    status: RISK_STATUSES | None = None
     owner_role: str | None = None
 
 
