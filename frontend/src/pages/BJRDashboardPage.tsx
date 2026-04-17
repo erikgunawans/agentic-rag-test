@@ -69,6 +69,12 @@ export function BJRDashboardPage() {
   const [newType, setNewType] = useState('other')
   const [newRisk, setNewRisk] = useState('medium')
 
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => { if (e.key === 'Escape') setShowCreateForm(false) }
+    document.addEventListener('keydown', handleEscape)
+    return () => document.removeEventListener('keydown', handleEscape)
+  }, [])
+
   const loadData = useCallback(async () => {
     setLoading(true)
     try {

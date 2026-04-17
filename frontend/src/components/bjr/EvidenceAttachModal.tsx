@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { X, FileText, Sparkles, StickyNote, Link2, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useI18n } from '@/i18n/I18nContext'
@@ -23,6 +23,12 @@ export function EvidenceAttachModal({ decisionId, checklistItemId, onClose, onAt
   const [loading, setLoading] = useState(false)
   const [toolResults, setToolResults] = useState<Array<{ id: string; title: string; tool_type: string; created_at: string }>>([])
   const [resultsLoaded, setResultsLoaded] = useState(false)
+
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', handleEscape)
+    return () => document.removeEventListener('keydown', handleEscape)
+  }, [onClose])
 
   const loadToolResults = async () => {
     if (resultsLoaded) return
