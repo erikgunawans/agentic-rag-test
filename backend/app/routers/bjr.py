@@ -217,20 +217,17 @@ async def assess_evidence_endpoint(evidence_id: str, user: dict = Depends(get_cu
         regs = client.table("bjr_regulatory_items").select("code, title").in_("id", checklist_item["regulatory_item_ids"]).execute()
         reg_refs = [f"{r['code']} — {r['title']}" for r in regs.data]
 
-    # Get evidence text
+    # Get evidence text — use authed client to enforce RLS (user can only read own data)
     evidence_text = ""
     if evidence["evidence_type"] == "manual_note":
         evidence_text = evidence.get("notes", "")
     elif evidence["evidence_type"] == "tool_result" and evidence.get("reference_id"):
-        # Fetch the tool result
-        svc_client = get_supabase_client()
-        tool_result = svc_client.table("document_tool_results").select("result, title").eq("id", evidence["reference_id"]).execute()
+        tool_result = client.table("document_tool_results").select("result, title").eq("id", evidence["reference_id"]).execute()
         if tool_result.data:
             import json
             evidence_text = f"Tool Result: {tool_result.data[0].get('title', '')}\n{json.dumps(tool_result.data[0].get('result', {}), indent=2, ensure_ascii=False)}"
     elif evidence["evidence_type"] == "document" and evidence.get("reference_id"):
-        svc_client = get_supabase_client()
-        doc = svc_client.table("documents").select("filename, metadata").eq("id", evidence["reference_id"]).execute()
+        doc = client.table("documents").select("filename, metadata").eq("id", evidence["reference_id"]).execute()
         if doc.data:
             import json
             evidence_text = f"Document: {doc.data[0].get('filename', '')}\nMetadata: {json.dumps(doc.data[0].get('metadata', {}), indent=2, ensure_ascii=False)}"
