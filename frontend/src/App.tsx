@@ -23,6 +23,9 @@ import { UserManagementPage } from '@/pages/UserManagementPage'
 import { BJRDashboardPage } from '@/pages/BJRDashboardPage'
 import { BJRDecisionPage } from '@/pages/BJRDecisionPage'
 import { ComplianceTimelinePage } from '@/pages/ComplianceTimelinePage'
+import { PDPDashboardPage } from '@/pages/PDPDashboardPage'
+import { DataInventoryPage } from '@/pages/DataInventoryPage'
+import { DataBreachPage } from '@/pages/DataBreachPage'
 import { AuthGuard } from '@/components/auth/AuthGuard'
 import { AdminGuard } from '@/components/auth/AdminGuard'
 import { AppLayout } from '@/layouts/AppLayout'
@@ -52,6 +55,9 @@ export default function App() {
               <Route path="compare" element={<DocumentComparisonPage />} />
               <Route path="compliance" element={<ComplianceCheckPage />} />
               <Route path="compliance/timeline" element={<ComplianceTimelinePage />} />
+              <Route path="pdp" element={<PDPDashboardPage />} />
+              <Route path="pdp/inventory" element={<DataInventoryPage />} />
+              <Route path="pdp/incidents" element={<DataBreachPage />} />
               <Route path="analysis" element={<ContractAnalysisPage />} />
               <Route path="obligations" element={<ObligationsPage />} />
               <Route path="approvals" element={<ApprovalInboxPage />} />

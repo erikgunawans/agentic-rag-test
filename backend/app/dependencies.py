@@ -43,3 +43,11 @@ async def require_admin(
     if user["role"] != "super_admin":
         raise HTTPException(status_code=403, detail="Admin access required")
     return user
+
+
+async def require_dpo(
+    user: dict = Depends(get_current_user),
+) -> dict:
+    if user["role"] not in ("super_admin", "dpo"):
+        raise HTTPException(status_code=403, detail="DPO access required")
+    return user

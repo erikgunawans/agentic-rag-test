@@ -71,6 +71,18 @@ async def get_summary(user: dict = Depends(get_current_user)):
     bjr_open_risks = client.table("bjr_risk_register").select("id", count="exact").eq("status", "open").execute()
     bjr_risks = bjr_open_risks.count if bjr_open_risks.count is not None else len(bjr_open_risks.data)
 
+    # Compliance Snapshots
+    snapshots = client.table("compliance_snapshots").select("id", count="exact").execute()
+    snap_count = snapshots.count if snapshots.count is not None else len(snapshots.data)
+
+    # PDP Readiness
+    pdp_status = client.table("pdp_compliance_status").select("readiness_score, dpo_appointed").eq("id", 1).execute()
+    pdp = pdp_status.data[0] if pdp_status.data else {"readiness_score": 0, "dpo_appointed": False}
+    inv_count = client.table("data_inventory").select("id", count="exact").eq("status", "active").execute()
+    pdp_inventory = inv_count.count if inv_count.count is not None else len(inv_count.data)
+    incidents = client.table("data_breach_incidents").select("id", count="exact").neq("response_status", "closed").execute()
+    pdp_open_incidents = incidents.count if incidents.count is not None else len(incidents.data)
+
     return {
         "documents": {"total": docs_total, "completed": docs_completed, "processing": docs_processing},
         "obligations": {
@@ -93,6 +105,13 @@ async def get_summary(user: dict = Depends(get_current_user)):
             "total": bjr_total, "active": bjr_active,
             "completed": bjr_completed, "avg_score": bjr_avg_score,
             "open_risks": bjr_risks,
+        },
+        "compliance_snapshots": snap_count,
+        "pdp": {
+            "readiness_score": pdp.get("readiness_score", 0),
+            "dpo_appointed": pdp.get("dpo_appointed", False),
+            "inventory_count": pdp_inventory,
+            "open_incidents": pdp_open_incidents,
         },
     }
 
