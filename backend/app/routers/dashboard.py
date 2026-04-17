@@ -61,6 +61,16 @@ async def get_summary(user: dict = Depends(get_current_user)):
     ).eq("is_dismissed", False).execute()
     reg_unread = unread_alerts.count if unread_alerts.count is not None else len(unread_alerts.data)
 
+    # BJR Decisions
+    bjr_decisions = client.table("bjr_decisions").select("current_phase, bjr_score").neq("status", "cancelled").execute().data
+    bjr_total = len(bjr_decisions)
+    bjr_active = sum(1 for d in bjr_decisions if d["current_phase"] != "completed")
+    bjr_completed = sum(1 for d in bjr_decisions if d["current_phase"] == "completed")
+    bjr_avg_score = round(sum(d.get("bjr_score", 0) for d in bjr_decisions) / bjr_total, 1) if bjr_total else 0.0
+
+    bjr_open_risks = client.table("bjr_risk_register").select("id", count="exact").eq("status", "open").execute()
+    bjr_risks = bjr_open_risks.count if bjr_open_risks.count is not None else len(bjr_open_risks.data)
+
     return {
         "documents": {"total": docs_total, "completed": docs_completed, "processing": docs_processing},
         "obligations": {
@@ -78,6 +88,11 @@ async def get_summary(user: dict = Depends(get_current_user)):
         "regulatory": {
             "sources": reg_sources, "updates": reg_updates,
             "unread_alerts": reg_unread,
+        },
+        "bjr": {
+            "total": bjr_total, "active": bjr_active,
+            "completed": bjr_completed, "avg_score": bjr_avg_score,
+            "open_risks": bjr_risks,
         },
     }
 

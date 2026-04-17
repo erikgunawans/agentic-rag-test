@@ -20,6 +20,8 @@ import { RegulatoryPage } from '@/pages/RegulatoryPage'
 import { DashboardPage } from '@/pages/DashboardPage'
 import { IntegrationsPage } from '@/pages/IntegrationsPage'
 import { UserManagementPage } from '@/pages/UserManagementPage'
+import { BJRDashboardPage } from '@/pages/BJRDashboardPage'
+import { BJRDecisionPage } from '@/pages/BJRDecisionPage'
 import { AuthGuard } from '@/components/auth/AuthGuard'
 import { AdminGuard } from '@/components/auth/AdminGuard'
 import { AppLayout } from '@/layouts/AppLayout'
@@ -52,6 +54,8 @@ export default function App() {
               <Route path="obligations" element={<ObligationsPage />} />
               <Route path="approvals" element={<ApprovalInboxPage />} />
               <Route path="regulatory" element={<RegulatoryPage />} />
+              <Route path="bjr" element={<BJRDashboardPage />} />
+              <Route path="bjr/decisions/:id" element={<BJRDecisionPage />} />
               <Route path="dashboard" element={<DashboardPage />} />
               <Route path="integrations" element={<IntegrationsPage />} />
               <Route path="settings" element={<SettingsPage />} />

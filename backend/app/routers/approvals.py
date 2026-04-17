@@ -113,11 +113,15 @@ async def get_approval_request(request_id: str, user: dict = Depends(get_current
     # Get actions history
     actions = client.table("approval_actions").select("*").eq("request_id", request_id).order("acted_at").execute()
 
-    # Get the resource (document tool result)
+    # Get the resource
     resource = None
     request = req.data[0]
     if request["resource_type"] == "document_tool_result":
         res = client.table("document_tool_results").select("*").eq("id", request["resource_id"]).execute()
+        if res.data:
+            resource = res.data[0]
+    elif request["resource_type"] == "bjr_phase":
+        res = client.table("bjr_decisions").select("*").eq("id", request["resource_id"]).execute()
         if res.data:
             resource = res.data[0]
 
@@ -183,6 +187,17 @@ async def take_action(request_id: str, body: ApprovalAction, user: dict = Depend
             "status": "pending",
             "current_step": 1,
         }).eq("id", request_id).execute()
+
+    # BJR phase advancement hook: when a bjr_phase approval is fully approved, advance the decision
+    if request["resource_type"] == "bjr_phase" and body.action == "approve":
+        # Check if fully approved (not just advanced to next step)
+        updated_req = client.table("approval_requests").select("status").eq("id", request_id).execute()
+        if updated_req.data and updated_req.data[0]["status"] == "approved":
+            from app.services.bjr_service import bjr_advance_phase
+            new_phase = bjr_advance_phase(request["resource_id"])
+            if new_phase:
+                # Reset decision status from under_review to in_progress (or completed)
+                pass  # bjr_advance_phase already handles status update
 
     log_action(
         user_id=user["id"], user_email=user["email"],

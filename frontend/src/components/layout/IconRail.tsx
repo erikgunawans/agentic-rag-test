@@ -25,6 +25,7 @@ interface NavGroup {
 const standaloneItems: NavItem[] = [
   { path: '/', icon: Home, labelKey: 'nav.chat', end: true },
   { path: '/dashboard', icon: LayoutDashboard, labelKey: 'nav.dashboard' },
+  { path: '/bjr', icon: Scale, labelKey: 'nav.bjr' },
 ]
 
 const groups: NavGroup[] = [
