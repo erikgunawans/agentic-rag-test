@@ -188,16 +188,17 @@ async def take_action(request_id: str, body: ApprovalAction, user: dict = Depend
             "current_step": 1,
         }).eq("id", request_id).execute()
 
-    # BJR phase advancement hook: when a bjr_phase approval is fully approved, advance the decision
-    if request["resource_type"] == "bjr_phase" and body.action == "approve":
-        # Check if fully approved (not just advanced to next step)
-        updated_req = client.table("approval_requests").select("status").eq("id", request_id).execute()
-        if updated_req.data and updated_req.data[0]["status"] == "approved":
-            from app.services.bjr_service import bjr_advance_phase
-            new_phase = bjr_advance_phase(request["resource_id"])
-            if new_phase:
-                # Reset decision status from under_review to in_progress (or completed)
-                pass  # bjr_advance_phase already handles status update
+    # BJR phase hooks: advance on approval, reset on reject/return
+    if request["resource_type"] == "bjr_phase":
+        svc = get_supabase_client()
+        if body.action == "approve":
+            updated_req = client.table("approval_requests").select("status").eq("id", request_id).execute()
+            if updated_req.data and updated_req.data[0]["status"] == "approved":
+                from app.services.bjr_service import bjr_advance_phase
+                bjr_advance_phase(request["resource_id"])
+        elif body.action in ("reject", "return"):
+            # Reset decision from under_review back to in_progress so user can re-submit
+            svc.table("bjr_decisions").update({"status": "in_progress"}).eq("id", request["resource_id"]).eq("status", "under_review").execute()
 
     log_action(
         user_id=user["id"], user_email=user["email"],

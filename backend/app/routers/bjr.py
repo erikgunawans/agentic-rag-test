@@ -181,6 +181,12 @@ async def attach_evidence(
 @router.delete("/evidence/{evidence_id}")
 async def remove_evidence(evidence_id: str, user: dict = Depends(get_current_user)):
     client = get_supabase_authed_client(user["token"])
+    # Check decision is not completed/cancelled before allowing removal
+    ev = client.table("bjr_evidence").select("decision_id").eq("id", evidence_id).execute()
+    if ev.data:
+        decision = client.table("bjr_decisions").select("status").eq("id", ev.data[0]["decision_id"]).execute()
+        if decision.data and decision.data[0]["status"] in ("completed", "cancelled"):
+            raise HTTPException(status_code=409, detail="Cannot modify evidence on completed/cancelled decision")
     result = client.table("bjr_evidence").delete().eq("id", evidence_id).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="Evidence not found")
@@ -197,6 +203,11 @@ async def assess_evidence_endpoint(evidence_id: str, user: dict = Depends(get_cu
     if not ev.data:
         raise HTTPException(status_code=404, detail="Evidence not found")
     evidence = ev.data[0]
+
+    # Guard: no assessment on completed/cancelled decisions
+    decision_status = client.table("bjr_decisions").select("status").eq("id", evidence["decision_id"]).execute()
+    if decision_status.data and decision_status.data[0]["status"] in ("completed", "cancelled"):
+        raise HTTPException(status_code=409, detail="Cannot assess evidence on completed/cancelled decision")
 
     # Fetch checklist item
     item = client.table("bjr_checklist_templates").select("*").eq("id", evidence["checklist_item_id"]).execute()
@@ -246,9 +257,14 @@ async def assess_evidence_endpoint(evidence_id: str, user: dict = Depends(get_cu
         decision_context=decision_context,
     )
 
-    # Apply confidence gating
+    # Apply confidence gating — must BOTH meet threshold AND satisfy the requirement
     threshold = get_system_settings().get("confidence_threshold", 0.85)
-    review_status = "auto_approved" if assessment.confidence_score >= threshold else "pending_review"
+    if assessment.confidence_score >= threshold and assessment.satisfies_requirement:
+        review_status = "auto_approved"
+    elif assessment.confidence_score >= threshold and not assessment.satisfies_requirement:
+        review_status = "rejected"  # High confidence it does NOT satisfy
+    else:
+        review_status = "pending_review"
 
     # Update evidence with assessment
     assessment_data = assessment.model_dump()
@@ -287,6 +303,8 @@ async def submit_phase(decision_id: str, user: dict = Depends(get_current_user))
     d = decision.data[0]
     if d["status"] == "under_review":
         raise HTTPException(status_code=409, detail="Phase already submitted for review")
+    if d["status"] == "cancelled":
+        raise HTTPException(status_code=409, detail="Cannot submit phase for cancelled decision")
     if d["current_phase"] == "completed":
         raise HTTPException(status_code=409, detail="Decision already completed")
 
