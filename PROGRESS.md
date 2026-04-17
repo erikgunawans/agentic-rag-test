@@ -1,6 +1,43 @@
 # Progress
 
-PJAA CLM Platform (LexCore). Phase 1 (7/7), Phase 2 (5/5) complete. BJR Decision Governance Module shipped. 20 pages, 19 routers, 20 migrations. Deployed to Vercel + Railway. 77 TSX/TS + 44 Python files. TypeScript clean. Production smoke test passed.
+PJAA CLM Platform (LexCore). Phase 1 (7/7), Phase 2 (5/5), Phase 3 (2/2) complete. BJR module shipped + hardened. 24 pages, 21 routers, 22 migrations. Deployed to Vercel + Railway. 81 TSX/TS + 48 Python files. TypeScript clean. All production smoke tests passed.
+
+## Checkpoint 2026-04-17 (Phase 3 complete — F13 + F14 shipped)
+
+- **Session:** Implemented Phase 3: F13 (Point-in-Time Compliance Querying) + F14 (UU PDP Compliance Toolkit)
+- **Branch:** master (synced with origin + main)
+- **Done:**
+  - F13: compliance_snapshots table, 4 API endpoints, ComplianceTimelinePage with timeline view + diff comparison, "Save as Snapshot" button on ComplianceCheckPage
+  - F14: 3 tables (data_inventory, pdp_compliance_status, data_breach_incidents), 13 API endpoints, PDPDashboardPage (readiness score + DPO appointment), DataInventoryPage (CRUD), DataBreachPage (72-hour countdown + notification template), LLM personal data scanner, require_dpo() dependency
+  - Dashboard extended with compliance snapshot count + PDP readiness metrics
+  - Migrations 022 + 023 applied to Supabase
+  - Deployed to Railway + Vercel
+  - Production smoke test: 9/9 passed (snapshots, PDP status, readiness 0→45, inventory CRUD, incident report, notification template, dashboard integration)
+- **Commits:** `56ef7d5` (F13) + `05d0a9a` (F14)
+- **Files changed:** 21 files (11 new, 10 modified), +1,840 lines
+- **Tests:** TypeScript tsc clean, ESLint clean, backend import OK
+- **Next:** Stakeholder demo prep, then ongoing maintenance
+
+## Checkpoint 2026-04-17 (BJR pre-ship hardening complete)
+
+- **Session:** Pre-ship pipeline (simplify + review + codex adversarial), security trace Q13/Q14, graph update
+- **Branch:** master (synced with origin + main)
+- **Done:**
+  - Security trace Q13 (admin boundaries): PASS — clean separation
+  - Security trace Q14 (RLS cross-references): fixed authed client for evidence reads (`cbb6371`)
+  - QA: modal Escape key fix (`adf76fc`), health 100/100
+  - /simplify: Literal types on Pydantic models, unused imports removed, selectedPhase dep fix, is_global server filter (`9677dc1`)
+  - /review: clean — 0 findings, quality score 10/10
+  - /codex adversarial (gpt-5.3-codex): 4 critical/high findings fixed (`3d568e6`):
+    1. Evidence auto_approved now requires satisfies_requirement=true
+    2. Approval reject/return resets decision from under_review
+    3. Completed/cancelled decisions immutable via evidence endpoints
+    4. Cancelled decisions blocked from re-entering approval flow
+  - Knowledge graph updated (983 nodes, 1311 edges, 120 communities)
+  - Graph Question List created (20 questions, 7 categories)
+- **Commits:** `c7d2e02` → `adf76fc` → `cbb6371` → `9677dc1` → `3d568e6` (5 commits)
+- **Tests:** TypeScript tsc clean, ESLint clean, backend import OK
+- **Next:** Deploy final fixes, stakeholder demo, Phase 3 planning
 
 ## Checkpoint 2026-04-17 (BJR Decision Governance Module shipped)
 
@@ -711,7 +748,32 @@ Full gap analysis and specs: `.agent/plans/15.pjaa-clm-gap-analysis-specs.md`
 - **Integration**: Reuses existing approval workflows, audit trail, HITL confidence gating, executive dashboard
 - **Source document**: `Matriks_Regulasi_GCG_BJR_Ancol_2026.docx` — Ancol GCG & BJR regulatory matrix
 
-### Phase 3: Advanced Compliance (Months 5-6) — NOT STARTED
+### Phase 3: Advanced Compliance (Months 5-6) ✅ COMPLETE
 
-- [ ] F13: Point-in-Time Compliance Querying
-- [ ] F14: UU PDP Compliance Toolkit
+#### Feature 13: Point-in-Time Compliance Querying ✅ COMPLETE
+
+- [x] Migration `supabase/migrations/022_compliance_snapshots.sql` — `compliance_snapshots` table with RLS
+- [x] Backend `compliance_snapshots.py` router — 4 endpoints (create, list, get, diff)
+- [x] Snapshot creation reuses existing `check_compliance()` from `document_tool_service.py`
+- [x] Diff logic — pure JSON comparison of findings, missing provisions, status changes
+- [x] Frontend `ComplianceTimelinePage.tsx` — timeline view with A/B snapshot comparison
+- [x] "Save as Snapshot" button added to `ComplianceCheckPage.tsx`
+- [x] IconRail: Clock icon in Legal Tools group → `/compliance/timeline`
+- **Commit**: `56ef7d5`
+
+#### Feature 14: UU PDP Compliance Toolkit ✅ COMPLETE
+
+- [x] Migration `supabase/migrations/023_uu_pdp_toolkit.sql` — 3 tables (`data_inventory`, `pdp_compliance_status`, `data_breach_incidents`) with DPO-aware RLS
+- [x] Backend `pdp.py` router — 13 endpoints (inventory CRUD, compliance status, readiness, incidents, notification template, PII scanner)
+- [x] Backend `pdp_service.py` — LLM personal data scanner + readiness score calculator (DPO 20pts + breach plan 20pts + inventory 30pts + DPIA 30pts)
+- [x] Backend `models/pdp.py` — Pydantic models with Literal types
+- [x] `require_dpo()` dependency in `dependencies.py` for DPO role support
+- [x] Frontend `PDPDashboardPage.tsx` — readiness score circle, DPO appointment form, checklist, status cards
+- [x] Frontend `DataInventoryPage.tsx` — processing activity table + create modal
+- [x] Frontend `DataBreachPage.tsx` — incident list with 72-hour deadline countdown + notification template generator
+- [x] IconRail: ShieldAlert standalone item → `/pdp`
+- [x] Dashboard: PDP readiness + snapshot count in `/dashboard/summary`
+- [x] i18n: ~100 keys (50 ID + 50 EN) for PDP module
+- **Commit**: `05d0a9a`
+
+**Phase 3 progress: 2 of 2 features complete** (F13, F14) ✅ PHASE 3 COMPLETE
