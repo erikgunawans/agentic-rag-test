@@ -23,14 +23,16 @@ cd frontend && npm install && npm run dev
 
 ## Architecture
 
-### Backend (18 routers in `backend/app/routers/`)
+### Backend (21 routers in `backend/app/routers/`)
 - **Core**: `chat.py` (SSE streaming + tool-calling loop), `threads.py`, `documents.py`
 - **Document tools**: `document_tools.py` (create/compare/compliance/analyze with LLM)
 - **Phase 1**: `clause_library.py`, `document_templates.py`, `approvals.py`, `obligations.py`, `audit_trail.py`, `user_management.py`
 - **Phase 2**: `regulatory.py`, `notifications.py`, `dashboard.py`, `integrations.py` (Dokmee), `google_export.py`
+- **BJR**: `bjr.py` (25 endpoints — decisions, evidence, phase progression, risks, admin CRUD)
+- **Phase 3**: `compliance_snapshots.py` (point-in-time compliance), `pdp.py` (UU PDP toolkit)
 - **Settings**: `admin_settings.py` (system-wide), `user_preferences.py` (per-user)
 
-### Frontend (18 pages in `frontend/src/pages/`)
+### Frontend (24 pages in `frontend/src/pages/`)
 - Layout: `AppLayout` with `IconRail` (60px) + collapsible sidebar (340px) + content
 - State: `useChatState` hook + `ChatContext`, `useSidebar` for panel collapse
 - i18n: Indonesian (default) + English via `I18nProvider`
@@ -185,6 +187,31 @@ cd backend && source venv/bin/activate && python -c "from app.main import app; p
 - Headless browser (gstack browse): Special chars in passwords require native input setter (`Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set`), not `fill` command. React state won't update with standard input methods.
 - Browse server restarts between `$B` calls — use `$B chain < file.json` to maintain session state across multiple commands (login + navigation + actions).
 
+## Workflow
+- When working in git worktrees, immediately confirm the current working directory and branch before starting. Do not explore the codebase if the goal is implementation — start writing code.
+- When debugging frontend issues, verify the backend API is running and returning expected responses BEFORE investigating frontend code.
+- Always confirm you're in the correct directory (`backend/` vs `frontend/` vs repo root) before running commands.
+
+## Testing & CI
+- Write tests before implementation when fixing bugs. Every bug fix gets a regression test.
+- Before pushing, run: `cd frontend && npx tsc --noEmit && npm run lint` and `cd backend && python -c "from app.main import app; print('OK')"`
+- After pushing, monitor CI and fix failures before moving on. Don't leave broken CI.
+- Check for: missing eslintrc configs, missing pip dependencies, import mode compatibility.
+
+## Deployment Checklist
+Before deploying:
+1. `git push origin master && git push origin master:main` (Vercel deploys from main)
+2. Backend: `cd backend && railway up`
+3. Frontend: `cd frontend && npx vercel --prod --yes`
+4. Verify: `curl -s https://api-production-cde1.up.railway.app/health`
+5. Smoke test critical endpoints
+
+## Session Continuity
+- Run `/sync` after every major milestone to persist state to PROGRESS.md and memory files.
+- Every checkpoint must include: what was done, branch, files changed, what's next.
+- If approaching context limits (conversation getting long, compaction happening), IMMEDIATELY run `/sync` before doing anything else.
+- New sessions: read PROGRESS.md first, then check memory files, then start work.
+
 ## Progress
 
-Check PROGRESS.md for current status. Phase 1 (7/7) and Phase 2 (5/5) complete. LLM e2e test passed.
+Check PROGRESS.md for current status. Phase 1 (7/7), Phase 2 (5/5), Phase 3 (2/2) complete. BJR module shipped. LLM e2e test passed.
