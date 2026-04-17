@@ -22,6 +22,7 @@ import { IntegrationsPage } from '@/pages/IntegrationsPage'
 import { UserManagementPage } from '@/pages/UserManagementPage'
 import { BJRDashboardPage } from '@/pages/BJRDashboardPage'
 import { BJRDecisionPage } from '@/pages/BJRDecisionPage'
+import { ComplianceTimelinePage } from '@/pages/ComplianceTimelinePage'
 import { AuthGuard } from '@/components/auth/AuthGuard'
 import { AdminGuard } from '@/components/auth/AdminGuard'
 import { AppLayout } from '@/layouts/AppLayout'
@@ -50,6 +51,7 @@ export default function App() {
               <Route path="clause-library" element={<ClauseLibraryPage />} />
               <Route path="compare" element={<DocumentComparisonPage />} />
               <Route path="compliance" element={<ComplianceCheckPage />} />
+              <Route path="compliance/timeline" element={<ComplianceTimelinePage />} />
               <Route path="analysis" element={<ContractAnalysisPage />} />
               <Route path="obligations" element={<ObligationsPage />} />
               <Route path="approvals" element={<ApprovalInboxPage />} />

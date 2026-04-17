@@ -57,6 +57,7 @@ export function ComplianceCheckPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<ComplianceResult | null>(null)
+  const [savedSnapshot, setSavedSnapshot] = useState(false)
   const [showErrors, setShowErrors] = useState(false)
 
   function toggleScope(scope: Scope) {
@@ -85,6 +86,7 @@ export function ComplianceCheckPage() {
       })
       const data = await response.json()
       setResult(data)
+      setSavedSnapshot(false)
       reloadHistory()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Compliance check failed')
@@ -316,6 +318,23 @@ export function ComplianceCheckPage() {
               {result.confidence_score != null && (
                 <ConfidenceBadge score={result.confidence_score} reviewStatus={result.review_status} />
               )}
+              <button
+                onClick={async () => {
+                  if (!file) return
+                  const fd = new FormData()
+                  fd.append('document', file)
+                  fd.append('framework', framework)
+                  fd.append('scopes', Array.from(scopes).join(','))
+                  try {
+                    const res = await apiFetch('/compliance/snapshots', { method: 'POST', body: fd })
+                    if (res.ok) setSavedSnapshot(true)
+                  } catch { /* silent */ }
+                }}
+                disabled={savedSnapshot}
+                className="text-[10px] font-medium text-primary hover:underline disabled:text-muted-foreground disabled:no-underline"
+              >
+                {savedSnapshot ? t('compliance.snapshotSaved') : t('compliance.saveSnapshot')}
+              </button>
             </div>
             <p className="text-xs text-muted-foreground">{result.summary}</p>
 

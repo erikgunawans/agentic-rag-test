@@ -432,6 +432,24 @@ export const translations: Record<Locale, Record<string, string>> = {
     'obligations.col.actions': 'Aksi',
     'obligations.error.load': 'Gagal memuat kewajiban.',
 
+    // Compliance Timeline (F13)
+    'nav.complianceTimeline': 'Riwayat Kepatuhan',
+    'compliance.saveSnapshot': 'Simpan Snapshot',
+    'compliance.snapshotSaved': 'Snapshot Tersimpan',
+    'complianceTimeline.title': 'Riwayat Kepatuhan',
+    'complianceTimeline.subtitle': 'Lacak perubahan postur kepatuhan dari waktu ke waktu.',
+    'complianceTimeline.filterFramework': 'Filter Kerangka',
+    'complianceTimeline.allFrameworks': 'Semua Kerangka',
+    'complianceTimeline.compare': 'Perbandingan',
+    'complianceTimeline.compareSelected': 'Bandingkan A & B',
+    'complianceTimeline.diffResult': 'Hasil Perbandingan',
+    'complianceTimeline.statusChanged': 'Status berubah!',
+    'complianceTimeline.newFindings': 'Temuan Baru',
+    'complianceTimeline.resolvedFindings': 'Temuan Terselesaikan',
+    'complianceTimeline.newMissing': 'Ketentuan Baru yang Hilang',
+    'complianceTimeline.resolvedMissing': 'Ketentuan yang Dipenuhi',
+    'complianceTimeline.noSnapshots': 'Belum ada snapshot kepatuhan.',
+
     // BJR Governance
     'nav.bjr': 'BJR',
     'bjr.title': 'Business Judgment Rule',
@@ -909,6 +927,24 @@ export const translations: Record<Locale, Record<string, string>> = {
     'obligations.col.contract': 'Contract',
     'obligations.col.actions': 'Actions',
     'obligations.error.load': 'Failed to load obligations.',
+
+    // Compliance Timeline (F13)
+    'nav.complianceTimeline': 'Compliance Timeline',
+    'compliance.saveSnapshot': 'Save Snapshot',
+    'compliance.snapshotSaved': 'Snapshot Saved',
+    'complianceTimeline.title': 'Compliance Timeline',
+    'complianceTimeline.subtitle': 'Track compliance posture changes over time.',
+    'complianceTimeline.filterFramework': 'Filter Framework',
+    'complianceTimeline.allFrameworks': 'All Frameworks',
+    'complianceTimeline.compare': 'Compare',
+    'complianceTimeline.compareSelected': 'Compare A & B',
+    'complianceTimeline.diffResult': 'Comparison Result',
+    'complianceTimeline.statusChanged': 'Status changed!',
+    'complianceTimeline.newFindings': 'New Findings',
+    'complianceTimeline.resolvedFindings': 'Resolved Findings',
+    'complianceTimeline.newMissing': 'New Missing Provisions',
+    'complianceTimeline.resolvedMissing': 'Resolved Provisions',
+    'complianceTimeline.noSnapshots': 'No compliance snapshots yet.',
 
     // BJR Governance
     'nav.bjr': 'BJR',

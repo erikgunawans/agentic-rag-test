@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
-from app.routers import threads, chat, documents, document_tools, admin_settings, user_preferences, audit_trail, obligations, clause_library, document_templates, approvals, user_management, regulatory, notifications, dashboard, integrations, google_export, bjr
+from app.routers import threads, chat, documents, document_tools, admin_settings, user_preferences, audit_trail, obligations, clause_library, document_templates, approvals, user_management, regulatory, notifications, dashboard, integrations, google_export, bjr, compliance_snapshots
 from app.services.langsmith_service import configure_langsmith
 from app.database import get_supabase_client
 
@@ -51,6 +51,7 @@ app.include_router(dashboard.router)
 app.include_router(integrations.router)
 app.include_router(google_export.router)
 app.include_router(bjr.router)
+app.include_router(compliance_snapshots.router)
 
 
 @app.get("/health")

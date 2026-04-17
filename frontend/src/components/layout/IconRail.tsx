@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
-import { Home, Folder, FilePlus, Library, GitCompare, ShieldCheck, Scale, ClipboardList, FileCheck, BookOpen, Plug, LayoutDashboard, Settings, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import { Home, Folder, FilePlus, Library, GitCompare, ShieldCheck, Scale, ClipboardList, FileCheck, BookOpen, Plug, LayoutDashboard, Settings, PanelLeftClose, PanelLeftOpen, Clock } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import { useAuth } from '@/contexts/AuthContext'
@@ -44,6 +44,7 @@ const groups: NavGroup[] = [
     children: [
       { path: '/clause-library', icon: Library, labelKey: 'nav.clauseLibrary' },
       { path: '/compliance', icon: ShieldCheck, labelKey: 'nav.compliance' },
+      { path: '/compliance/timeline', icon: Clock, labelKey: 'nav.complianceTimeline' },
       { path: '/analysis', icon: Scale, labelKey: 'nav.analysis' },
       { path: '/obligations', icon: ClipboardList, labelKey: 'nav.obligations' },
     ],
