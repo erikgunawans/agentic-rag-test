@@ -1,6 +1,24 @@
 # Progress
 
-PJAA CLM Platform (LexCore). Phase 1 (7/7) and Phase 2 (5/5) complete. 18 pages, 18 routers, 20 migrations. Deployed to Vercel + Railway. Light/dark/system theme support. 71 TSX/TS + 41 Python files. TypeScript clean. Production QA passed. LLM e2e test passed.
+PJAA CLM Platform (LexCore). Phase 1 (7/7), Phase 2 (5/5) complete. BJR Decision Governance Module shipped. 20 pages, 19 routers, 20 migrations. Deployed to Vercel + Railway. 77 TSX/TS + 44 Python files. TypeScript clean. Production smoke test passed.
+
+## Checkpoint 2026-04-17 (BJR Decision Governance Module shipped)
+
+- **Session:** Analyzed Ancol GCG/BJR regulatory matrix document, brainstormed integration approach, designed and implemented full BJR module
+- **Branch:** master (synced with origin + main)
+- **Done:**
+  - Deep analysis of `Matriks_Regulasi_GCG_BJR_Ancol_2026.docx` — 28 regulations across 4 layers, 16-item BJR checklist, 11 GCG aspects, 4 strategic risks
+  - Design spec: `docs/superpowers/specs/2026-04-17-bjr-governance-module.md`
+  - Database: 6 new tables (`bjr_regulatory_items`, `bjr_checklist_templates`, `bjr_decisions`, `bjr_evidence`, `bjr_gcg_aspects`, `bjr_risk_register`) with RLS + seed data
+  - Backend: `bjr.py` router (25 endpoints), `bjr_service.py` (LLM evidence assessment + score calculation + phase advance), `models/bjr.py` (12 Pydantic models)
+  - Frontend: `BJRDashboardPage.tsx`, `BJRDecisionPage.tsx`, 4 BJR components (PhaseProgress, ChecklistItem, EvidenceAttachModal, RiskCard)
+  - Integration: approval workflow hook for phase advancement, dashboard BJR metrics, IconRail standalone nav, 88 i18n keys
+  - Migration applied to Supabase, deployed to Railway + Vercel
+  - Production smoke test: 8/8 tests passed (regulatory items, checklist, GCG, risks, summary, create decision, get detail, attach evidence)
+- **Files changed:** 17 files (10 new, 7 modified), 3,156 insertions
+- **Tests:** TypeScript tsc clean, ESLint clean (BJR files)
+- **Commit:** `c7d2e02`
+- **Next:** QA the BJR module on production UI, Phase 3 planning (F13 + F14), stakeholder demo
 
 ## Checkpoint 2026-04-17 (LLM end-to-end test PASSED)
 
@@ -665,6 +683,33 @@ Full gap analysis and specs: `.agent/plans/15.pjaa-clm-gap-analysis-specs.md`
 - [x] Frontend `IntegrationsPage.tsx` — Google Drive card with configured + connected status, connect/disconnect buttons
 
 **Phase 2 progress: 5 of 5 features complete** (F8, F9, F10, F11, F12) ✅ PHASE 2 COMPLETE
+
+### BJR Decision Governance Module ✅ COMPLETE
+
+- [x] Design spec (`docs/superpowers/specs/2026-04-17-bjr-governance-module.md`)
+- [x] Migration `supabase/migrations/021_bjr_governance.sql` — 6 tables, RLS, indexes, seed data
+- [x] Backend `bjr.py` router — 25 endpoints (decisions, evidence, phase progression, risks, admin CRUD, summary)
+- [x] Backend `bjr_service.py` — LLM evidence assessment, BJR score calculation, phase advancement
+- [x] Backend `models/bjr.py` — 12 Pydantic request/response models
+- [x] Approval integration — `approvals.py` handles `resource_type='bjr_phase'`, auto-advances on approval
+- [x] Dashboard extension — BJR metrics in `/dashboard/summary`
+- [x] Frontend `BJRDashboardPage.tsx` — decision overview, summary cards, create modal, standing risks
+- [x] Frontend `BJRDecisionPage.tsx` — decision lifecycle, phase stepper, checklist with evidence, risk register
+- [x] 4 BJR components: PhaseProgress, ChecklistItem, EvidenceAttachModal, RiskCard
+- [x] IconRail standalone nav item (`Scale` icon → `/bjr`)
+- [x] i18n: 88 keys (44 Indonesian + 44 English)
+- [x] Seed data: 28 regulations (4 layers), 16 checklist items (3 phases), 11 GCG aspects, 4 standing risks
+- [x] Production smoke test: 8/8 passed
+- **Commit**: `c7d2e02`
+
+#### BJR Module Architecture Summary
+
+- **Decision lifecycle**: Pre-Decision → Decision → Post-Decision → Completed, with phase-gated approvals
+- **Evidence linking**: Polymorphic references to existing LexCore entities (documents, tool results, approvals) via `reference_id` + `reference_table`
+- **LLM assessment**: Each evidence attachment can be assessed by LLM against its specific BJR checklist requirement, with confidence scoring and HITL review
+- **Configurable framework**: Regulations, checklist items, GCG aspects stored as data (admin-manageable), seeded with Ancol's specific requirements
+- **Integration**: Reuses existing approval workflows, audit trail, HITL confidence gating, executive dashboard
+- **Source document**: `Matriks_Regulasi_GCG_BJR_Ancol_2026.docx` — Ancol GCG & BJR regulatory matrix
 
 ### Phase 3: Advanced Compliance (Months 5-6) — NOT STARTED
 
