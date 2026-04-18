@@ -101,7 +101,7 @@ async def stream_chat(
     tool_context = {
         "top_k": settings.rag_top_k,
         "threshold": settings.rag_similarity_threshold,
-        "embedding_model": sys_settings["embedding_model"],
+        "embedding_model": sys_settings.get("custom_embedding_model") or sys_settings["embedding_model"],
         "llm_model": llm_model,
     }
 

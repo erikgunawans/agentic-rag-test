@@ -312,6 +312,24 @@ class ToolService:
                 if chunk.get("graph_context"):
                     item["graph_context"] = chunk["graph_context"]
                 results.append(item)
+
+            # Log query + retrieved chunks for embedding fine-tuning data
+            try:
+                chunk_ids = [c["id"] for c in chunks if c.get("id")]
+                chunk_scores = [
+                    c.get("similarity") or c.get("rrf_score") or 0.0
+                    for c in chunks if c.get("id")
+                ]
+                get_supabase_client().table("query_logs").insert({
+                    "user_id": user_id,
+                    "query": query,
+                    "retrieved_ids": chunk_ids,
+                    "retrieved_scores": chunk_scores,
+                    "tool_name": "search_documents",
+                }).execute()
+            except Exception:
+                pass  # fire-and-forget — never block search results
+
             return {"chunks": results, "count": len(results)}
         except Exception as e:
             logger.error("search_documents failed: %s", e)

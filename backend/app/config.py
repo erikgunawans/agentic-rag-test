@@ -40,6 +40,9 @@ class Settings(BaseSettings):
     graph_enabled: bool = False
     graph_entity_extraction_model: str = ""
 
+    # Fine-tuned embeddings (Phase 3 — infrastructure ready, model TBD)
+    custom_embedding_model: str = ""
+
     # Tool calling (Module 7)
     tavily_api_key: str = ""
     tools_enabled: bool = True
