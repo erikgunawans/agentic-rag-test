@@ -88,5 +88,15 @@ export interface Document {
   error_msg: string | null
   content_hash: string | null
   metadata: DocumentMetadata | null
+  folder_id: string | null
   created_at: string
+}
+
+export interface DocumentFolder {
+  id: string
+  user_id: string
+  name: string
+  parent_folder_id: string | null
+  created_at: string
+  updated_at: string
 }

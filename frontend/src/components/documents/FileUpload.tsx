@@ -16,9 +16,10 @@ const ACCEPTED_TYPES = new Set([
 
 interface FileUploadProps {
   onUploaded: () => void
+  folderId?: string | null
 }
 
-export function FileUpload({ onUploaded }: FileUploadProps) {
+export function FileUpload({ onUploaded, folderId }: FileUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -36,6 +37,7 @@ export function FileUpload({ onUploaded }: FileUploadProps) {
     try {
       const form = new FormData()
       form.append('file', file)
+      if (folderId) form.append('folder_id', folderId)
       const res = await apiFetch('/documents/upload', { method: 'POST', body: form })
       const data = await res.json()
       if (data.duplicate) {

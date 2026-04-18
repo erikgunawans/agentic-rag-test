@@ -1,13 +1,16 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Search, Grid3X3, List, Plus, Upload, HardDrive, FileText, Trash2, Loader2, Menu, PanelLeftClose } from 'lucide-react'
+import { Search, Grid3X3, List, Plus, Upload, HardDrive, FileText, Trash2, Loader2, Menu, PanelLeftClose, FolderPlus } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { apiFetch } from '@/lib/api'
 import { useDocumentRealtime } from '@/hooks/useDocumentRealtime'
 import { useSidebar } from '@/hooks/useSidebar'
 import { FileUpload } from '@/components/documents/FileUpload'
+import { FolderTree } from '@/components/documents/FolderTree'
+import { FolderBreadcrumb } from '@/components/documents/FolderBreadcrumb'
+import { CreateFolderDialog } from '@/components/documents/CreateFolderDialog'
 import { useI18n } from '@/i18n/I18nContext'
-import type { Document } from '@/lib/database.types'
+import type { Document, DocumentFolder } from '@/lib/database.types'
 
 type DocFilter = 'all' | 'nda' | 'kontrak' | 'kepatuhan' | 'laporan' | 'perjanjian' | 'invoice' | 'lainnya'
 type StatusFilter = 'completed' | 'processing' | 'pending'
@@ -71,6 +74,9 @@ export function DocumentsPage() {
   const [statusFilters, setStatusFilters] = useState<Set<StatusFilter>>(new Set(['completed', 'processing', 'pending']))
   const [viewMode, setViewMode] = useState<ViewMode>('grid')
   const [mobilePanelOpen, setMobilePanelOpen] = useState(false)
+  const [folders, setFolders] = useState<DocumentFolder[]>([])
+  const [currentFolderId, setCurrentFolderId] = useState<string | null>(null)
+  const [createFolderOpen, setCreateFolderOpen] = useState(false)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -78,11 +84,22 @@ export function DocumentsPage() {
     })
   }, [])
 
+  const loadFolders = useCallback(async () => {
+    const res = await apiFetch('/folders')
+    const data: DocumentFolder[] = await res.json()
+    setFolders(data)
+  }, [])
+
   const loadDocuments = useCallback(async () => {
-    const res = await apiFetch('/documents')
+    const params = currentFolderId ? `?folder_id=${currentFolderId}` : ''
+    const res = await apiFetch(`/documents${params}`)
     const data: Document[] = await res.json()
     setDocuments(data)
-  }, [])
+  }, [currentFolderId])
+
+  useEffect(() => {
+    loadFolders()
+  }, [loadFolders])
 
   useEffect(() => {
     loadDocuments()
@@ -99,6 +116,25 @@ export function DocumentsPage() {
   async function handleDelete(id: string) {
     await apiFetch(`/documents/${id}`, { method: 'DELETE' })
     setDocuments((prev) => prev.filter((d) => d.id !== id))
+  }
+
+  async function handleCreateFolder(name: string) {
+    await apiFetch('/folders', {
+      method: 'POST',
+      body: JSON.stringify({ name, parent_folder_id: currentFolderId }),
+    })
+    loadFolders()
+  }
+
+  async function handleDeleteFolder(folderId: string) {
+    await apiFetch(`/folders/${folderId}`, { method: 'DELETE' })
+    if (currentFolderId === folderId) setCurrentFolderId(null)
+    loadFolders()
+    loadDocuments()
+  }
+
+  function handleSelectFolder(folderId: string | null) {
+    setCurrentFolderId(folderId)
   }
 
   function toggleStatus(s: StatusFilter) {
@@ -151,16 +187,7 @@ export function DocumentsPage() {
                 <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Upload</span>
               </div>
 
-              <FileUpload onUploaded={loadDocuments} />
-
-              {/* Recent uploads */}
-              {documents.slice(0, 3).map((doc) => (
-                <div key={doc.id} className="flex items-center gap-2 text-xs">
-                  <div className={`h-1.5 w-1.5 rounded-full shrink-0 ${doc.status === 'completed' ? 'bg-green-400' : doc.status === 'processing' ? 'bg-amber-400' : 'bg-gray-400'}`} />
-                  <span className="truncate flex-1 text-muted-foreground">{doc.filename}</span>
-                  {doc.status === 'processing' && <Loader2 className="h-3 w-3 animate-spin text-amber-600 dark:text-amber-400 shrink-0" />}
-                </div>
-              ))}
+              <FileUpload onUploaded={loadDocuments} folderId={currentFolderId} />
 
               {/* Storage quota */}
               <div className="space-y-1.5">
@@ -180,7 +207,27 @@ export function DocumentsPage() {
               </div>
             </div>
 
-            {/* Section 2: Filter */}
+            {/* Section 2: Folders */}
+            <div className="p-4 space-y-3 border-b border-border/50">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Folders</span>
+                <button
+                  onClick={() => setCreateFolderOpen(true)}
+                  className="flex items-center justify-center h-6 w-6 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                  title="New folder"
+                >
+                  <FolderPlus className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              <FolderTree
+                folders={folders}
+                currentFolderId={currentFolderId}
+                onSelectFolder={handleSelectFolder}
+                onDeleteFolder={handleDeleteFolder}
+              />
+            </div>
+
+            {/* Section 3: Filter */}
             <div className="p-4 space-y-4">
               <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Filter</span>
 
@@ -242,16 +289,7 @@ export function DocumentsPage() {
             </button>
           </div>
 
-          <FileUpload onUploaded={loadDocuments} />
-
-          {/* Recent uploads */}
-          {documents.slice(0, 3).map((doc) => (
-            <div key={doc.id} className="flex items-center gap-2 text-xs">
-              <div className={`h-1.5 w-1.5 rounded-full shrink-0 ${doc.status === 'completed' ? 'bg-green-400' : doc.status === 'processing' ? 'bg-amber-400' : 'bg-gray-400'}`} />
-              <span className="truncate flex-1 text-muted-foreground">{doc.filename}</span>
-              {doc.status === 'processing' && <Loader2 className="h-3 w-3 animate-spin text-amber-600 dark:text-amber-400 shrink-0" />}
-            </div>
-          ))}
+          <FileUpload onUploaded={loadDocuments} folderId={currentFolderId} />
 
           {/* Storage quota */}
           <div className="space-y-1.5">
@@ -271,7 +309,27 @@ export function DocumentsPage() {
           </div>
         </div>
 
-        {/* Section 2: Filter */}
+        {/* Section 2: Folders */}
+        <div className="p-4 space-y-3 border-b border-border/50">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Folders</span>
+            <button
+              onClick={() => setCreateFolderOpen(true)}
+              className="flex items-center justify-center h-6 w-6 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+              title="New folder"
+            >
+              <FolderPlus className="h-3.5 w-3.5" />
+            </button>
+          </div>
+          <FolderTree
+            folders={folders}
+            currentFolderId={currentFolderId}
+            onSelectFolder={handleSelectFolder}
+            onDeleteFolder={handleDeleteFolder}
+          />
+        </div>
+
+        {/* Section 3: Filter */}
         <div className="p-4 space-y-4">
           <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Filter</span>
 
@@ -306,7 +364,7 @@ export function DocumentsPage() {
                 <div className={`h-3.5 w-3.5 rounded border flex items-center justify-center ${
                   statusFilters.has(value) ? 'border-primary bg-primary' : 'border-border'
                 }`}>
-                  {statusFilters.has(value) && <span className="text-[8px] text-primary-foreground">✓</span>}
+                  {statusFilters.has(value) && <span className="text-[8px] text-primary-foreground">&#10003;</span>}
                 </div>
                 <span className={`h-2 w-2 rounded-full ${color}`} />
                 <span>{label}</span>
@@ -319,6 +377,15 @@ export function DocumentsPage() {
 
       {/* Column 3 — Main document area */}
       <div className="flex-1 overflow-y-auto p-6">
+        {/* Breadcrumb */}
+        {currentFolderId && (
+          <FolderBreadcrumb
+            folders={folders}
+            currentFolderId={currentFolderId}
+            onNavigate={handleSelectFolder}
+          />
+        )}
+
         {/* Header — inline with content */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
@@ -443,6 +510,13 @@ export function DocumentsPage() {
           )}
         </div>
       </div>
+
+      {/* Create folder dialog */}
+      <CreateFolderDialog
+        open={createFolderOpen}
+        onClose={() => setCreateFolderOpen(false)}
+        onCreate={handleCreateFolder}
+      />
     </div>
   )
 }

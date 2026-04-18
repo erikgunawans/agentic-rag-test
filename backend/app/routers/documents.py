@@ -1,7 +1,7 @@
 import hashlib
 import re
 import uuid
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query, BackgroundTasks
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from app.dependencies import get_current_user
@@ -34,6 +34,7 @@ MAX_FILE_SIZE = 50 * 1024 * 1024  # 50 MB
 async def upload_document(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
+    folder_id: str | None = Form(default=None),
     user: dict = Depends(get_current_user),
 ):
     if file.content_type not in ALLOWED_MIME_TYPES:
@@ -90,7 +91,7 @@ async def upload_document(
     )
 
     # Create document record
-    doc = client.table("documents").insert({
+    insert_data = {
         "user_id": user["id"],
         "filename": file.filename,
         "file_path": storage_path,
@@ -98,7 +99,11 @@ async def upload_document(
         "mime_type": file.content_type,
         "status": "pending",
         "content_hash": content_hash,
-    }).execute().data[0]
+    }
+    if folder_id:
+        insert_data["folder_id"] = folder_id
+
+    doc = client.table("documents").insert(insert_data).execute().data[0]
 
     # Load system-level model config
     sys_settings = get_system_settings()
@@ -127,15 +132,21 @@ async def upload_document(
 
 
 @router.get("")
-async def list_documents(user: dict = Depends(get_current_user)):
+async def list_documents(
+    folder_id: str | None = Query(default=None),
+    user: dict = Depends(get_current_user),
+):
     client = get_supabase_client()
-    result = (
+    query = (
         client.table("documents")
-        .select("id, filename, file_size, mime_type, status, chunk_count, error_msg, content_hash, metadata, created_at")
+        .select("id, filename, file_size, mime_type, status, chunk_count, error_msg, content_hash, metadata, folder_id, created_at")
         .eq("user_id", user["id"])
-        .order("created_at", desc=True)
-        .execute()
     )
+    if folder_id == "root":
+        query = query.is_("folder_id", "null")
+    elif folder_id:
+        query = query.eq("folder_id", folder_id)
+    result = query.order("created_at", desc=True).execute()
     return result.data
 
 
@@ -186,6 +197,29 @@ async def delete_document(doc_id: str, user: dict = Depends(get_current_user)):
         resource_type="document",
         resource_id=doc_id,
     )
+
+
+class MoveDocumentRequest(BaseModel):
+    folder_id: str | None = None  # null = move to root
+
+
+@router.patch("/{doc_id}/move")
+async def move_document(
+    doc_id: str,
+    body: MoveDocumentRequest,
+    user: dict = Depends(get_current_user),
+):
+    client = get_supabase_client()
+    result = (
+        client.table("documents")
+        .update({"folder_id": body.folder_id})
+        .eq("id", doc_id)
+        .eq("user_id", user["id"])
+        .execute()
+    )
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Document not found")
+    return result.data[0]
 
 
 class SearchRequest(BaseModel):

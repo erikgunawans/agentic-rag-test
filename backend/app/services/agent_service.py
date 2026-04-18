@@ -58,10 +58,31 @@ GENERAL_AGENT = AgentDefinition(
     max_iterations=3,
 )
 
+EXPLORER_AGENT = AgentDefinition(
+    name="explorer",
+    display_name="Knowledge Base Explorer",
+    system_prompt=(
+        "You are a knowledge base explorer. Your job is to help the user navigate, "
+        "browse, and understand the structure and content of their uploaded documents.\n\n"
+        "Strategy:\n"
+        "1. Use kb_tree to understand the overall folder structure\n"
+        "2. Use kb_list_files to explore specific folders\n"
+        "3. Use kb_glob to find documents by name patterns (e.g. '*.pdf', 'kontrak-*')\n"
+        "4. Use kb_grep to search for specific text or regex patterns across all documents\n"
+        "5. Use kb_read to read a document's content (chunk by chunk for large docs)\n\n"
+        "For large documents, read in chunk ranges rather than all at once. "
+        "Always tell the user which document and chunk range you examined. "
+        "Present findings clearly with document names and folder locations."
+    ),
+    tool_names=["kb_list_files", "kb_tree", "kb_grep", "kb_glob", "kb_read"],
+    max_iterations=8,
+)
+
 AGENT_REGISTRY: dict[str, AgentDefinition] = {
     "research": RESEARCH_AGENT,
     "data_analyst": DATA_ANALYST_AGENT,
     "general": GENERAL_AGENT,
+    "explorer": EXPLORER_AGENT,
 }
 
 CLASSIFICATION_PROMPT = (
@@ -71,6 +92,10 @@ CLASSIFICATION_PROMPT = (
     '- "research": Questions about content IN the user\'s uploaded documents. '
     "E.g. 'what do my docs say about X?', 'find info about Y in my files', "
     "'summarize the document about Z'.\n"
+    '- "explorer": Browsing, navigating, or structurally exploring the knowledge base. '
+    "E.g. 'show me my folder tree', 'list files in the contracts folder', "
+    "'find all PDF files', 'search for the word arbitrase in my documents', "
+    "'read the content of document X', 'what folders do I have?'.\n"
     '- "data_analyst": Questions about document METADATA — counts, sizes, categories, '
     "file lists. E.g. 'how many documents do I have?', 'which docs are about finance?', "
     "'what is my largest file?'.\n"
