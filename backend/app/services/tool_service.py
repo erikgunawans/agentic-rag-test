@@ -157,6 +157,8 @@ class ToolService:
                 }
                 if chunk.get("surrounding_context"):
                     item["surrounding_context"] = chunk["surrounding_context"]
+                if chunk.get("graph_context"):
+                    item["graph_context"] = chunk["graph_context"]
                 results.append(item)
             return {"chunks": results, "count": len(results)}
         except Exception as e:

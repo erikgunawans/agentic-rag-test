@@ -111,6 +111,20 @@ class HybridRetrievalService:
         if neighbor_window > 0:
             results = await self._expand_with_neighbors(results, user_id, neighbor_window)
 
+        # Graph context enrichment
+        if sys_settings.get("graph_enabled") and results:
+            try:
+                from app.services.graph_service import GraphService
+                graph_service = GraphService()
+                chunk_ids = [r["id"] for r in results]
+                graph_data = await graph_service.get_graph_context(chunk_ids, user_id)
+                if graph_data and (graph_data.get("entities") or graph_data.get("relationships")):
+                    graph_text = graph_service.format_graph_context(graph_data)
+                    for result in results:
+                        result["graph_context"] = graph_text
+            except Exception as e:
+                logger.warning("Graph context enrichment failed: %s", e)
+
         # Cache result (evict oldest if over limit)
         if len(_retrieval_cache) >= _CACHE_MAX:
             oldest_key = min(_retrieval_cache, key=lambda k: _retrieval_cache[k][0])

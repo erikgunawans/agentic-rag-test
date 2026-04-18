@@ -206,6 +206,40 @@ async def process_document(
             for i, (chunk, embedding) in enumerate(zip(chunks, all_embeddings))
         ]).execute()
 
+        # GraphRAG entity extraction (best-effort — failures logged, don't block)
+        try:
+            from app.services.system_settings_service import get_system_settings
+            sys_settings = get_system_settings()
+            if sys_settings.get("graph_enabled"):
+                from app.services.graph_service import GraphService
+                from app.services.audit_service import log_action
+                graph_service = GraphService()
+
+                inserted = client.table("document_chunks") \
+                    .select("id") \
+                    .eq("document_id", doc_id) \
+                    .eq("user_id", user_id) \
+                    .order("chunk_index") \
+                    .execute()
+                chunk_ids = [row["id"] for row in inserted.data or []]
+
+                graph_model = sys_settings.get("graph_entity_extraction_model") or llm_model
+                extraction = await graph_service.extract_entities(
+                    chunks=chunks, doc_metadata=metadata_dict, model=graph_model,
+                )
+                if extraction.entities:
+                    await graph_service.store_entities(
+                        extraction=extraction, doc_id=doc_id, user_id=user_id,
+                        chunk_ids=chunk_ids, chunks=chunks,
+                    )
+                    log_action(user_id, None, "graph_entities_extracted", "document", doc_id)
+                    logger.info(
+                        "Graph: %d entities, %d relationships for doc_id=%s",
+                        len(extraction.entities), len(extraction.relationships), doc_id,
+                    )
+        except Exception as e:
+            logger.warning("Graph entity extraction skipped for doc_id=%s: %s", doc_id, e)
+
         client.table("documents").update({
             "status": "completed",
             "chunk_count": len(chunks),

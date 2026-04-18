@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     rag_neighbor_window: int = 1
     rag_query_expansion_enabled: bool = False
 
+    # GraphRAG (Phase 2)
+    graph_enabled: bool = False
+    graph_entity_extraction_model: str = ""
+
     # Tool calling (Module 7)
     tavily_api_key: str = ""
     tools_enabled: bool = True
