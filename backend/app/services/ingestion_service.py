@@ -20,6 +20,26 @@ embedding_service = EmbeddingService()
 metadata_service = MetadataService()
 
 
+async def parse_text_async(file_bytes: bytes, mime_type: str) -> str:
+    """Parse text from file, with vision OCR fallback for scanned PDFs."""
+    if mime_type == "application/pdf":
+        # Try text extraction first
+        doc = fitz.open(stream=file_bytes, filetype="pdf")
+        text = "".join(page.get_text() for page in doc)
+        doc.close()
+        if text.strip():
+            # Check if it's a scanned PDF (very little text per page)
+            from app.services.vision_service import VisionService
+            vision = VisionService()
+            if vision.is_scanned_pdf(file_bytes):
+                logger.info("Scanned PDF detected — falling back to vision OCR")
+                ocr_text = await vision.ocr_pdf(file_bytes)
+                if ocr_text.strip():
+                    return ocr_text
+        return text
+    return parse_text(file_bytes, mime_type)
+
+
 def parse_text(file_bytes: bytes, mime_type: str) -> str:
     if mime_type == "application/pdf":
         doc = fitz.open(stream=file_bytes, filetype="pdf")
@@ -164,8 +184,8 @@ async def process_document(
         # Download from Supabase Storage
         file_bytes = client.storage.from_(settings.storage_bucket).download(file_path)
 
-        # Parse text
-        text = parse_text(file_bytes, mime_type)
+        # Parse text (with vision OCR fallback for scanned PDFs)
+        text = await parse_text_async(file_bytes, mime_type)
         if not text.strip():
             raise ValueError("No text content extracted from file")
 
