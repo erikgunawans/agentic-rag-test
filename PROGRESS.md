@@ -2,6 +2,18 @@
 
 PJAA CLM Platform (LexCore). Phase 1 (7/7), Phase 2 (5/5), Phase 3 (2/2) complete. BJR module shipped + hardened. 24 pages, 21 routers, 22 migrations. Deployed to Vercel + Railway. 81 TSX/TS + 48 Python files. TypeScript clean. All production smoke tests passed.
 
+## Checkpoint 2026-04-18 (Knowledge graph updated)
+
+- **Session:** Updated graphify knowledge graph with incremental extraction (3 changed doc files)
+- **Branch:** master (clean, no uncommitted changes)
+- **Done:**
+  - Graphify incremental update: +51 nodes, +55 edges (1091 → 1142 nodes, 1559 → 1614 edges, 125 communities)
+  - Traced `get_supabase_authed_client()` god node (77 edges) — confirmed it's the RLS security perimeter bridging all data-access communities
+  - Graph outputs refreshed: graph.html, GRAPH_REPORT.md, graph.json
+- **Files changed:** 0 committed (graphify-out/ is untracked)
+- **Tests:** No code changes — all existing tests still valid
+- **Next:** Stakeholder demo prep, then ongoing maintenance
+
 ## Checkpoint 2026-04-17 (Phase 3 complete — F13 + F14 shipped)
 
 - **Session:** Implemented Phase 3: F13 (Point-in-Time Compliance Querying) + F14 (UU PDP Compliance Toolkit)
