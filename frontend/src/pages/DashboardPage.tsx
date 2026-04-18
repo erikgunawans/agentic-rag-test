@@ -113,7 +113,7 @@ export function DashboardPage() {
       sub: `${summary?.documents_completed ?? 0} completed`,
       icon: Folder,
       accent: 'text-cyan-600 dark:text-cyan-400',
-      accentBg: 'bg-cyan-500/10 border-cyan-500/30',
+      accentBg: 'bg-cyan-500/15 border-cyan-500/40',
     },
     {
       label: 'Obligations',
@@ -121,7 +121,7 @@ export function DashboardPage() {
       sub: `${summary?.obligations_overdue ?? 0} overdue`,
       icon: ClipboardList,
       accent: 'text-amber-600 dark:text-amber-400',
-      accentBg: 'bg-amber-500/10 border-amber-500/30',
+      accentBg: 'bg-amber-500/15 border-amber-500/40',
     },
     {
       label: 'Approvals',
@@ -129,7 +129,7 @@ export function DashboardPage() {
       sub: 'pending',
       icon: FileCheck,
       accent: 'text-purple-600 dark:text-purple-400',
-      accentBg: 'bg-purple-500/10 border-purple-500/30',
+      accentBg: 'bg-purple-500/15 border-purple-500/40',
     },
     {
       label: 'Compliance',
@@ -137,7 +137,7 @@ export function DashboardPage() {
       sub: `${summary?.compliance_review ?? 0} review / ${summary?.compliance_fail ?? 0} fail`,
       icon: ShieldCheck,
       accent: 'text-green-600 dark:text-green-400',
-      accentBg: 'bg-green-500/10 border-green-500/30',
+      accentBg: 'bg-green-500/15 border-green-500/40',
     },
     {
       label: 'Regulatory',
@@ -145,7 +145,7 @@ export function DashboardPage() {
       sub: `${summary?.regulatory_unread ?? 0} unread alerts`,
       icon: BookOpen,
       accent: 'text-red-600 dark:text-red-400',
-      accentBg: 'bg-red-500/10 border-red-500/30',
+      accentBg: 'bg-red-500/15 border-red-500/40',
     },
   ]
 
