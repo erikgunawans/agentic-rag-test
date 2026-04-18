@@ -31,6 +31,11 @@ class Settings(BaseSettings):
     rag_rerank_enabled: bool = False
     rag_rerank_model: str = ""
 
+    # RAG improvements (Phase 1)
+    rag_context_enabled: bool = True
+    rag_neighbor_window: int = 1
+    rag_query_expansion_enabled: bool = False
+
     # Tool calling (Module 7)
     tavily_api_key: str = ""
     tools_enabled: bool = True

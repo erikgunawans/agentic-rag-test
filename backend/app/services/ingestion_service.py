@@ -2,6 +2,7 @@ import csv
 import io
 import json
 import logging
+import re
 import fitz  # PyMuPDF
 import tiktoken
 from docx import Document as DocxDocument
@@ -73,17 +74,78 @@ def _parse_json(file_bytes: bytes) -> str:
 
 
 def chunk_text(text: str, chunk_size: int, chunk_overlap: int) -> list[str]:
+    """Split text respecting document structure boundaries.
+
+    Tries structural splits first (BAB, Pasal, numbered sections, paragraphs).
+    Falls back to sliding window for sections that are still too large.
+    """
     enc = tiktoken.get_encoding("cl100k_base")
-    tokens = enc.encode(text)
-    chunks = []
-    start = 0
-    while start < len(tokens):
-        end = min(start + chunk_size, len(tokens))
-        chunks.append(enc.decode(tokens[start:end]))
-        if end == len(tokens):
+
+    # Structural boundary patterns (most specific first)
+    structure_patterns = [
+        r'\n(?=BAB\s+[IVXLCDM]+)',       # Chapter: BAB I, BAB II
+        r'\n(?=Pasal\s+\d+)',              # Article: Pasal 1, Pasal 2
+        r'\n(?=PASAL\s+\d+)',              # Uppercase variant
+        r'\n(?=Bagian\s+\w+)',             # Section: Bagian Kesatu
+        r'\n(?=\d+\.\s+[A-Z])',            # Numbered section: 1. Title
+        r'\n\n',                            # Double newline (paragraph)
+    ]
+
+    sections = [text]
+    for pattern in structure_patterns:
+        new_sections = []
+        for section in sections:
+            parts = re.split(pattern, section)
+            new_sections.extend(p for p in parts if p.strip())
+        # Accept this split level if every section fits within 1.5x chunk_size
+        if len(new_sections) > 1 and all(
+            len(enc.encode(s)) <= chunk_size * 1.5 for s in new_sections
+        ):
+            sections = new_sections
             break
-        start += chunk_size - chunk_overlap
+
+    # For sections still too large, fall back to sliding window
+    chunks = []
+    for section in sections:
+        tokens = enc.encode(section)
+        if len(tokens) <= chunk_size:
+            chunks.append(section)
+        else:
+            start = 0
+            while start < len(tokens):
+                end = min(start + chunk_size, len(tokens))
+                chunk = enc.decode(tokens[start:end])
+                if chunk.strip():
+                    chunks.append(chunk)
+                if end == len(tokens):
+                    break
+                start += chunk_size - chunk_overlap
+
     return [c for c in chunks if c.strip()]
+
+
+def _contextualize_chunks(chunks: list[str], metadata: dict | None) -> list[str]:
+    """Prepend document context to each chunk for richer embeddings.
+
+    The original chunk text is stored in the DB; the contextualized version
+    is used only for embedding generation.
+    """
+    if not metadata:
+        return chunks
+
+    parts = []
+    if metadata.get("title"):
+        parts.append(f"Document: {metadata['title']}")
+    if metadata.get("category"):
+        parts.append(f"Category: {metadata['category']}")
+    if metadata.get("author"):
+        parts.append(f"Author: {metadata['author']}")
+
+    if not parts:
+        return chunks
+
+    header = "[" + " | ".join(parts) + "]"
+    return [f"{header}\n\n{chunk}" for chunk in chunks]
 
 
 @traceable
@@ -121,11 +183,14 @@ async def process_document(
         if not chunks:
             raise ValueError("No chunks generated")
 
+        # Contextualize chunks for richer embeddings (original text stored in DB)
+        embed_texts = _contextualize_chunks(chunks, metadata_dict)
+
         # Embed in batches of 100 using the user's chosen embedding model
         all_embeddings: list[list[float]] = []
-        for i in range(0, len(chunks), 100):
+        for i in range(0, len(embed_texts), 100):
             batch_embeddings = await embedding_service.embed_batch(
-                chunks[i : i + 100], model=embedding_model
+                embed_texts[i : i + 100], model=embedding_model
             )
             all_embeddings.extend(batch_embeddings)
 

@@ -1,6 +1,8 @@
 import asyncio
+import hashlib
 import json
 import logging
+import time
 from openai import AsyncOpenAI
 from langsmith import traceable
 from app.config import get_settings
@@ -10,6 +12,16 @@ from app.models.rerank import RerankResponse
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
+
+# Semantic cache — mirrors system_settings_service.py pattern
+_retrieval_cache: dict[str, tuple[float, list[dict]]] = {}
+_CACHE_TTL = 300  # 5 minutes
+_CACHE_MAX = 1000
+
+
+def _cache_key(query: str, user_id: str, top_k: int, category: str | None) -> str:
+    raw = f"{query.lower().strip()}:{user_id}:{top_k}:{category or ''}"
+    return hashlib.md5(raw.encode()).hexdigest()
 
 
 class HybridRetrievalService:
@@ -31,9 +43,21 @@ class HybridRetrievalService:
         llm_model: str | None = None,
         category: str | None = None,
     ) -> list[dict]:
-        """Main retrieval entry point. Routes to hybrid or vector-only."""
+        """Main retrieval entry point with cache, query expansion, and neighbor context."""
+        from app.services.system_settings_service import get_system_settings
+
+        # Semantic cache check
+        key = _cache_key(query, user_id, top_k, category)
+        now = time.time()
+        if key in _retrieval_cache:
+            ts, cached = _retrieval_cache[key]
+            if now - ts < _CACHE_TTL:
+                return cached
+
+        sys_settings = get_system_settings()
+
         if not settings.rag_hybrid_enabled:
-            return await self.embedding_service.retrieve_chunks_with_metadata(
+            results = await self.embedding_service.retrieve_chunks_with_metadata(
                 query=query,
                 user_id=user_id,
                 top_k=top_k,
@@ -41,21 +65,59 @@ class HybridRetrievalService:
                 model=embedding_model,
                 category=category,
             )
+            _retrieval_cache[key] = (now, results)
+            return results
 
         candidate_count = top_k * 3
 
-        vector_results, fulltext_results = await asyncio.gather(
+        # Query expansion for bilingual (ID/EN) retrieval
+        fulltext_queries = [query]
+        if sys_settings.get("rag_query_expansion_enabled"):
+            try:
+                expanded = await self._expand_query(query, llm_model)
+                fulltext_queries = expanded
+            except Exception as e:
+                logger.warning("Query expansion failed, using original: %s", e)
+
+        # Parallel vector + fulltext (fulltext uses all query variants)
+        fulltext_tasks = [
+            self._fulltext_search(q, user_id, candidate_count, category)
+            for q in fulltext_queries
+        ]
+        all_results = await asyncio.gather(
             self._vector_search(query, user_id, candidate_count, threshold, embedding_model, category),
-            self._fulltext_search(query, user_id, candidate_count, category),
+            *fulltext_tasks,
         )
 
-        fused = self._reciprocal_rank_fusion(vector_results, fulltext_results)
+        vector_results = all_results[0]
+        fulltext_combined = []
+        seen_ids = set()
+        for ft_result in all_results[1:]:
+            for chunk in ft_result:
+                if chunk["id"] not in seen_ids:
+                    seen_ids.add(chunk["id"])
+                    fulltext_combined.append(chunk)
+
+        fused = self._reciprocal_rank_fusion(vector_results, fulltext_combined)
 
         if settings.rag_rerank_enabled and fused:
             rerank_model = settings.rag_rerank_model or llm_model
             fused = await self._llm_rerank(query, fused, rerank_model)
 
-        return fused[:top_k]
+        results = fused[:top_k]
+
+        # Neighboring chunk expansion
+        neighbor_window = sys_settings.get("rag_neighbor_window", 0)
+        if neighbor_window > 0:
+            results = await self._expand_with_neighbors(results, user_id, neighbor_window)
+
+        # Cache result (evict oldest if over limit)
+        if len(_retrieval_cache) >= _CACHE_MAX:
+            oldest_key = min(_retrieval_cache, key=lambda k: _retrieval_cache[k][0])
+            del _retrieval_cache[oldest_key]
+        _retrieval_cache[key] = (time.time(), results)
+
+        return results
 
     @traceable(name="vector_search")
     async def _vector_search(
@@ -159,3 +221,55 @@ class HybridRetrievalService:
         except Exception as e:
             logger.warning("LLM reranking failed, keeping original order: %s", e)
             return chunks
+
+    @traceable(name="query_expansion")
+    async def _expand_query(self, query: str, model: str | None) -> list[str]:
+        """Generate query variants for bilingual (ID/EN) retrieval."""
+        result = await self.openrouter_client.chat.completions.create(
+            model=model or settings.openrouter_model,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You expand Indonesian legal queries for document search. "
+                        "Given a query, return 2 alternative phrasings: one in formal "
+                        "legal Indonesian, one using common English legal terms. "
+                        'Return JSON: {"variants": ["...", "..."]}'
+                    ),
+                },
+                {"role": "user", "content": query},
+            ],
+            response_format={"type": "json_object"},
+            temperature=0,
+        )
+        raw = result.choices[0].message.content or "{}"
+        variants = json.loads(raw).get("variants", [])
+        return [query] + variants[:2]
+
+    async def _expand_with_neighbors(
+        self, results: list[dict], user_id: str, window: int = 1
+    ) -> list[dict]:
+        """Fetch neighboring chunks to provide surrounding context."""
+        client = get_supabase_client()
+        for result in results:
+            doc_id = result.get("document_id")
+            chunk_idx = result.get("chunk_index")
+            if doc_id and chunk_idx is not None:
+                try:
+                    neighbors = (
+                        client.table("document_chunks")
+                        .select("content, chunk_index")
+                        .eq("document_id", doc_id)
+                        .eq("user_id", user_id)
+                        .gte("chunk_index", chunk_idx - window)
+                        .lte("chunk_index", chunk_idx + window)
+                        .neq("chunk_index", chunk_idx)
+                        .order("chunk_index")
+                        .execute()
+                    )
+                    if neighbors.data:
+                        result["surrounding_context"] = "\n---\n".join(
+                            n["content"] for n in neighbors.data
+                        )
+                except Exception as e:
+                    logger.warning("Neighbor expansion failed for chunk %s: %s", chunk_idx, e)

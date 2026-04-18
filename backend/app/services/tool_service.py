@@ -144,16 +144,20 @@ class ToolService:
                 threshold=context.get("threshold", settings.rag_similarity_threshold),
                 embedding_model=context.get("embedding_model"),
                 llm_model=context.get("llm_model"),
+                category=context.get("category"),
             )
             results = []
             for chunk in chunks:
                 meta = chunk.get("doc_metadata") or {}
-                results.append({
+                item = {
                     "content": chunk["content"],
                     "filename": chunk.get("doc_filename", ""),
                     "category": meta.get("category", ""),
                     "tags": meta.get("tags", []),
-                })
+                }
+                if chunk.get("surrounding_context"):
+                    item["surrounding_context"] = chunk["surrounding_context"]
+                results.append(item)
             return {"chunks": results, "count": len(results)}
         except Exception as e:
             logger.error("search_documents failed: %s", e)
