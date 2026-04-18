@@ -47,11 +47,8 @@ export function AuthPage() {
 
         {/* Logo */}
         <div className="flex flex-col items-center mb-10">
-          <Logo className="h-20 mb-6" />
-          <h1 className="text-[28px] font-bold tracking-tight text-center text-foreground">
-            {tab === 'login' ? t('auth.title') : t('auth.signupTitle') || 'Buat Akun'}
-          </h1>
-          <p className="text-[15px] mt-2 text-center text-muted-foreground">
+          <Logo className="h-28 mb-4" />
+          <p className="text-[20px] font-medium tracking-tight text-center text-muted-foreground">
             {t('auth.subtitle')}
           </p>
         </div>
