@@ -1,6 +1,63 @@
 # Progress
 
-PJAA CLM Platform (LexCore). Phase 1 (7/7), Phase 2 (5/5), Phase 3 (2/2) complete. BJR module shipped + hardened. 24 pages, 21 routers, 22 migrations. Deployed to Vercel + Railway. 81 TSX/TS + 48 Python files. TypeScript clean. All production smoke tests passed.
+PJAA CLM Platform (LexCore). Phase 1 (7/7), Phase 2 (5/5), Phase 3 (2/2) complete. BJR module shipped + hardened. RAG pipeline complete (8/8 hooks shipped). 24 pages, 22 routers, 27 migrations, 18 services, 3 skills, 2 agents. Deployed to Vercel + Railway. Backend healthy. CLAUDE.md 100/100.
+
+## Checkpoint 2026-04-20 (RAG pipeline complete + pre-ship + automations + CLAUDE.md 100)
+
+- **Session:** Completed all 8 RAG pipeline improvements, ran full pre-ship pipeline (simplify + review + codex), implemented Claude Code automations, improved CLAUDE.md to 100/100
+- **Branch:** master (`651692c`)
+- **Done:**
+  - RAG pipeline 8/8: metadata pre-filtering, weighted RRF fusion, Cohere rerank, OCR tracking, graph reindex endpoint, eval golden set, cache key fix, structure-aware chunking (all prior)
+  - Migration 027 applied to Supabase (RPCs with filter params + fusion weights + rerank mode columns)
+  - Pre-ship pipeline: /simplify fixed O(n²) rerank sort, Literal validation, httpx reuse. /review clean (10/10). /codex caught Cohere client race condition.
+  - Claude Code automations: .mcp.json (context7 + Playwright), PostToolUse enhanced (full import check), PreToolUse blocks applied migrations (001-027), /create-migration skill, /run-api-tests enhanced with RAG eval, rag-quality-reviewer subagent
+  - CLAUDE.md improved 82→100: condensed design system, fixed stale counts, merged duplicate sections, added skill references
+- **Commits:** `53dd0f9` (RAG feat) → `4b6fe28` (simplify) → `0548821` (codex fix) → `36ed096` (automations) → `7ee4afb` + `651692c` (CLAUDE.md)
+- **Files changed:** 15 files (10 backend, 2 config, 1 migration, 1 script, 1 docs)
+- **Tests:** Backend import OK, health check passed
+- **Deploy:** Railway healthy, Vercel auto-deploying from main
+- **Next:** Push remaining local commits, stakeholder demo, consider frontend QA pass
+
+## RAG Pipeline Scorecard
+
+| # | Hook | Status | Commit |
+|---|------|--------|--------|
+| 1 | Structure-aware chunking | ✅ Shipped | `d47df7f` |
+| 2 | Multi-modal (vision OCR) | ✅ Shipped | `00d8c2f` |
+| 3 | Custom embedding model | ✅ Shipped | `6c9c951` |
+| 4 | Metadata pre-filtering | ✅ Shipped | `53dd0f9` |
+| 5 | Query expansion (bilingual) | ✅ Shipped | `d47df7f` |
+| 6 | Learned fusion weights | ✅ Shipped | `53dd0f9` |
+| 7 | Cross-encoder reranking | ✅ Shipped | `53dd0f9` |
+| 8 | Graph reindex endpoint | ✅ Shipped | `53dd0f9` |
+
+## Checkpoint 2026-04-19 (RAG Phase 3 embedding infra + Phase 2 plan)
+
+- **Session:** Shipped embedding fine-tuning infrastructure, planned remaining 3 RAG improvements
+- **Branch:** master (clean, `6c9c951`)
+- **Done:**
+  - Committed + deployed `query_logs` table (migration 026) for embedding fine-tuning data collection
+  - Fire-and-forget query logging in `tool_service.py` — every search_documents call logs query + retrieved chunk IDs/scores
+  - `custom_embedding_model` config in `config.py` + `system_settings` — hot-swappable embedding model
+  - `chat.py` prefers custom embedding model over default when set
+  - Planned RAG Pipeline Phase 2 (3 remaining improvements): metadata pre-filtering, learned fusion weights, cross-encoder reranking
+- **Files changed:** 4 files committed (`config.py`, `chat.py`, `tool_service.py`, `026_embedding_training.sql`)
+- **Tests:** Backend import OK, health check passed post-deploy
+- **Plan:** `~/.claude/plans/floating-drifting-thimble.md` — RAG Pipeline Phase 2 (3 improvements, 96% confidence)
+- **Next:** Execute RAG Pipeline Phase 2 plan (metadata pre-filtering → learned fusion weights → cross-encoder reranking)
+
+## RAG Pipeline Scorecard
+
+| # | Hook | Status | Commit |
+|---|------|--------|--------|
+| 1 | Structure-aware chunking | ✅ Shipped | `d47df7f` |
+| 2 | Multi-modal (vision OCR) | ✅ Shipped | `00d8c2f` |
+| 3 | Custom embedding model | ✅ Shipped | `6c9c951` |
+| 4 | Metadata pre-filtering | 📋 Planned | — |
+| 5 | Query expansion (bilingual) | ✅ Shipped | `d47df7f` |
+| 6 | Learned fusion weights | 📋 Planned | — |
+| 7 | Cross-encoder reranking | 📋 Planned | — |
+| 8 | Query understanding | ⚠️ Partial (intent classification only) | `d47df7f` |
 
 ## Checkpoint 2026-04-18 (Knowledge graph updated)
 
