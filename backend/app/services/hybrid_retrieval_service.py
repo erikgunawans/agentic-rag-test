@@ -41,6 +41,7 @@ class HybridRetrievalService:
             api_key=settings.openrouter_api_key,
             base_url="https://openrouter.ai/api/v1",
         )
+        self._cohere_client: "httpx.AsyncClient | None" = None
 
     @traceable(name="hybrid_retrieve")
     async def retrieve(
@@ -293,7 +294,7 @@ class HybridRetrievalService:
         """Rerank chunks using Cohere Rerank v2 API."""
         documents = [c["content"][:4096] for c in chunks]
         try:
-            if not hasattr(self, "_cohere_client"):
+            if self._cohere_client is None:
                 import httpx
                 self._cohere_client = httpx.AsyncClient(timeout=10)
             resp = await self._cohere_client.post(
