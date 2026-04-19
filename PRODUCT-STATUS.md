@@ -8,7 +8,7 @@ The evolution of Knowledge Hub, from a RAG learning project to a legal document 
 
 **Target market:** Indonesian legal professionals, compliance officers, and business teams who work with contracts, NDAs, and regulatory documents daily.
 
-**Status:** Feature-complete, deployed (Vercel + Railway), design-reviewed (Score A / A+).
+**Status:** Feature-complete (v2.0), deployed (Vercel + Railway), RAG pipeline 8/8 shipped, BJR governance module live, UU PDP toolkit live, 27 migrations, 22 routers.
 
 ---
 
@@ -75,6 +75,30 @@ Comprehensive design overhaul: mobile responsive layout, accessibility complianc
 - Chat input pinned to bottom (matching ChatGPT/Claude pattern)
 - prefers-reduced-motion support for all animations
 
+### Phase 6: 2026 Design Refresh + Light Theme
+**Period:** 2026-04-14 to 2026-04-15
+**Focus:** Calibrated Restraint design system
+
+Zinc-neutral palette, solid sidebars (no glass on persistent panels), flat buttons, grouped icon rail (14→7 items with flyout groups), light/dark/system theme support, FOUC prevention. Design spec: `docs/superpowers/specs/2026-04-14-design-2026-refresh.md`.
+
+### Phase 7: BJR Decision Governance
+**Period:** 2026-04-17
+**Focus:** Business Judgment Rule compliance
+
+Full BJR module: 6 tables, 25 endpoints, regulatory matrix (28 regulations, 4 layers), 16-item checklist, LLM evidence assessment, phase progression workflow, risk register, GCG aspect tracking.
+
+### Phase 8: Compliance + PDP Toolkit
+**Period:** 2026-04-17
+**Focus:** Point-in-time compliance + Indonesian data protection
+
+F13: compliance snapshots with timeline view + diff comparison. F14: UU PDP toolkit with data inventory, DPO appointment, breach incident management (72-hour countdown), LLM personal data scanner.
+
+### Phase 9: RAG Pipeline Complete
+**Period:** 2026-04-18 to 2026-04-20
+**Focus:** Full retrieval pipeline + developer tooling
+
+8 RAG hooks: structure-aware chunking, vision OCR for scanned PDFs, custom embedding models, metadata pre-filtering (tags/folder/date), bilingual query expansion, weighted RRF fusion, Cohere Rerank v2, graph re-indexing. Plus: RAG evaluation golden set, Claude Code automations (.mcp.json, hooks, skills, agents).
+
 ---
 
 ## Feature Matrix
@@ -103,6 +127,25 @@ Comprehensive design overhaul: mobile responsive layout, accessibility complianc
 | i18n (Indonesian + English) | Shipped | Phase 4 | Full coverage, localStorage persist |
 | Clause library | Shipped | Phase 3 | Global + user-scoped, reusable in doc creation |
 | Document templates | Shipped | Phase 3 | Pre-built templates with field defaults |
+| Approval workflows | Shipped | Phase 3 | Admin inbox, phase progression |
+| Obligation tracking | Shipped | Phase 3 | Contract obligation monitoring |
+| Audit trail | Shipped | Phase 3 | All mutations logged with user/action/resource |
+| User management (admin) | Shipped | Phase 3 | Active/inactive, role management |
+| Regulatory intelligence | Shipped | Phase 4 | 4 Indonesian regulatory sources |
+| Executive dashboard | Shipped | Phase 4 | Summary cards + trends |
+| Light/dark theme | Shipped | Phase 6 | System preference detection, FOUC prevention |
+| Grouped icon rail | Shipped | Phase 6 | 7 items with flyout groups (was 14) |
+| BJR governance module | Shipped | Phase 7 | 25 endpoints, evidence assessment, risk register |
+| Point-in-time compliance | Shipped | Phase 8 | Snapshots, timeline view, diff comparison |
+| UU PDP toolkit | Shipped | Phase 8 | Data inventory, DPO, breach incidents (72h countdown) |
+| Structure-aware chunking | Shipped | Phase 9 | BAB/Pasal/numbered section detection |
+| Vision OCR (scanned PDFs) | Shipped | Phase 9 | GPT-4o vision, OCR metadata tracking |
+| GraphRAG entity extraction | Shipped | Phase 9 | Entity/relationship graph across documents |
+| Metadata pre-filtering | Shipped | Phase 9 | Tags, folder, date range filtering via LLM tool |
+| Weighted RRF fusion | Shipped | Phase 9 | Admin-configurable vector/fulltext weights |
+| Cohere Rerank v2 | Shipped | Phase 9 | Cross-encoder reranking (~200ms) |
+| Graph re-indexing | Shipped | Phase 9 | POST endpoint for backfilling graph data |
+| RAG evaluation | Shipped | Phase 9 | 20-query golden set with MRR + hit rate |
 | LLM e2e pipeline | Validated | Phase 5 | Upload → embed → RAG chat → tool-calling → streaming verified |
 
 ---
@@ -116,13 +159,18 @@ Comprehensive design overhaul: mobile responsive layout, accessibility complianc
 4. **Document comparison** for contract version tracking. Teams compare draft vs final, v1 vs v2.
 
 ### What could come next (backlog, unvalidated)
-- **Point-in-Time Compliance Querying** — query documents against regulations as of a specific date
-- **UU PDP Compliance Toolkit** — Indonesian data protection law (UU PDP) specific checks
 - **Collaboration** — multiple users reviewing/editing the same document
 - **Export** — PDF/DOCX download of generated documents
-- **Audit trail** — track who generated/reviewed/approved each document
 - **API access** — programmatic document generation for integration with existing legal workflows
-- **Knowledge graphs** — entity extraction and relationship mapping across document corpus
+- **Embedding fine-tuning** — train custom embedding model from query_logs data (infrastructure ready, model TBD)
+- **Query slot-filling** — extract structured filters from natural language ("Pasal 5 dari NDA bulan lalu")
+- **Admin RAG dashboard** — surface retrieval quality metrics, entity counts, OCR status per document
+
+### Previously backlogged, now shipped
+- ~~Point-in-Time Compliance Querying~~ → Phase 8 (compliance snapshots)
+- ~~UU PDP Compliance Toolkit~~ → Phase 8 (data inventory, DPO, breach incidents)
+- ~~Audit trail~~ → Phase 3 (all mutations logged)
+- ~~Knowledge graphs~~ → Phase 9 (GraphRAG entity extraction + graph reindex)
 
 ### Competitive landscape
 - Generic RAG tools (no legal domain expertise, no Indonesian language)
@@ -137,11 +185,11 @@ Comprehensive design overhaul: mobile responsive layout, accessibility complianc
 
 | Item | Severity | Notes |
 |------|----------|-------|
-| No automated tests for frontend | Medium | Backend has 75+ API tests, frontend has none |
+| No automated tests for frontend | Medium | Backend has 8 test files, frontend has Playwright e2e specs but no unit tests |
 | No PDF/DOCX export | Medium | Generated documents are text-only, no download |
+| Graph extraction duplicated | Low | `_reindex_graph_task` in documents.py mirrors ingestion_service.py graph block — could extract shared function |
 | Pydantic v1 warning on Python 3.14 | Low | LangSmith compatibility, non-blocking |
-| Thread group headers 28px | Low | Below 44px touch target, polish item |
-| Floating orbs are decorative | Low | Could be removed for cleaner look |
+| `/documents/search` vector mode bug | Low | Fixed `user_settings` → `sys_settings` but vector/fulltext modes don't expose filter params (hybrid mode does) |
 
 ---
 
@@ -149,6 +197,10 @@ Comprehensive design overhaul: mobile responsive layout, accessibility complianc
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| v2.0 | 2026-04-20 | RAG pipeline 8/8, Claude Code automations, CLAUDE.md 100/100, pre-ship pipeline |
+| v1.3 | 2026-04-18 | Embedding fine-tuning infra, GraphRAG, vision OCR, knowledge base explorer |
+| v1.2 | 2026-04-17 | Phase 3 complete (PIT compliance + UU PDP), BJR governance shipped + hardened |
+| v1.1 | 2026-04-15 | 2026 design refresh, light/dark theme, grouped icon rail, visual QA passed |
 | v1.0 | 2026-04-12 | Feature-complete: all modules shipped, design A/A+, mobile responsive, data cleaned |
 | v0.9 | 2026-04-12 | Document tool persistence, form validation, settings/admin redesign |
 | v0.8 | 2026-04-11 | Figma UI migration, document tool backend, 4 feature pages |
