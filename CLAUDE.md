@@ -38,14 +38,9 @@ cd frontend && npm install && npm run dev
 - i18n: Indonesian (default) + English via `I18nProvider`
 
 ## Design System (2026 Calibrated Restraint)
-- Palette: Zinc-neutral (`#09090B` base), purple accent (`oklch(0.55 0.20 280)`)
-- Tokens: All in `frontend/src/index.css` `:root` block
-- Glass (backdrop-blur): Transient overlays ONLY (tooltips, popovers, mobile panels). Never on persistent panels (sidebars, input cards).
-- Sidebars: Solid `bg-sidebar` (`#111113`), no blur
-- Buttons: Solid flat `bg-primary`, no gradients. Gradients only on user chat bubbles in `MessageView.tsx`.
-- Typography: h1 `-0.02em`/600, h2 `-0.01em`/600, h3 500 (set in `@layer base`)
-- Background: `mesh-bg` (purple radial glows) + `dot-grid` (3% opacity `::before` pseudo-element overlay on `<main>`)
-- Spec: `docs/superpowers/specs/2026-04-14-design-2026-refresh.md`
+- Tokens in `frontend/src/index.css` `:root`. Zinc-neutral base, purple accent. Full spec: `docs/superpowers/specs/2026-04-14-design-2026-refresh.md`
+- Glass (`backdrop-blur`): transient overlays ONLY (tooltips, popovers). NEVER on persistent panels (sidebars, input cards).
+- Buttons: solid flat, no gradients. Gradients only on user chat bubbles (`MessageView.tsx`).
 
 ## Key Patterns
 - **Auth**: `get_current_user` dependency returns `{id, email, token, role}`, checks `user_profiles.is_active`
@@ -61,7 +56,7 @@ cd frontend && npm install && npm run dev
 - All tables need Row-Level Security. Users only see their own data.
 - Global/shared data uses `is_global = true` pattern (clauses, templates)
 - Stream chat responses via SSE
-- Ingestion is manual file upload only
+- Ingestion is manual file upload only. Scanned PDFs auto-detect and fall back to GPT-4o vision OCR.
 
 ## Admin / RBAC
 - test@test.com is `super_admin` (set via `raw_app_meta_data.role`)
@@ -71,13 +66,13 @@ cd frontend && npm install && npm run dev
 
 ## Deployment
 
-```bash
-# Frontend (Vercel deploys from `main` branch)
-git push origin master:main   # sync master → main first
-cd frontend && npx vercel --prod  # or wait for auto-deploy from main
+**Quick deploy**: `/deploy-lexcore` (runs the full pipeline below)
 
-# Backend (Railway)
-cd backend && railway up
+```bash
+git push origin master && git push origin master:main  # Vercel deploys from main
+cd backend && railway up                                # Backend
+cd frontend && npx vercel --prod --yes                  # Frontend (or auto-deploy from main)
+curl -s https://api-production-cde1.up.railway.app/health  # Verify
 ```
 
 - **Frontend**: https://frontend-one-rho-88.vercel.app
@@ -94,16 +89,13 @@ Every plan MUST self-verify before presenting. Check: completeness, correct file
 
 ## Testing
 
-User 1 (admin):
-- **Email**: `test@test.com`
-- **Password**: `!*-3-3?3uZ?b$v&`
+**Quick run**: `/run-api-tests` (runs pytest + RAG eval with credentials pre-filled)
 
-User 2:
-- **Email**: `test-2@test.com`
-- **Password**: `fK4$Wd?HGKmb#A2`
+Test accounts:
+- Admin: `test@test.com` / `!*-3-3?3uZ?b$v&`
+- User 2: `test-2@test.com` / `fK4$Wd?HGKmb#A2`
 
-- **Frontend**: `http://localhost:5173`
-- **Backend**: `http://localhost:8000`
+Local URLs: frontend `http://localhost:5173`, backend `http://localhost:8000`
 
 ## Code Quality
 
@@ -152,27 +144,17 @@ cd backend && source venv/bin/activate && python -c "from app.main import app; p
 - Supabase array containment filter: `.filter("col", "cs", "{value}")` not `.contains()`
 - Search params in PostgREST filters must sanitize commas and parentheses.
 - `get_current_user` makes a `user_profiles` DB call on every request (checks `is_active`, auto-creates for new signups).
-- Headless browser (gstack browse): Special chars in passwords require native input setter (`Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set`), not `fill` command. React state won't update with standard input methods.
-- Browse server restarts between `$B` calls — use `$B chain < file.json` to maintain session state across multiple commands (login + navigation + actions).
+- Migrations are numbered sequentially (`001_` through `027_`). Use `/create-migration` to generate the next one. Never edit applied migrations (hook blocks 001-027).
+- Two `024_*.sql` files exist (knowledge_base_explorer + rag_improvements). Both are applied. Don't renumber.
 
 ## Workflow
 - When working in git worktrees, immediately confirm the current working directory and branch before starting. Do not explore the codebase if the goal is implementation — start writing code.
 - When debugging frontend issues, verify the backend API is running and returning expected responses BEFORE investigating frontend code.
 - Always confirm you're in the correct directory (`backend/` vs `frontend/` vs repo root) before running commands.
 
-## Testing & CI
-- Write tests before implementation when fixing bugs. Every bug fix gets a regression test.
-- Before pushing, run: `cd frontend && npx tsc --noEmit && npm run lint` and `cd backend && python -c "from app.main import app; print('OK')"`
-- After pushing, monitor CI and fix failures before moving on. Don't leave broken CI.
-- Check for: missing eslintrc configs, missing pip dependencies, import mode compatibility.
-
-## Deployment Checklist
-Before deploying:
-1. `git push origin master && git push origin master:main` (Vercel deploys from main)
-2. Backend: `cd backend && railway up`
-3. Frontend: `cd frontend && npx vercel --prod --yes`
-4. Verify: `curl -s https://api-production-cde1.up.railway.app/health`
-5. Smoke test critical endpoints
+## Pre-Push Checks
+- Every bug fix gets a regression test. Write the test first.
+- Before pushing: `cd frontend && npx tsc --noEmit && npm run lint` and `cd backend && python -c "from app.main import app; print('OK')"` (PostToolUse hook runs these automatically on file edits)
 
 ## Session Continuity
 - Run `/sync` after every major milestone to persist state to PROGRESS.md and memory files.
