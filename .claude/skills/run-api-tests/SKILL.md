@@ -35,6 +35,20 @@ Print:
 - Any failures with short tracebacks
 - Test file breakdown (documents, chat, security, settings, agents)
 
+### 3. Run RAG evaluation golden set
+
+After API tests pass, run the RAG retrieval quality evaluation:
+
+```bash
+cd backend && source venv/bin/activate && \
+  API_BASE_URL="https://api-production-cde1.up.railway.app" \
+  TEST_EMAIL="test@test.com" \
+  TEST_PASSWORD='!*-3-3?3uZ?b$v&' \
+  pytest scripts/eval_rag.py -v --tb=short
+```
+
+Report: keyword hit rate, MRR, queries with hits.
+
 ### Optional: Run against local backend
 
 If the user says "local" or "localhost", use:
@@ -42,4 +56,4 @@ If the user says "local" or "localhost", use:
 API_BASE_URL="http://localhost:8000"
 ```
 
-instead of the production URL.
+instead of the production URL for both steps.

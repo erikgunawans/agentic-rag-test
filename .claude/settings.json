@@ -39,8 +39,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "file=\"$TOOL_INPUT_file_path\"; case \"$file\" in */frontend/*.ts|*/frontend/*.tsx) cd frontend && npx eslint --fix \"$file\" 2>/dev/null; npx tsc --noEmit 2>&1 | head -5;; */backend/*.py) cd backend && python3 -m py_compile \"$file\" 2>&1;; esac",
-            "timeout": 15000
+            "command": "file=\"$TOOL_INPUT_file_path\"; case \"$file\" in */frontend/*.ts|*/frontend/*.tsx) cd frontend && npx eslint --fix \"$file\" 2>/dev/null; npx tsc --noEmit 2>&1 | head -5;; */backend/*.py) cd backend && source venv/bin/activate 2>/dev/null; python3 -m py_compile \"$file\" 2>&1 && python3 -c 'from app.main import app' 2>&1 | tail -3;; esac",
+            "timeout": 30000
           }
         ]
       }
@@ -51,7 +51,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo \"$TOOL_INPUT_file_path\" | grep -qE '\\.(env|env\\..*)$' && echo 'BLOCKED: Cannot edit env files' && exit 1 || exit 0"
+            "command": "f=\"$TOOL_INPUT_file_path\"; case \"$f\" in *.env|*.env.*) echo 'BLOCKED: Cannot edit env files'; exit 1;; */supabase/migrations/0[0-2][0-7]_*) echo 'BLOCKED: Cannot edit applied migrations (001-027). Create a new migration instead.'; exit 1;; esac; exit 0"
           }
         ]
       }
