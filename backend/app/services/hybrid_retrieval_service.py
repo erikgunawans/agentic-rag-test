@@ -19,8 +19,18 @@ _CACHE_TTL = 300  # 5 minutes
 _CACHE_MAX = 1000
 
 
-def _cache_key(query: str, user_id: str, top_k: int, category: str | None) -> str:
-    raw = f"{query.lower().strip()}:{user_id}:{top_k}:{category or ''}"
+def _cache_key(
+    query: str,
+    user_id: str,
+    top_k: int,
+    category: str | None,
+    *,
+    filter_tags: list[str] | None = None,
+    filter_folder_id: str | None = None,
+    filter_date_from: str | None = None,
+    filter_date_to: str | None = None,
+) -> str:
+    raw = f"{query.lower().strip()}:{user_id}:{top_k}:{category or ''}:{','.join(sorted(filter_tags or []))}:{filter_folder_id or ''}:{filter_date_from or ''}:{filter_date_to or ''}"
     return hashlib.md5(raw.encode()).hexdigest()
 
 
@@ -42,12 +52,20 @@ class HybridRetrievalService:
         embedding_model: str | None = None,
         llm_model: str | None = None,
         category: str | None = None,
+        filter_tags: list[str] | None = None,
+        filter_folder_id: str | None = None,
+        filter_date_from: str | None = None,
+        filter_date_to: str | None = None,
     ) -> list[dict]:
         """Main retrieval entry point with cache, query expansion, and neighbor context."""
         from app.services.system_settings_service import get_system_settings
 
         # Semantic cache check
-        key = _cache_key(query, user_id, top_k, category)
+        key = _cache_key(
+            query, user_id, top_k, category,
+            filter_tags=filter_tags, filter_folder_id=filter_folder_id,
+            filter_date_from=filter_date_from, filter_date_to=filter_date_to,
+        )
         now = time.time()
         if key in _retrieval_cache:
             ts, cached = _retrieval_cache[key]
@@ -55,6 +73,11 @@ class HybridRetrievalService:
                 return cached
 
         sys_settings = get_system_settings()
+
+        filter_kw = dict(
+            filter_tags=filter_tags, filter_folder_id=filter_folder_id,
+            filter_date_from=filter_date_from, filter_date_to=filter_date_to,
+        )
 
         if not settings.rag_hybrid_enabled:
             results = await self.embedding_service.retrieve_chunks_with_metadata(
@@ -64,6 +87,7 @@ class HybridRetrievalService:
                 threshold=threshold,
                 model=embedding_model,
                 category=category,
+                **filter_kw,
             )
             _retrieval_cache[key] = (now, results)
             return results
@@ -81,11 +105,11 @@ class HybridRetrievalService:
 
         # Parallel vector + fulltext (fulltext uses all query variants)
         fulltext_tasks = [
-            self._fulltext_search(q, user_id, candidate_count, category)
+            self._fulltext_search(q, user_id, candidate_count, category, **filter_kw)
             for q in fulltext_queries
         ]
         all_results = await asyncio.gather(
-            self._vector_search(query, user_id, candidate_count, threshold, embedding_model, category),
+            self._vector_search(query, user_id, candidate_count, threshold, embedding_model, category, **filter_kw),
             *fulltext_tasks,
         )
 
@@ -98,11 +122,16 @@ class HybridRetrievalService:
                     seen_ids.add(chunk["id"])
                     fulltext_combined.append(chunk)
 
-        fused = self._reciprocal_rank_fusion(vector_results, fulltext_combined)
+        fused = self._reciprocal_rank_fusion(
+            vector_results, fulltext_combined,
+            weights=[sys_settings.get("rag_vector_weight", 1.0), sys_settings.get("rag_fulltext_weight", 1.0)],
+        )
 
-        if settings.rag_rerank_enabled and fused:
-            rerank_model = settings.rag_rerank_model or llm_model
-            fused = await self._llm_rerank(query, fused, rerank_model)
+        rerank_mode = sys_settings.get("rag_rerank_mode", "none")
+        if rerank_mode == "cohere" and settings.cohere_api_key and fused:
+            fused = await self._cohere_rerank(query, fused, top_n=top_k)
+        elif rerank_mode == "llm" and fused:
+            fused = await self._llm_rerank(query, fused, settings.rag_rerank_model or llm_model)
 
         results = fused[:top_k]
 
@@ -142,6 +171,10 @@ class HybridRetrievalService:
         threshold: float,
         model: str | None,
         category: str | None,
+        filter_tags: list[str] | None = None,
+        filter_folder_id: str | None = None,
+        filter_date_from: str | None = None,
+        filter_date_to: str | None = None,
     ) -> list[dict]:
         return await self.embedding_service.retrieve_chunks_with_metadata(
             query=query,
@@ -150,6 +183,10 @@ class HybridRetrievalService:
             threshold=threshold,
             model=model,
             category=category,
+            filter_tags=filter_tags,
+            filter_folder_id=filter_folder_id,
+            filter_date_from=filter_date_from,
+            filter_date_to=filter_date_to,
         )
 
     @traceable(name="fulltext_search")
@@ -159,31 +196,44 @@ class HybridRetrievalService:
         user_id: str,
         count: int,
         category: str | None,
+        filter_tags: list[str] | None = None,
+        filter_folder_id: str | None = None,
+        filter_date_from: str | None = None,
+        filter_date_to: str | None = None,
     ) -> list[dict]:
         try:
+            params: dict = {
+                "search_query": query,
+                "match_user_id": user_id,
+                "match_count": count,
+                "filter_category": category,
+            }
+            if filter_tags:
+                params["filter_tags"] = filter_tags
+            if filter_folder_id:
+                params["filter_folder_id"] = filter_folder_id
+            if filter_date_from:
+                params["filter_date_from"] = filter_date_from
+            if filter_date_to:
+                params["filter_date_to"] = filter_date_to
             result = get_supabase_client().rpc(
-                "match_document_chunks_fulltext",
-                {
-                    "search_query": query,
-                    "match_user_id": user_id,
-                    "match_count": count,
-                    "filter_category": category,
-                },
+                "match_document_chunks_fulltext", params,
             ).execute()
             return result.data or []
         except Exception as e:
             logger.warning("Full-text search failed, returning empty: %s", e)
             return []
 
-    def _reciprocal_rank_fusion(self, *result_lists: list[dict]) -> list[dict]:
+    def _reciprocal_rank_fusion(self, *result_lists: list[dict], weights: list[float] | None = None) -> list[dict]:
         k = settings.rag_rrf_k
         scores: dict[str, float] = {}
         chunk_map: dict[str, dict] = {}
 
-        for results in result_lists:
+        for list_idx, results in enumerate(result_lists):
+            w = weights[list_idx] if weights and list_idx < len(weights) else 1.0
             for rank_idx, chunk in enumerate(results):
                 chunk_id = chunk["id"]
-                scores[chunk_id] = scores.get(chunk_id, 0) + 1.0 / (k + rank_idx + 1)
+                scores[chunk_id] = scores.get(chunk_id, 0) + w / (k + rank_idx + 1)
                 chunk_map[chunk_id] = chunk
 
         sorted_ids = sorted(scores, key=lambda cid: scores[cid], reverse=True)
@@ -234,6 +284,37 @@ class HybridRetrievalService:
             return reranked
         except Exception as e:
             logger.warning("LLM reranking failed, keeping original order: %s", e)
+            return chunks
+
+    @traceable(name="cohere_rerank")
+    async def _cohere_rerank(
+        self, query: str, chunks: list[dict], top_n: int | None = None
+    ) -> list[dict]:
+        """Rerank chunks using Cohere Rerank v2 API."""
+        import httpx
+
+        documents = [c["content"][:4096] for c in chunks]
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.post(
+                    "https://api.cohere.com/v2/rerank",
+                    headers={
+                        "Authorization": f"Bearer {settings.cohere_api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": "rerank-v3.5",
+                        "query": query,
+                        "documents": documents,
+                        "top_n": top_n or len(chunks),
+                    },
+                    timeout=10,
+                )
+                resp.raise_for_status()
+                ranked_indices = [r["index"] for r in resp.json()["results"]]
+                return [chunks[i] for i in ranked_indices]
+        except Exception as e:
+            logger.warning("Cohere reranking failed, keeping original order: %s", e)
             return chunks
 
     @traceable(name="query_expansion")

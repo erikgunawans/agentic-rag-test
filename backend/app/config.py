@@ -40,6 +40,13 @@ class Settings(BaseSettings):
     graph_enabled: bool = False
     graph_entity_extraction_model: str = ""
 
+    # Fusion weights (Phase 2)
+    rag_vector_weight: float = 1.0
+    rag_fulltext_weight: float = 1.0
+
+    # Cohere Rerank (Phase 2)
+    cohere_api_key: str = ""
+
     # Fine-tuned embeddings (Phase 3 — infrastructure ready, model TBD)
     custom_embedding_model: str = ""
 

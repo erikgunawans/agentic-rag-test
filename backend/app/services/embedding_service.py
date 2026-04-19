@@ -59,17 +59,29 @@ class EmbeddingService:
         threshold: float,
         model: str | None = None,
         category: str | None = None,
+        filter_tags: list[str] | None = None,
+        filter_folder_id: str | None = None,
+        filter_date_from: str | None = None,
+        filter_date_to: str | None = None,
     ) -> list[dict]:
         """Embed query and return top-k chunks with document metadata via pgvector RPC."""
         embedding = await self.embed_text(query, model=model)
+        params: dict = {
+            "query_embedding": embedding,
+            "match_user_id": user_id,
+            "match_count": top_k,
+            "match_threshold": threshold,
+            "filter_category": category,
+        }
+        if filter_tags:
+            params["filter_tags"] = filter_tags
+        if filter_folder_id:
+            params["filter_folder_id"] = filter_folder_id
+        if filter_date_from:
+            params["filter_date_from"] = filter_date_from
+        if filter_date_to:
+            params["filter_date_to"] = filter_date_to
         result = get_supabase_client().rpc(
-            "match_document_chunks_with_metadata",
-            {
-                "query_embedding": embedding,
-                "match_user_id": user_id,
-                "match_count": top_k,
-                "match_threshold": threshold,
-                "filter_category": category,
-            },
+            "match_document_chunks_with_metadata", params,
         ).execute()
         return result.data or []

@@ -1,10 +1,19 @@
 import base64
 import io
 import logging
+from dataclasses import dataclass
 import fitz  # PyMuPDF
 from openai import AsyncOpenAI
 from langsmith import traceable
 from app.config import get_settings
+
+
+@dataclass
+class OcrResult:
+    text: str
+    pages_processed: int
+    pages_failed: int
+    ocr_used: bool = True
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -87,12 +96,13 @@ class VisionService:
         return response.choices[0].message.content or ""
 
     @traceable(name="vision_ocr_pdf")
-    async def ocr_pdf(self, file_bytes: bytes) -> str:
-        """OCR an entire scanned PDF, returning concatenated page text."""
+    async def ocr_pdf(self, file_bytes: bytes) -> OcrResult:
+        """OCR an entire scanned PDF, returning structured result."""
         page_images = self.extract_page_images(file_bytes)
         logger.info("OCR: processing %d pages", len(page_images))
 
         pages_text = []
+        pages_failed = 0
         for i, img in enumerate(page_images):
             try:
                 text = await self.ocr_page(img, i)
@@ -101,5 +111,10 @@ class VisionService:
             except Exception as e:
                 logger.warning("OCR failed for page %d: %s", i + 1, e)
                 pages_text.append(f"--- Halaman {i + 1} ---\n[OCR gagal: {e}]")
+                pages_failed += 1
 
-        return "\n\n".join(pages_text)
+        return OcrResult(
+            text="\n\n".join(pages_text),
+            pages_processed=len(page_images),
+            pages_failed=pages_failed,
+        )

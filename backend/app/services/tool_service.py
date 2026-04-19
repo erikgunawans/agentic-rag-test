@@ -31,7 +31,24 @@ TOOL_DEFINITIONS = [
                     "query": {
                         "type": "string",
                         "description": "Search query to find relevant document chunks",
-                    }
+                    },
+                    "filter_tags": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Filter by document tags (e.g., ['kontrak', 'peraturan']). Only return chunks from documents with ANY of these tags.",
+                    },
+                    "filter_folder_id": {
+                        "type": "string",
+                        "description": "Filter by folder UUID. Only return chunks from documents in this folder.",
+                    },
+                    "filter_date_from": {
+                        "type": "string",
+                        "description": "Filter by document date (ISO 8601). Only return documents created on or after this date.",
+                    },
+                    "filter_date_to": {
+                        "type": "string",
+                        "description": "Filter by document date (ISO 8601). Only return documents created on or before this date.",
+                    },
                 },
                 "required": ["query"],
             },
@@ -240,6 +257,10 @@ class ToolService:
                 query=arguments.get("query", ""),
                 user_id=user_id,
                 context=context or {},
+                filter_tags=arguments.get("filter_tags"),
+                filter_folder_id=arguments.get("filter_folder_id"),
+                filter_date_from=arguments.get("filter_date_from"),
+                filter_date_to=arguments.get("filter_date_to"),
             )
         elif name == "query_database":
             return await self._execute_query_database(
@@ -285,7 +306,14 @@ class ToolService:
 
     @traceable(name="tool_search_documents")
     async def _execute_search_documents(
-        self, query: str, user_id: str, context: dict
+        self,
+        query: str,
+        user_id: str,
+        context: dict,
+        filter_tags: list[str] | None = None,
+        filter_folder_id: str | None = None,
+        filter_date_from: str | None = None,
+        filter_date_to: str | None = None,
     ) -> dict:
         """Search user's documents via hybrid retrieval."""
         try:
@@ -297,6 +325,10 @@ class ToolService:
                 embedding_model=context.get("embedding_model"),
                 llm_model=context.get("llm_model"),
                 category=context.get("category"),
+                filter_tags=filter_tags,
+                filter_folder_id=filter_folder_id,
+                filter_date_from=filter_date_from,
+                filter_date_to=filter_date_to,
             )
             results = []
             for chunk in chunks:

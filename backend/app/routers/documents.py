@@ -222,6 +222,82 @@ async def move_document(
     return result.data[0]
 
 
+@router.post("/{doc_id}/reindex-graph", status_code=202)
+async def reindex_graph(
+    doc_id: str,
+    background_tasks: BackgroundTasks,
+    user: dict = Depends(get_current_user),
+):
+    """Re-run graph entity extraction for an existing document."""
+    client = get_supabase_client()
+    doc = (
+        client.table("documents")
+        .select("id, filename, status, metadata")
+        .eq("id", doc_id)
+        .eq("user_id", user["id"])
+        .limit(1)
+        .execute()
+    )
+    if not doc.data:
+        raise HTTPException(status_code=404, detail="Document not found")
+    if doc.data[0]["status"] != "completed":
+        raise HTTPException(status_code=400, detail="Document must be in 'completed' status")
+
+    background_tasks.add_task(
+        _reindex_graph_task, doc_id, user["id"], doc.data[0].get("metadata")
+    )
+    return {"message": "Graph re-indexing started", "document_id": doc_id}
+
+
+async def _reindex_graph_task(doc_id: str, user_id: str, metadata: dict | None):
+    """Background: delete old graph links, re-extract from existing chunks."""
+    import logging
+    from app.services.graph_service import GraphService
+
+    logger = logging.getLogger(__name__)
+    client = get_supabase_client()
+    sys_settings = get_system_settings()
+    graph_service = GraphService()
+
+    chunks_result = (
+        client.table("document_chunks")
+        .select("id, content, chunk_index")
+        .eq("document_id", doc_id)
+        .eq("user_id", user_id)
+        .order("chunk_index")
+        .execute()
+    )
+    if not chunks_result.data:
+        logger.warning("No chunks found for doc_id=%s, skipping graph reindex", doc_id)
+        return
+
+    chunk_ids = [r["id"] for r in chunks_result.data]
+    chunks = [r["content"] for r in chunks_result.data]
+
+    # Delete old links only — entities are user-scoped and shared across documents
+    client.table("graph_entity_chunks").delete().eq("document_id", doc_id).eq("user_id", user_id).execute()
+    client.table("graph_relationships").delete().eq("document_id", doc_id).eq("user_id", user_id).execute()
+
+    # Re-extract and store (upserts entities by canonical name)
+    graph_model = sys_settings.get("graph_entity_extraction_model") or sys_settings.get("llm_model")
+    try:
+        extraction = await graph_service.extract_entities(
+            chunks=chunks, doc_metadata=metadata, model=graph_model,
+        )
+        if extraction.entities:
+            await graph_service.store_entities(
+                extraction=extraction, doc_id=doc_id, user_id=user_id,
+                chunk_ids=chunk_ids, chunks=chunks,
+            )
+            log_action(user_id, None, "graph_reindex", "document", doc_id)
+            logger.info(
+                "Graph reindex: %d entities, %d relationships for doc_id=%s",
+                len(extraction.entities), len(extraction.relationships), doc_id,
+            )
+    except Exception as e:
+        logger.error("Graph reindex failed for doc_id=%s: %s", doc_id, e)
+
+
 class SearchRequest(BaseModel):
     query: str
     top_k: int = 5
@@ -241,7 +317,7 @@ async def search_documents(
             user_id=user["id"],
             top_k=body.top_k,
             threshold=settings.rag_similarity_threshold,
-            model=user_settings["embedding_model"],
+            model=sys_settings["embedding_model"],
         )
     elif body.mode == "fulltext":
         try:

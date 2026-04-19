@@ -23,6 +23,9 @@ class SystemSettingsUpdate(BaseModel):
     tools_max_iterations: int | None = None
     agents_enabled: bool | None = None
     confidence_threshold: float | None = Field(default=None, ge=0.0, le=1.0)
+    rag_vector_weight: float | None = Field(default=None, ge=0.0, le=10.0)
+    rag_fulltext_weight: float | None = Field(default=None, ge=0.0, le=10.0)
+    rag_rerank_mode: str | None = None
 
 
 @router.get("/settings")

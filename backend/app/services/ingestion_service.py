@@ -20,8 +20,11 @@ embedding_service = EmbeddingService()
 metadata_service = MetadataService()
 
 
-async def parse_text_async(file_bytes: bytes, mime_type: str) -> str:
-    """Parse text from file, with vision OCR fallback for scanned PDFs."""
+async def parse_text_async(file_bytes: bytes, mime_type: str) -> tuple[str, dict]:
+    """Parse text from file, with vision OCR fallback for scanned PDFs.
+
+    Returns (text, ocr_info) where ocr_info contains ocr_used and page stats.
+    """
     if mime_type == "application/pdf":
         # Try text extraction first
         doc = fitz.open(stream=file_bytes, filetype="pdf")
@@ -33,11 +36,15 @@ async def parse_text_async(file_bytes: bytes, mime_type: str) -> str:
             vision = VisionService()
             if vision.is_scanned_pdf(file_bytes):
                 logger.info("Scanned PDF detected — falling back to vision OCR")
-                ocr_text = await vision.ocr_pdf(file_bytes)
-                if ocr_text.strip():
-                    return ocr_text
-        return text
-    return parse_text(file_bytes, mime_type)
+                ocr_result = await vision.ocr_pdf(file_bytes)
+                if ocr_result.text.strip():
+                    return (ocr_result.text, {
+                        "ocr_used": True,
+                        "ocr_pages_processed": ocr_result.pages_processed,
+                        "ocr_pages_failed": ocr_result.pages_failed,
+                    })
+        return (text, {"ocr_used": False})
+    return (parse_text(file_bytes, mime_type), {"ocr_used": False})
 
 
 def parse_text(file_bytes: bytes, mime_type: str) -> str:
@@ -185,7 +192,7 @@ async def process_document(
         file_bytes = client.storage.from_(settings.storage_bucket).download(file_path)
 
         # Parse text (with vision OCR fallback for scanned PDFs)
-        text = await parse_text_async(file_bytes, mime_type)
+        text, ocr_info = await parse_text_async(file_bytes, mime_type)
         if not text.strip():
             raise ValueError("No text content extracted from file")
 
@@ -260,10 +267,11 @@ async def process_document(
         except Exception as e:
             logger.warning("Graph entity extraction skipped for doc_id=%s: %s", doc_id, e)
 
+        save_metadata = {**(metadata_dict or {}), **ocr_info}
         client.table("documents").update({
             "status": "completed",
             "chunk_count": len(chunks),
-            "metadata": metadata_dict,
+            "metadata": save_metadata,
         }).eq("id", doc_id).eq("user_id", user_id).execute()
 
     except Exception as e:
