@@ -23,7 +23,7 @@ cd frontend && npm install && npm run dev
 
 ## Architecture
 
-### Backend (21 routers in `backend/app/routers/`)
+### Backend (22 routers in `backend/app/routers/`)
 - **Core**: `chat.py` (SSE streaming + tool-calling loop), `threads.py`, `documents.py`
 - **Document tools**: `document_tools.py` (create/compare/compliance/analyze with LLM)
 - **Phase 1**: `clause_library.py`, `document_templates.py`, `approvals.py`, `obligations.py`, `audit_trail.py`, `user_management.py`
@@ -85,47 +85,12 @@ cd backend && railway up
 - **Supabase project**: `qedhulpfezucnfadlfiz`
 
 ## Planning
-- Save plans to `.agent/plans/` folder
-- Naming: `{sequence}.{plan-name}.md`
-- Complexity indicators: ✅ Simple, ⚠️ Medium, 🔴 Complex
+- Plans saved to `~/.claude/plans/` (session-scoped) or `.agent/plans/` (legacy)
+- Complexity indicators: simple, medium, complex
 
 ## Plan Verification Protocol
 
-Every implementation plan MUST go through a verification loop before presenting to the user.
-
-### Step 1: Create the initial plan
-Write the plan as normal.
-
-### Step 2: Self-verify
-Before presenting, review the plan against these criteria:
-
-| Check | Question |
-|-------|----------|
-| Completeness | Does every requirement from the user have a corresponding action item? |
-| Correctness | Do the file paths, function names, and schemas match the actual codebase? |
-| Ordering | Are dependencies respected — does step N depend on something from step N+1? |
-| Side effects | Could any step break existing functionality? Have I checked the blast radius? |
-| Verification | Is there a concrete way to verify each step worked (test command, curl, visual check)? |
-| Existing code | Am I reusing existing utilities, or reinventing something that already exists? |
-
-Rate confidence: 0-100%.
-
-### Step 3: Loop if needed
-If confidence < 95%:
-1. List what's uncertain or weak
-2. Investigate (read files, grep patterns, check schemas)
-3. Update the plan with findings
-4. Re-rate confidence
-5. Repeat until confidence >= 95%
-
-### Step 4: Report
-Include at the bottom of every plan:
-
-```text
-Confidence: XX%
-Verification passes: N
-[If any items were fixed: list what changed between passes]
-```
+Every plan MUST self-verify before presenting. Check: completeness, correct file paths/schemas, dependency ordering, blast radius, concrete verification steps, reuse of existing utilities. Rate confidence 0-100%. If < 95%, investigate and re-verify until >= 95%. Report confidence + pass count at the bottom of every plan.
 
 ## Testing
 
@@ -149,7 +114,7 @@ cd frontend && npm run lint
 # Frontend type check
 cd frontend && npx tsc --noEmit
 
-# Backend API tests (41 tests across 5 files)
+# Backend API tests (8 test files)
 cd backend && source venv/bin/activate && \
   TEST_EMAIL="test@test.com" TEST_PASSWORD='!*-3-3?3uZ?b$v&' \
   TEST_EMAIL_2="test-2@test.com" TEST_PASSWORD_2='fK4$Wd?HGKmb#A2' \
@@ -162,17 +127,20 @@ cd backend && source venv/bin/activate && python -c "from app.main import app; p
 
 ## LLM Pipeline
 - **Multi-agent**: `agents_enabled` in config. Research Agent auto-selected for document queries via `agent_service.classify_intent()`
-- **Tool dispatch**: `ToolService.execute_tool()` dispatches `search_documents`, `query_database`, `web_search`
-- **RAG**: `HybridRetrievalService.retrieve()` — vector (pgvector) + fulltext (tsvector) + RRF fusion. Optional LLM reranking.
+- **Tool dispatch**: `ToolService.execute_tool()` dispatches `search_documents` (with filter_tags/folder_id/date_from/date_to), `query_database`, `web_search`
+- **RAG**: `HybridRetrievalService.retrieve()` — vector (pgvector) + fulltext (tsvector) + weighted RRF fusion (admin-configurable weights). Rerank modes: none/llm/cohere. Metadata pre-filtering via RPC params.
+- **RAG extras**: Structure-aware chunking, bilingual query expansion (ID/EN), semantic cache (5min TTL), neighbor chunk expansion, GraphRAG entity context, OCR metadata tracking, custom embedding model support
 - **Document tools**: `_llm_json()` helper in `document_tool_service.py` — OpenRouter with `json_object` response format, Pydantic validation
 - **Confidence gating**: Results with `confidence_score >= 0.85` are `auto_approved`, below → `pending_review`
 - **SSE events**: `agent_start` → `tool_start` → `tool_result` → `delta` (progressive) → `done:true`
+- **Graph reindex**: `POST /documents/{id}/reindex-graph` — re-extracts graph entities for existing documents without re-embedding
+- **RAG eval**: `python -m scripts.eval_rag --base-url <url> --token <jwt>` — 20-query golden set with keyword hit rate + MRR metrics
 
 ## Automations
-- **Hooks**: PostToolUse auto-lints .ts/.tsx (ESLint + tsc) and .py (py_compile). PreToolUse blocks .env edits.
-- **Skills**: `/deploy-lexcore` (full deploy pipeline), `/run-api-tests` (pytest with credentials)
-- **Agents**: `security-reviewer` (RLS bypass, missing auth, SQL injection, audit gaps)
-- **MCP**: context7 (live docs), Supabase (direct DB), Playwright (browser automation)
+- **Hooks**: PostToolUse auto-lints .ts/.tsx (ESLint + tsc) and .py (py_compile + full import check). PreToolUse blocks .env edits and applied migration edits (001-027).
+- **Skills**: `/deploy-lexcore` (full deploy pipeline), `/run-api-tests` (pytest + RAG eval golden set), `/create-migration` (numbered Supabase migration with RLS template)
+- **Agents**: `security-reviewer` (RLS bypass, missing auth, SQL injection, audit gaps), `rag-quality-reviewer` (retrieval pipeline correctness, RPC safety, cache keys)
+- **MCP**: context7 (live docs), Supabase (direct DB), Playwright (browser automation) — configured in `.mcp.json`
 
 ## Gotchas
 
@@ -214,4 +182,4 @@ Before deploying:
 
 ## Progress
 
-Check PROGRESS.md for current status. Phase 1 (7/7), Phase 2 (5/5), Phase 3 (2/2) complete. BJR module shipped. LLM e2e test passed.
+Check PROGRESS.md for current status. Phase 1 (7/7), Phase 2 (5/5), Phase 3 (2/2) complete. BJR module shipped. LLM e2e test passed. RAG pipeline complete (8/8 hooks shipped): structure-aware chunking, vision OCR, custom embeddings, metadata pre-filtering, bilingual query expansion, weighted fusion, cross-encoder reranking (Cohere), graph reindex endpoint. 27 migrations, 22 routers, 18 services.
