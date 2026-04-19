@@ -1,3 +1,4 @@
+from typing import Literal
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 from app.dependencies import require_admin
@@ -25,7 +26,7 @@ class SystemSettingsUpdate(BaseModel):
     confidence_threshold: float | None = Field(default=None, ge=0.0, le=1.0)
     rag_vector_weight: float | None = Field(default=None, ge=0.0, le=10.0)
     rag_fulltext_weight: float | None = Field(default=None, ge=0.0, le=10.0)
-    rag_rerank_mode: str | None = None
+    rag_rerank_mode: Literal["none", "llm", "cohere"] | None = None
 
 
 @router.get("/settings")

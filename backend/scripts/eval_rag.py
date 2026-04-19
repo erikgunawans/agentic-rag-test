@@ -140,16 +140,24 @@ def evaluate_query(
     base_url: str,
     token: str,
     top_k: int = 5,
+    *,
+    client: httpx.Client | None = None,
 ) -> QueryResult:
     """Run a single golden query and compute metrics."""
-    with httpx.Client(timeout=30) as client:
-        resp = client.post(
+    def _do_request(c: httpx.Client):
+        resp = c.post(
             f"{base_url}/documents/search",
             json={"query": query_item["query"], "top_k": top_k, "mode": "hybrid"},
             headers={"Authorization": f"Bearer {token}"},
         )
         resp.raise_for_status()
-        data = resp.json()
+        return resp.json()
+
+    if client:
+        data = _do_request(client)
+    else:
+        with httpx.Client(timeout=30) as c:
+            data = _do_request(c)
 
     results = data.get("results", [])
     expected_kw = query_item["expected_keywords"]
@@ -181,12 +189,13 @@ def evaluate_all(
 ) -> tuple[list[QueryResult], dict]:
     """Run all golden queries and compute aggregate metrics."""
     results = []
-    for item in GOLDEN_SET:
-        try:
-            r = evaluate_query(item, base_url, token, top_k)
-            results.append(r)
-        except Exception as e:
-            print(f"  SKIP: {item['query'][:50]}... — {e}")
+    with httpx.Client(timeout=30) as client:
+        for item in GOLDEN_SET:
+            try:
+                r = evaluate_query(item, base_url, token, top_k, client=client)
+                results.append(r)
+            except Exception as e:
+                print(f"  SKIP: {item['query'][:50]}... — {e}")
 
     if not results:
         return results, {"avg_keyword_hit_rate": 0, "avg_mrr": 0, "queries_with_hits": 0}

@@ -277,11 +277,11 @@ class HybridRetrievalService:
 
             scored = {s.index: s.score for s in parsed.scores}
             reranked = sorted(
-                chunks,
-                key=lambda c: scored.get(chunks.index(c), 0),
+                enumerate(chunks),
+                key=lambda ic: scored.get(ic[0], 0),
                 reverse=True,
             )
-            return reranked
+            return [c for _, c in reranked]
         except Exception as e:
             logger.warning("LLM reranking failed, keeping original order: %s", e)
             return chunks
@@ -291,28 +291,27 @@ class HybridRetrievalService:
         self, query: str, chunks: list[dict], top_n: int | None = None
     ) -> list[dict]:
         """Rerank chunks using Cohere Rerank v2 API."""
-        import httpx
-
         documents = [c["content"][:4096] for c in chunks]
         try:
-            async with httpx.AsyncClient() as client:
-                resp = await client.post(
-                    "https://api.cohere.com/v2/rerank",
-                    headers={
-                        "Authorization": f"Bearer {settings.cohere_api_key}",
-                        "Content-Type": "application/json",
-                    },
-                    json={
-                        "model": "rerank-v3.5",
-                        "query": query,
-                        "documents": documents,
-                        "top_n": top_n or len(chunks),
-                    },
-                    timeout=10,
-                )
-                resp.raise_for_status()
-                ranked_indices = [r["index"] for r in resp.json()["results"]]
-                return [chunks[i] for i in ranked_indices]
+            if not hasattr(self, "_cohere_client"):
+                import httpx
+                self._cohere_client = httpx.AsyncClient(timeout=10)
+            resp = await self._cohere_client.post(
+                "https://api.cohere.com/v2/rerank",
+                headers={
+                    "Authorization": f"Bearer {settings.cohere_api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": "rerank-v3.5",
+                    "query": query,
+                    "documents": documents,
+                    "top_n": top_n or len(chunks),
+                },
+            )
+            resp.raise_for_status()
+            ranked_indices = [r["index"] for r in resp.json()["results"]]
+            return [chunks[i] for i in ranked_indices]
         except Exception as e:
             logger.warning("Cohere reranking failed, keeping original order: %s", e)
             return chunks
