@@ -10,9 +10,9 @@ export function Logo({ variant = 'full', className = '' }: LogoProps) {
 
   let src: string
   if (variant === 'full') {
-    src = resolvedTheme === 'light' ? '/lexcore-new-light.svg' : '/lexcore-new.svg'
+    src = resolvedTheme === 'light' ? '/lexcore-new-light.svg' : '/lexcore-dark.svg'
   } else {
-    src = '/lexcore-icon.svg'
+    src = '/lexcore-logo-dark.svg'
   }
 
   const filterClass = variant === 'icon' && resolvedTheme === 'light' ? 'brightness-[0.15] saturate-[1.5]' : ''
