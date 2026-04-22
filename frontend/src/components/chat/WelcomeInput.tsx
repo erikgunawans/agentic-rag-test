@@ -26,7 +26,7 @@ export function WelcomeInput({ onSend, disabled }: WelcomeInputProps) {
   }
 
   return (
-    <div className="w-full rounded-2xl border bg-card p-4 shadow-[var(--shadow-md)] transition-shadow focus-within:shadow-[var(--glow-primary)]">
+    <div className="w-full rounded-2xl border bg-card p-4 shadow-[var(--shadow-md)] transition-shadow focus-within:shadow-[var(--glow-primary)] gradient-border-animated">
       <textarea
         className="w-full resize-none bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none min-h-[60px]"
         placeholder={t('chat.placeholder')}

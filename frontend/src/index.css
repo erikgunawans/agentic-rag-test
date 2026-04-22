@@ -100,6 +100,8 @@
 
     --glow-primary: 0 0 24px oklch(0.48 0.18 280 / 0.08);
     --glow-sm: 0 0 14px oklch(0.48 0.18 280 / 0.06);
+    --easing-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+    --grain-opacity: 0.022;
     --shadow-xs: 0 1px 2px oklch(0 0 0 / 0.06);
     --shadow-sm: 0 2px 6px oklch(0 0 0 / 0.08), 0 1px 2px oklch(0 0 0 / 0.04);
     --shadow-md: 0 4px 14px oklch(0 0 0 / 0.10), 0 1px 4px oklch(0 0 0 / 0.06);
@@ -167,6 +169,8 @@
 
     --glow-primary: 0 0 24px oklch(0.55 0.20 280 / 0.12);
     --glow-sm: 0 0 14px oklch(0.55 0.20 280 / 0.08);
+    --easing-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+    --grain-opacity: 0.038;
     --shadow-xs: 0 1px 2px oklch(0 0 0 / 0.15);
     --shadow-sm: 0 2px 6px oklch(0 0 0 / 0.2), 0 1px 2px oklch(0 0 0 / 0.1);
     --shadow-md: 0 4px 14px oklch(0 0 0 / 0.25), 0 1px 4px oklch(0 0 0 / 0.15);
@@ -228,13 +232,29 @@
   h1 {
     letter-spacing: -0.02em;
     font-weight: 600;
+    text-wrap: balance;
   }
   h2 {
     letter-spacing: -0.01em;
     font-weight: 600;
+    text-wrap: balance;
   }
   h3 {
     font-weight: 500;
+    text-wrap: balance;
+  }
+
+  /* 2026 Design — Grain texture overlay */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23noise)'/%3E%3C/svg%3E");
+    background-size: 200px 200px;
+    opacity: var(--grain-opacity);
+    pointer-events: none;
+    z-index: 9999;
+    mix-blend-mode: overlay;
   }
 }
 
@@ -298,6 +318,7 @@
   pointer-events: none;
 }
 .gradient-border-animated:hover::before { opacity: 0.6; }
+.gradient-border-animated:focus-within::before { opacity: 0.5; }
 
 @keyframes gradient-shift {
   0%, 100% { background-position: 0% 50%; }
@@ -329,7 +350,7 @@
   left: -80px;
   width: 500px;
   height: 500px;
-  background: radial-gradient(circle, oklch(0.55 0.20 280 / calc(var(--mesh-opacity) * 0.75)) 0%, transparent 70%);
+  background: radial-gradient(circle, oklch(0.65 0.15 195 / calc(var(--mesh-opacity) * 0.8)) 0%, transparent 70%);
   filter: blur(40px);
 }
 
@@ -393,6 +414,40 @@
   max-width: 340px;
 }
 
+/* 2026 Design — Shimmer loading skeleton */
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+.shimmer {
+  background: linear-gradient(90deg, var(--muted) 25%, var(--accent) 37%, var(--muted) 50%);
+  background-size: 400% 100%;
+  animation: shimmer 1.8s ease-in-out infinite;
+  border-radius: var(--radius);
+}
+
+/* 2026 Design — Luminous card hover */
+.card-luminous {
+  transition: box-shadow 0.3s ease, border-color 0.3s ease;
+}
+.card-luminous:hover {
+  border-color: oklch(0.55 0.20 280 / 0.3);
+  box-shadow: var(--shadow-md), 0 0 0 1px oklch(0.55 0.20 280 / 0.06), inset 0 1px 0 oklch(1 0 0 / 0.05);
+}
+
+/* 2026 Design — Spring interaction */
+.interactive-spring {
+  transition: transform 0.4s var(--easing-spring), box-shadow 0.2s ease;
+}
+.interactive-spring:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-md);
+}
+.interactive-spring:active {
+  transform: scale(0.97);
+  transition-duration: 0.1s;
+}
+
 /* ── Micro-interactions ──────────────────────────────────────────────── */
 .interactive-lift {
   transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1),
@@ -428,7 +483,8 @@
   .animate-float,
   .animate-float-slow,
   .animate-float-delay,
-  .stagger-children > * {
+  .stagger-children > *,
+  .shimmer {
     animation: none !important;
     opacity: 1 !important;
     transform: none !important;

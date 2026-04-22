@@ -82,14 +82,14 @@ function CollapsibleGroup({
           {group.threads.map((thread) => (
             <div
               key={thread.id}
-              className={`group flex items-center gap-2 rounded-md px-3 py-2 cursor-pointer transition-colors mx-1 ${
+              className={`group relative flex items-center gap-2 rounded-lg px-3 py-2 cursor-pointer transition-all duration-200 mx-1 ${
                 thread.id === activeThreadId
-                  ? 'bg-accent text-accent-foreground'
-                  : 'hover:bg-muted'
+                  ? 'bg-primary/10 text-foreground before:absolute before:left-1 before:top-2 before:bottom-2 before:w-0.5 before:rounded-full before:bg-primary'
+                  : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
               }`}
               onClick={() => onSelect(thread.id)}
             >
-              <MessageSquare className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <MessageSquare className={`h-3.5 w-3.5 shrink-0 transition-colors ${thread.id === activeThreadId ? 'text-primary' : 'text-muted-foreground/60'}`} />
               <span className="flex-1 truncate text-sm">{thread.title}</span>
               <button
                 onClick={(e) => {

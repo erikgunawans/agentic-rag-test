@@ -30,7 +30,7 @@ export function MessageInput({ onSend, disabled, forkParentId, onCancelFork }: M
 
   return (
     <div className="shrink-0 p-4">
-      <div className="mx-auto max-w-2xl rounded-2xl border bg-card p-4 shadow-[var(--shadow-md)] transition-shadow focus-within:shadow-[var(--glow-primary)]">
+      <div className="mx-auto max-w-2xl rounded-2xl border bg-card p-4 shadow-[var(--shadow-md)] transition-shadow focus-within:shadow-[var(--glow-primary)] gradient-border-animated">
         {forkParentId && (
           <div className="flex items-center gap-2 mb-2 rounded-md bg-primary/10 px-3 py-1.5 text-xs text-primary">
             <GitFork className="h-3.5 w-3.5" />
