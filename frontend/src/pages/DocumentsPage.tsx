@@ -133,6 +133,11 @@ export function DocumentsPage() {
     loadDocuments()
   }
 
+  async function handleToggleGlobal(folderId: string) {
+    await apiFetch(`/folders/${folderId}/toggle-global`, { method: 'PATCH' })
+    loadFolders()
+  }
+
   function handleSelectFolder(folderId: string | null) {
     setCurrentFolderId(folderId)
   }
@@ -222,8 +227,10 @@ export function DocumentsPage() {
               <FolderTree
                 folders={folders}
                 currentFolderId={currentFolderId}
+                currentUserId={userId ?? null}
                 onSelectFolder={handleSelectFolder}
                 onDeleteFolder={handleDeleteFolder}
+                onToggleGlobal={handleToggleGlobal}
               />
             </div>
 

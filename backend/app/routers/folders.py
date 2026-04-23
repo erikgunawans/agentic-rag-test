@@ -69,15 +69,31 @@ async def create_folder(
 
 @router.get("")
 async def list_folders(user: dict = Depends(get_current_user)):
-    """List all folders for the user (flat list for client-side tree building)."""
+    """List all folders visible to the user (own + global from others)."""
     client = get_supabase_client()
+    # RLS handles visibility — own folders + global subtrees
     result = (
         client.table("document_folders")
-        .select("id, name, parent_folder_id, created_at, updated_at")
-        .eq("user_id", user["id"])
+        .select("id, user_id, name, parent_folder_id, is_global, created_at, updated_at")
+        .or_(f"user_id.eq.{user['id']},is_global.eq.true")
         .order("name")
         .execute()
     )
+    # For global folders, also include their non-global children (subtree cascade)
+    global_ids = {f["id"] for f in result.data if f.get("is_global")}
+    if global_ids:
+        all_folders = {f["id"]: f for f in result.data}
+        # Fetch children of global folders that might not be in the initial set
+        children = (
+            client.table("document_folders")
+            .select("id, user_id, name, parent_folder_id, is_global, created_at, updated_at")
+            .in_("parent_folder_id", list(global_ids))
+            .execute()
+        )
+        for child in children.data or []:
+            if child["id"] not in all_folders:
+                all_folders[child["id"]] = child
+        return list(all_folders.values())
     return result.data
 
 
@@ -181,3 +197,47 @@ async def delete_folder(
         resource_id=folder_id,
         details={"name": folder.data[0]["name"]},
     )
+
+
+@router.patch("/{folder_id}/toggle-global")
+async def toggle_global(
+    folder_id: str,
+    user: dict = Depends(get_current_user),
+):
+    """Toggle is_global on a top-level folder the user owns."""
+    client = get_supabase_client()
+
+    folder = (
+        client.table("document_folders")
+        .select("id, name, parent_folder_id, is_global")
+        .eq("id", folder_id)
+        .eq("user_id", user["id"])
+        .limit(1)
+        .execute()
+    )
+    if not folder.data:
+        raise HTTPException(status_code=404, detail="Folder not found")
+
+    if folder.data[0]["parent_folder_id"] is not None:
+        raise HTTPException(status_code=400, detail="Only top-level folders can be shared globally")
+
+    new_value = not folder.data[0]["is_global"]
+    result = (
+        client.table("document_folders")
+        .update({"is_global": new_value})
+        .eq("id", folder_id)
+        .eq("user_id", user["id"])
+        .execute()
+    )
+
+    action = "share_global" if new_value else "unshare_global"
+    log_action(
+        user_id=user["id"],
+        user_email=user["email"],
+        action=action,
+        resource_type="folder",
+        resource_id=folder_id,
+        details={"name": folder.data[0]["name"], "is_global": new_value},
+    )
+
+    return result.data[0]

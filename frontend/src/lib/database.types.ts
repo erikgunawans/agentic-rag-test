@@ -103,6 +103,7 @@ export interface DocumentFolder {
   user_id: string
   name: string
   parent_folder_id: string | null
+  is_global?: boolean
   created_at: string
   updated_at: string
 }
