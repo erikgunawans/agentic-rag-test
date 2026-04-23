@@ -331,8 +331,10 @@ export function DocumentsPage() {
           <FolderTree
             folders={folders}
             currentFolderId={currentFolderId}
+            currentUserId={userId ?? null}
             onSelectFolder={handleSelectFolder}
             onDeleteFolder={handleDeleteFolder}
+            onToggleGlobal={handleToggleGlobal}
           />
         </div>
 
