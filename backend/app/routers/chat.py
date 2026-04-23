@@ -259,6 +259,23 @@ async def stream_chat(
                 ).model_dump()
             client.table("messages").insert(insert_data).execute()
 
+        # Auto-generate thread title on first exchange
+        if full_response:
+            try:
+                thread_row = client.table("threads").select("title").eq("id", body.thread_id).single().execute()
+                if thread_row.data and thread_row.data["title"] == "New Thread":
+                    title_messages = [
+                        {"role": "system", "content": "Generate a short title (max 6 words) for this chat conversation. Respond with ONLY the title text, no quotes, no punctuation at the end. If the message is in Indonesian, generate the title in Indonesian."},
+                        {"role": "user", "content": body.message},
+                    ]
+                    title_result = await openrouter_service.complete_with_tools(title_messages)
+                    new_title = (title_result["content"] or "").strip().strip('"\'')[:80]
+                    if new_title:
+                        client.table("threads").update({"title": new_title}).eq("id", body.thread_id).execute()
+                        yield f"data: {json.dumps({'type': 'thread_title', 'title': new_title, 'thread_id': body.thread_id})}\n\n"
+            except Exception:
+                pass  # Non-blocking — default title stays
+
         yield f"data: {json.dumps({'type': 'delta', 'delta': '', 'done': True})}\n\n"
 
     return StreamingResponse(

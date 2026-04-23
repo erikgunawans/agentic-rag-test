@@ -152,7 +152,13 @@ export function useChatState() {
             continue
           }
 
-          if (event.type === 'agent_start') {
+          if (event.type === 'thread_title') {
+            setThreads((prev) =>
+              prev.map((t) =>
+                t.id === event.thread_id ? { ...t, title: event.title } : t
+              )
+            )
+          } else if (event.type === 'agent_start') {
             setActiveAgent({ agent: event.agent, display_name: event.display_name })
           } else if (event.type === 'agent_done') {
             setActiveAgent(null)

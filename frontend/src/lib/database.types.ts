@@ -55,7 +55,13 @@ export interface AgentDoneEvent {
   agent: string
 }
 
-export type SSEEvent = DeltaEvent | ToolStartEvent | ToolResultEvent | AgentStartEvent | AgentDoneEvent
+export interface ThreadTitleEvent {
+  type: 'thread_title'
+  title: string
+  thread_id: string
+}
+
+export type SSEEvent = DeltaEvent | ToolStartEvent | ToolResultEvent | AgentStartEvent | AgentDoneEvent | ThreadTitleEvent
 
 export interface DocumentMetadata {
   title: string
