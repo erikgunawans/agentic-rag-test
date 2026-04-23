@@ -55,7 +55,11 @@ export function ThreadPanel({ collapsed, onToggleCollapse }: ThreadPanelProps) {
       </div>
 
       <div className="px-3 pb-3">
-        <Button onClick={handleNewChat} className="w-full gap-2 h-10" size="sm">
+        <Button
+          onClick={handleNewChat}
+          className="w-full gap-2 h-10 bg-gradient-to-r from-[oklch(0.50_0.20_280)] to-[oklch(0.55_0.18_250)] hover:from-[oklch(0.45_0.22_280)] hover:to-[oklch(0.50_0.20_250)] text-white shadow-sm"
+          size="sm"
+        >
           <Plus className="h-4 w-4" />
           {t('chat.newChat')}
         </Button>

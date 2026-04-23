@@ -16,7 +16,7 @@ export function AppLayout() {
   const location = useLocation()
   const chatState = useChatState()
   const showThreadPanel = location.pathname === '/'
-  const [panelCollapsed, setPanelCollapsed] = useState(false)
+  const [panelCollapsed, setPanelCollapsed] = useState(true)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   const togglePanel = () => setPanelCollapsed((prev) => !prev)
