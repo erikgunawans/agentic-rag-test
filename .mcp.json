@@ -7,6 +7,10 @@
     "playwright": {
       "command": "npx",
       "args": ["-y", "@anthropic/mcp-playwright"]
+    },
+    "graphify": {
+      "command": "/Library/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
+      "args": ["-m", "graphify.serve", "/Users/erikgunawansupriatna/claude-code-agentic-rag-masterclass-1/graphify-out/graph.json"]
     }
   }
 }

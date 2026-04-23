@@ -1,6 +1,59 @@
 # Progress
 
-PJAA CLM Platform (LexCore). Phase 1 (7/7), Phase 2 (5/5), Phase 3 (2/2) complete. BJR module shipped + hardened. RAG pipeline complete (8/8 hooks shipped). 24 pages, 22 routers, 27 migrations, 18 services, 3 skills, 2 agents. Deployed to Vercel + Railway. Backend healthy. CLAUDE.md 100/100.
+PJAA CLM Platform (LexCore) v0.2.0.0. All phases complete (1-3, BJR, RAG 8/8). 2026 UI refresh shipped. LLM auto-naming for chat threads. Global folders with share-with-all and cascading subtree visibility. 28 migrations, 22 routers, 18 services.
+
+## Checkpoint 2026-04-23 (LLM thread auto-naming + global folders)
+
+- **Session:** Added two features: auto-generated chat thread titles via LLM, and global folders with sharing
+- **Branch:** master (`21f3382`)
+- **Done:**
+  - **LLM thread auto-naming** (`c8daaca`): After first assistant response, backend calls LLM to generate ~6-word title. Emits `thread_title` SSE event for instant sidebar update. Language-aware (ID/EN). Non-blocking (try/except).
+    - `backend/app/routers/chat.py` — title generation after message persist
+    - `frontend/src/hooks/useChatState.ts` — `thread_title` SSE handler
+    - `frontend/src/lib/database.types.ts` — `ThreadTitleEvent` type
+  - **Global folders** (`21f3382`): Any user can right-click a top-level folder → "Share with All". Entire subtree becomes read-only visible to all users. Globe icon distinguishes shared folders.
+    - `supabase/migrations/028_global_folders.sql` — `is_global` column, `is_in_global_subtree()` RPC, updated RLS policies, updated `get_folder_tree` CTE
+    - `backend/app/routers/folders.py` — `PATCH /folders/{id}/toggle-global`, updated `GET /folders` for global visibility
+    - `frontend/src/components/documents/FolderTree.tsx` — Globe icon, right-click context menu, `(shared)` label, Lock icon for non-owners
+    - `frontend/src/pages/DocumentsPage.tsx` — `handleToggleGlobal`, passes `currentUserId` to FolderTree
+- **Files changed:** 8 files (3 backend, 4 frontend, 1 migration)
+- **Tests:** TypeScript OK, backend import OK, ESLint clean (pre-existing errors only)
+- **Pending:** Migration 028 needs to be applied to Supabase; deploy to Railway + Vercel
+- **Next:** Apply migration 028, deploy, QA test both features in production
+
+## Checkpoint 2026-04-23 (Knowledge graph rebuild + MCP + CLAUDE.md graphify integration)
+
+- **Session:** Ran full graphify pipeline on entire codebase, rebuilt Obsidian vault, wired graphify MCP server
+- **Branch:** master
+- **Done:**
+  - `graphify .` full run — 237 files, 93% cache hit rate (23 new files extracted via 2 parallel agents)
+  - Graph: 1211 nodes, 1655 edges, 192 communities (up from 1229/1729/147 — re-clustering)
+  - Obsidian vault: 1403 notes written to `~/claude-code-memory-egs/graphify/claude-code-agentic-rag-masterclass-1/`
+  - HTML viz: `graphify-out/graph.html`
+  - Token benchmark: **155.9x reduction** per query (510K corpus tokens → ~3,274 per query)
+  - `graphify claude install` — added `## graphify` section to `CLAUDE.md`, registered PreToolUse hook in `.claude/settings.json`
+  - `.mcp.json` — added `graphify` MCP server (stdio, exposes `query_graph`, `get_node`, `shortest_path`, `god_nodes`)
+- **Files changed:** 3 files (`.mcp.json`, `CLAUDE.md`, `.claude/settings.json`) + `graphify-out/`
+- **God nodes:** `get_supabase_authed_client` (77 edges), `get_supabase_client` (76), `log_action` (59)
+- **Next:** Restart Claude Code to activate graphify MCP; use `/graphify query` to trace architecture questions
+
+## Checkpoint 2026-04-22 (2026 UI design refresh + logo update)
+
+- **Session:** Updated logos (icon rail + thread panel), applied 2026 design trends across CSS and components
+- **Branch:** master (`1c733e9`)
+- **Done:**
+  - Logo swap: IconRail → `lexcore-logo-dark.svg`, ThreadPanel → `lexcore-dark.svg` (from References/)
+  - CSS: grain/noise texture overlay (`body::after`, SVG fractalNoise, `mix-blend-mode: overlay`)
+  - CSS: multi-tone mesh background — teal second orb (`oklch(0.65 0.15 195)`) alongside purple
+  - CSS: new utilities — `.shimmer`, `.card-luminous`, `.interactive-spring`, `--easing-spring` token
+  - CSS: `text-wrap: balance` on all headings; `gradient-border-animated:focus-within` rule
+  - `SuggestionCards.tsx`: bento redesign — tinted icon backgrounds, per-card ambient colour wash, spring arrow
+  - `ThreadList.tsx`: active thread left accent bar (matches IconRail pattern)
+  - `WelcomeInput.tsx` + `MessageInput.tsx`: animated gradient border on focus-within
+- **Files changed:** 7 files (`index.css`, 4 components, 2 SVGs in public/)
+- **Tests:** TypeScript OK, backend import OK
+- **Deploy:** Vercel deployed (`frontend-hzhhqwj62-erik-gunawan-s-projects.vercel.app` → production), Railway healthy
+- **Next:** Frontend QA pass on production, stakeholder demo prep
 
 ## Checkpoint 2026-04-20 (RAG pipeline complete + pre-ship + automations + CLAUDE.md 100)
 
