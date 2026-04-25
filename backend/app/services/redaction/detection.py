@@ -19,6 +19,22 @@ from functools import lru_cache
 from pydantic import BaseModel
 from presidio_analyzer import AnalyzerEngine
 from presidio_analyzer.nlp_engine import NlpEngineProvider
+from presidio_analyzer.predefined_recognizers import (
+    CreditCardRecognizer,
+    CryptoRecognizer,
+    DateRecognizer,
+    EmailRecognizer,
+    IbanRecognizer,
+    IpRecognizer,
+    MedicalLicenseRecognizer,
+    PhoneRecognizer,
+    UrlRecognizer,
+    UsBankRecognizer,
+    UsItinRecognizer,
+    UsLicenseRecognizer,
+    UsPassportRecognizer,
+    UsSsnRecognizer,
+)
 
 from app.config import get_settings
 from app.services.redaction.uuid_filter import apply_uuid_mask
@@ -50,6 +66,28 @@ class Entity(BaseModel):
     bucket: str  # "surrogate" or "redact"
 
 
+class _PhoneRecognizerXX(PhoneRecognizer):
+    """PhoneRecognizer variant that emits a higher confidence score on match.
+
+    Rationale: the upstream PhoneRecognizer hard-codes ``SCORE = 0.4`` and relies
+    on Presidio's ``LemmaContextAwareEnhancer`` to lift the score above the
+    surrogate threshold (``pii_surrogate_score_threshold = 0.7``) by matching
+    nearby context words like "phone" / "telephone" / "mobile". The lemma
+    enhancer requires the spaCy NLP engine to produce token lemmas — which the
+    multilingual ``xx_ent_wiki_sm`` model does not (it is NER-only). As a
+    result, every phone number scores exactly 0.4 under language=xx and is
+    silently dropped by the two-pass threshold filter.
+
+    A python-phonenumbers match that successfully parses to a number whose
+    region is in our ``supported_regions`` list is high-quality evidence of a
+    real phone number. Bumping the score to ``0.75`` (just over the surrogate
+    threshold) makes those matches survive the filter and become Faker
+    surrogates per Phase 1 SC#1 / FR-2.5.
+    """
+
+    SCORE = 0.75
+
+
 @lru_cache
 def get_analyzer() -> AnalyzerEngine:
     """Lazy singleton: build AnalyzerEngine with xx_ent_wiki_sm spaCy model.
@@ -72,7 +110,67 @@ def get_analyzer() -> AnalyzerEngine:
         nlp_engine=nlp_engine,
         supported_languages=["xx"],
     )
-    logger.info("Presidio analyzer initialised with xx_ent_wiki_sm model.")
+
+    # Presidio's default RecognizerRegistry registers pattern-based recognizers
+    # (PhoneRecognizer, CreditCardRecognizer, UsSsnRecognizer, etc.) for
+    # `language="en"` only. Because we query `language="xx"` (D-01: multilingual
+    # spaCy NER for Indonesian-friendly NER), those pattern recognizers are
+    # silently skipped — leaving CREDIT_CARD, US_SSN, IBAN_CODE, PHONE_NUMBER,
+    # etc. undetected on every Indonesian chat input. Re-register the relevant
+    # pattern recognizers under `supported_language="xx"` so they fire on the
+    # masked text. (Plan 06 SUMMARY follow-up #1; surrogate + redact buckets
+    # both depend on these.)
+    #
+    # PhoneRecognizer note: it accepts `supported_regions` controlling which
+    # phonenumbers ISO regions to validate against. The library's default
+    # ('US', 'UK', 'DE', 'FE', 'IL', 'IN', 'CA', 'BR') omits 'ID' (Indonesia),
+    # so Indonesian +62 numbers are not validated. We pass an explicit list
+    # including 'ID' and a few common regions present in the legal corpus.
+    xx_pattern_recognizers = [
+        ("EmailRecognizer", lambda: EmailRecognizer(supported_language="xx")),
+        (
+            "PhoneRecognizer",
+            lambda: _PhoneRecognizerXX(
+                supported_language="xx",
+                supported_regions=("ID", "US", "UK", "IN"),
+            ),
+        ),
+        ("UrlRecognizer", lambda: UrlRecognizer(supported_language="xx")),
+        ("IpRecognizer", lambda: IpRecognizer(supported_language="xx")),
+        ("DateRecognizer", lambda: DateRecognizer(supported_language="xx")),
+        ("CreditCardRecognizer", lambda: CreditCardRecognizer(supported_language="xx")),
+        ("IbanRecognizer", lambda: IbanRecognizer(supported_language="xx")),
+        ("UsSsnRecognizer", lambda: UsSsnRecognizer(supported_language="xx")),
+        ("UsItinRecognizer", lambda: UsItinRecognizer(supported_language="xx")),
+        ("UsBankRecognizer", lambda: UsBankRecognizer(supported_language="xx")),
+        ("UsPassportRecognizer", lambda: UsPassportRecognizer(supported_language="xx")),
+        ("UsLicenseRecognizer", lambda: UsLicenseRecognizer(supported_language="xx")),
+        (
+            "MedicalLicenseRecognizer",
+            lambda: MedicalLicenseRecognizer(supported_language="xx"),
+        ),
+        ("CryptoRecognizer", lambda: CryptoRecognizer(supported_language="xx")),
+    ]
+    registered: list[str] = []
+    failed: list[str] = []
+    for name, factory in xx_pattern_recognizers:
+        try:
+            analyzer.registry.add_recognizer(factory())
+            registered.append(name)
+        except Exception as exc:  # noqa: BLE001 — defensive across Presidio versions
+            failed.append(name)
+            logger.warning(
+                "Presidio recognizer %s failed to register for language=xx: %s",
+                name,
+                exc,
+            )
+
+    logger.info(
+        "Presidio analyzer initialised with xx_ent_wiki_sm model "
+        "(xx pattern recognizers registered=%d failed=%d).",
+        len(registered),
+        len(failed),
+    )
     return analyzer
 
 

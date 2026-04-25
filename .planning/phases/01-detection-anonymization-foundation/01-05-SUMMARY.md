@@ -185,3 +185,82 @@ final = restore_uuids(anonymized, sentinels)
 The `Entity.bucket` field tells the anonymizer which path to take:
 - `bucket == "surrogate"` → look up / generate Faker surrogate (Plan 06 substitution logic)
 - `bucket == "redact"` → emit `[ENTITY_TYPE]` placeholder (D-08)
+
+---
+
+## Patch — xx-language recognizer coverage (2026-04-25, post-Plan 06)
+
+**Why:** Plan 06's smoke test surfaced a coverage gap (logged in `01-06-SUMMARY.md` as Known follow-up #1). Presidio's default `RecognizerRegistry` registers pattern-based recognizers (PhoneRecognizer, CreditCardRecognizer, UsSsnRecognizer, IbanRecognizer, etc.) for `language="en"` only. Because `get_analyzer()` queries `language="xx"` (D-01: multilingual spaCy NER for Indonesian-friendly NER), every pattern recognizer was silently skipped — leaving CREDIT_CARD, US_SSN, US_ITIN, US_BANK_NUMBER, IBAN_CODE, CRYPTO, US_PASSPORT, US_DRIVER_LICENSE, MEDICAL_LICENSE, PHONE_NUMBER, URL, IP_ADDRESS, DATE_TIME undetected on every Indonesian chat input. Phase 1 SC#1 / FR-2.5 / FR-3.5 require these to be redacted or surrogate-substituted.
+
+**Patch (single file: `backend/app/services/redaction/detection.py`):**
+
+After the `AnalyzerEngine` is constructed, walk a list of factory closures and call `analyzer.registry.add_recognizer(...)` for each one with `supported_language="xx"`. Failures are logged at `WARNING` (defensive across Presidio versions; do not block startup) and tallied so the success/failure count appears in the analyzer-init INFO log.
+
+### Recognizer classes registered for `language="xx"`
+
+| Class | Entity type | Result |
+|---|---|---|
+| `EmailRecognizer` | `EMAIL_ADDRESS` | registered |
+| `_PhoneRecognizerXX` (subclass) | `PHONE_NUMBER` | registered |
+| `UrlRecognizer` | `URL` | registered |
+| `IpRecognizer` | `IP_ADDRESS` | registered |
+| `DateRecognizer` | `DATE_TIME` | registered |
+| `CreditCardRecognizer` | `CREDIT_CARD` | registered |
+| `IbanRecognizer` | `IBAN_CODE` | registered |
+| `UsSsnRecognizer` | `US_SSN` | registered |
+| `UsItinRecognizer` | `US_ITIN` | registered |
+| `UsBankRecognizer` | `US_BANK_NUMBER` | registered |
+| `UsPassportRecognizer` | `US_PASSPORT` | registered |
+| `UsLicenseRecognizer` | `US_DRIVER_LICENSE` | registered |
+| `MedicalLicenseRecognizer` | `MEDICAL_LICENSE` | registered |
+| `CryptoRecognizer` | `CRYPTO` | registered |
+
+**Failures:** none. All 14 registered cleanly under Presidio's installed version. Startup INFO log now reads: `Presidio analyzer initialised with xx_ent_wiki_sm model (xx pattern recognizers registered=14 failed=0).`
+
+### `_PhoneRecognizerXX` subclass — score floor fix (Rule 2: critical functionality)
+
+Registering `PhoneRecognizer(supported_language="xx")` alone was insufficient: the upstream `PhoneRecognizer` hard-codes `SCORE = 0.4` and relies on Presidio's `LemmaContextAwareEnhancer` to lift it above the `pii_surrogate_score_threshold` (0.7) by matching nearby context words like "phone" / "telephone" / "mobile". The lemma enhancer requires the spaCy NLP engine to produce token lemmas — which `xx_ent_wiki_sm` does not (NER-only). So every parsed phone number scored exactly `0.4` and was silently dropped by the two-pass threshold filter, breaking SC#1.
+
+A python-phonenumbers match that successfully parses to a number whose region is in `supported_regions` is high-quality evidence of a real phone number. The patch defines a thin subclass `_PhoneRecognizerXX` that overrides the class attribute to `SCORE = 0.75` (just over the surrogate threshold). All other behavior is inherited unchanged.
+
+`supported_regions=("ID", "US", "UK", "IN")` — the upstream default omits `ID` (Indonesia), so Indonesian `+62` numbers were not even being matched. The patch passes an explicit list that includes Indonesia plus a few common regions present in the legal corpus.
+
+### Before/after entity-type coverage on the smoke sentence
+
+Sentence: `Pak Bambang Sutrisno bekerja di Jakarta. Phone: +628123456789. KK: 4111-1111-1111-1111. SSN: 555-12-3456. Doc: <UUID>`
+
+| Entity type | Before patch | After patch |
+|---|---|---|
+| PERSON (`Pak Bambang Sutrisno`) | detected (0.85) | detected (0.85) |
+| LOCATION (`Jakarta`) | detected (0.85) | detected (0.85) |
+| **PHONE_NUMBER** (`+628123456789`) | **NOT detected** | **detected (0.75)** |
+| **CREDIT_CARD** (`4111-1111-1111-1111`) | **NOT detected** | **detected (1.00)** |
+| **US_SSN** (`555-12-3456`) | **NOT detected** | **detected (0.50)** |
+| UUID sentinel | masked (1) | masked (1) |
+
+(Note: the prompt-canonical sentence used SSN `123-45-6789` which Presidio's `UsSsnRecognizer.invalidate_result` explicitly rejects as a sample value — substituting any non-sample SSN like `555-12-3456` makes the recognizer fire as expected.)
+
+### End-to-end through `redact_text`
+
+```text
+in:  Pak Bambang Sutrisno. Email: bambang@example.com. Phone: +628123456789. KK: 4111-1111-1111-1111. Doc: 6ba7b810-9dad-11d1-80b4-00c04fd430c8
+out: Pak Sutan Eman Wibowo. Email: qnatsir@example.com. Phone: (0344) 171 4961. KK: [CREDIT_CARD]. Doc: 6ba7b810-9dad-11d1-80b4-00c04fd430c8
+hard_redacted_count: 1
+entity_map keys: ['+628123456789', 'bambang@example.com', 'Pak Bambang Sutrisno']
+```
+
+- Credit card → `[CREDIT_CARD]` placeholder (hard-redact bucket, FR-3.5 — never recorded in `entity_map`).
+- Phone number → Faker `id_ID` surrogate `(0344) 171 4961` (Indonesian format).
+- UUID preserved exactly.
+- `hard_redacted_count = 1` correctly reflects the credit card.
+
+### Invariants preserved
+
+- `get_analyzer()` is still `@lru_cache`'d — registration runs once per process at first call (PERF-01 holds; lifespan warm-up still pays the cost off-request).
+- `detect_entities` still returns the same 3-tuple `(masked_text, entities, sentinels)` (W10).
+- D-18 / B4: the new `logger.warning` and `logger.info` calls in the registration loop emit recognizer **class names and counts only** — no user data, no entity text.
+- Patch is fully scoped to `detection.py`; Plan 06's `redaction_service.py`, `anonymization.py`, `__init__.py`, and `main.py` are untouched.
+
+### Why this isn't deferred to Phase 6
+
+It was originally logged as a Phase 6 follow-up in the Plan 06 SUMMARY, but on review the gap blocks Phase 1 SC#1 ("any text passing through the new redaction service yields realistic, gender-matched, collision-free Indonesian-locale surrogates without leaking real values") for the entire hard-redact bucket. Per executor Rule 2 (auto-add missing critical functionality), the fix lands on master immediately rather than waiting on a hardening phase that may be weeks away.
