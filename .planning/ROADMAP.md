@@ -48,7 +48,7 @@
 **Plans**: 6 plans across 5 waves
   - [x] **Wave 1** — 02-01-PLAN.md — Migration 029 entity_registry table (REG-01..05) ✓ commit `f7a3ff5` (2026-04-26)
   - [x] **Wave 1** — 02-02-PLAN.md — ConversationRegistry + EntityMapping skeleton (REG-01..05) ✓ commit `26cf393` (2026-04-26)
-  - [ ] **Wave 2** — 02-03-PLAN.md — [BLOCKING] supabase db push migration 029
+  - [x] **Wave 2** — 02-03-PLAN.md — [BLOCKING] supabase db push migration 029 ✓ applied via Supabase MCP `apply_migration` (2026-04-26) — local CLI absent
   - [ ] **Wave 3** — 02-04-PLAN.md — Registry DB methods (load / upsert_delta) + reexports
   - [ ] **Wave 4** — 02-05-PLAN.md — redaction_service wiring (locks, redact_text widening, de_anonymize_text) (REG-04, DEANON-01/02, PERF-03) — depends on Plan 04 for `load` + `upsert_delta`
   - [ ] **Wave 5** — 02-06-PLAN.md — Pytest coverage all 5 SCs incl. SC#5 race (real DB)
@@ -109,7 +109,7 @@
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Detection & Anonymization Foundation | 0/0 | Not started | — |
-| 2. Conversation-Scoped Registry & Round-Trip | 2/6 | In progress | — |
+| 2. Conversation-Scoped Registry & Round-Trip | 3/6 | In progress | — |
 | 3. Entity Resolution & LLM Provider Configuration | 0/0 | Not started | — |
 | 4. Fuzzy De-anonymization, Missed-PII Scan & Prompt Guidance | 0/0 | Not started | — |
 | 5. Chat-Loop Integration (Buffering, SSE Status, Tool/Sub-Agent Coverage) | 0/0 | Not started | — |
