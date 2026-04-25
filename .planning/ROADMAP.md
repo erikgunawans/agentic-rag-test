@@ -47,7 +47,7 @@
   5. Two simultaneous chat requests on the same thread that introduce the same new entity produce a single registry row (no duplicate surrogates, no race) — verified by an async-lock contention test.
 **Plans**: 6 plans across 5 waves
   - [x] **Wave 1** — 02-01-PLAN.md — Migration 029 entity_registry table (REG-01..05) ✓ commit `f7a3ff5` (2026-04-26)
-  - [ ] **Wave 1** — 02-02-PLAN.md — ConversationRegistry + EntityMapping skeleton (REG-01..05)
+  - [x] **Wave 1** — 02-02-PLAN.md — ConversationRegistry + EntityMapping skeleton (REG-01..05) ✓ commit `26cf393` (2026-04-26)
   - [ ] **Wave 2** — 02-03-PLAN.md — [BLOCKING] supabase db push migration 029
   - [ ] **Wave 3** — 02-04-PLAN.md — Registry DB methods (load / upsert_delta) + reexports
   - [ ] **Wave 4** — 02-05-PLAN.md — redaction_service wiring (locks, redact_text widening, de_anonymize_text) (REG-04, DEANON-01/02, PERF-03) — depends on Plan 04 for `load` + `upsert_delta`
@@ -109,7 +109,7 @@
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Detection & Anonymization Foundation | 0/0 | Not started | — |
-| 2. Conversation-Scoped Registry & Round-Trip | 0/0 | Not started | — |
+| 2. Conversation-Scoped Registry & Round-Trip | 2/6 | In progress | — |
 | 3. Entity Resolution & LLM Provider Configuration | 0/0 | Not started | — |
 | 4. Fuzzy De-anonymization, Missed-PII Scan & Prompt Guidance | 0/0 | Not started | — |
 | 5. Chat-Loop Integration (Buffering, SSE Status, Tool/Sub-Agent Coverage) | 0/0 | Not started | — |
@@ -154,4 +154,5 @@ Milestone v1.0 phase numbering starts at **Phase 1** (workflow flag `--reset-pha
 *Roadmap created: 2026-04-25 (brownfield baseline)*
 *Last updated: 2026-04-26 — Phase 2 plan list re-waved (Plan 05 → Wave 4, Plan 06 → Wave 5) following revision iter 1 of `/gsd-plan-phase`*
 *Last updated: 2026-04-26 — Phase 2 plan 02-01 SHIPPED ✓ (commit `f7a3ff5`); migration 029 entity_registry table written to disk*
+*Last updated: 2026-04-26 — Phase 2 plan 02-02 SHIPPED ✓ (commit `26cf393`); ConversationRegistry + EntityMapping skeleton (127 lines, no DB methods); Wave 1 complete; ready for Wave 2 (02-03 supabase db push)*
 </content>
