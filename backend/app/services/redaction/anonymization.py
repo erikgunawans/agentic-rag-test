@@ -37,7 +37,7 @@ from __future__ import annotations
 import hashlib
 import logging
 from functools import lru_cache
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 import gender_guesser.detector as gg
 from faker import Faker
@@ -46,6 +46,15 @@ from app.services.redaction.detection import Entity
 from app.services.redaction.gender_id import lookup_gender
 from app.services.redaction.honorifics import reattach_honorific, strip_honorific
 from app.services.redaction.name_extraction import extract_name_tokens
+
+if TYPE_CHECKING:
+    # Forward-ref only (Phase 2). Runtime import omitted to avoid a potential
+    # circular import: registry.py imports name_extraction + honorifics from
+    # this sub-package, and a runtime back-edge from anonymization → registry
+    # would close the cycle. The `registry` parameter is annotated with the
+    # quoted string "ConversationRegistry | None" so the runtime never resolves
+    # this name.
+    from app.services.redaction.registry import ConversationRegistry  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
@@ -183,6 +192,7 @@ def _generate_surrogate(
 def anonymize(
     masked_text: str,
     entities: list[Entity],
+    registry: "ConversationRegistry | None" = None,
 ) -> tuple[str, dict[str, str], int]:
     """Substitute entities right-to-left to keep offsets stable.
 
@@ -191,11 +201,20 @@ def anonymize(
             offsets reference THIS string, not the original input.
         entities: Detected PII spans, each carrying a ``bucket`` of either
             ``"surrogate"`` or ``"redact"``.
+        registry: When supplied (Phase 2 D-37 / D-32 / REG-04), the per-call
+            cross-call collision check expands its forbidden-token set with
+            ``registry.forbidden_tokens()`` and existing real-value surrogates
+            are reused via ``registry.lookup()`` (skipping Faker entirely).
+            When ``None`` (Phase 1 default — D-39), behaviour is identical to
+            the stateless legacy path.
 
     Returns:
         ``(anonymized_text, entity_map, hard_redacted_count)`` where
         ``entity_map`` contains ONLY surrogate-bucket pairs (real -> surrogate);
-        hard-redact entries are excluded per FR-3.5 / D-08.
+        hard-redact entries are excluded per FR-3.5 / D-08. In registry mode
+        the map still uses ``Entity.text`` as the key (Plan 05 W-2 invariant)
+        so the caller can diff against ``registry.entries()`` to compute the
+        delta to upsert.
     """
     faker = get_faker()
     real_persons = [e.text for e in entities if e.type == "PERSON"]
@@ -203,7 +222,12 @@ def anonymize(
     # Honorifics are stripped before tokenisation so e.g. "Pak" doesn't
     # accidentally land in the forbidden set.
     bare_persons = [strip_honorific(name)[1] for name in real_persons]
-    forbidden_tokens = extract_name_tokens(bare_persons)
+    # D-07 / D-37: per-call ∪ per-thread forbidden-token set. Per-PERSON only (D-38).
+    call_forbidden = extract_name_tokens(bare_persons)
+    if registry is not None:
+        forbidden_tokens = call_forbidden | registry.forbidden_tokens()
+    else:
+        forbidden_tokens = call_forbidden
 
     entity_map: dict[str, str] = {}
     used_surrogates: set[str] = set()
@@ -217,6 +241,24 @@ def anonymize(
             replacement = f"[{ent.type}]"  # D-08
             hard_redacted_count += 1
         else:
+            # REG-04 / D-32 / I-4: if the registry already has this real value,
+            # reuse the existing surrogate and skip Faker generation entirely.
+            # Add to entity_map so the caller (redact_text) can still observe
+            # what was substituted in THIS call; the delta computation will
+            # exclude it (real_value already in registry._by_lower).
+            #
+            # I-4 ordering: this O(1) registry lookup runs BEFORE the O(n)
+            # within-call scan below — short-circuits when the registry has
+            # the entity, and makes control flow easier to read (registry hit
+            # → continue; miss → fall through to Phase 1's within-call + Faker
+            # logic).
+            if registry is not None:
+                hit = registry.lookup(ent.text)
+                if hit is not None:
+                    entity_map[ent.text] = hit
+                    out = out[: ent.start] + hit + out[ent.end :]
+                    continue
+
             # ANON-03: same real value -> same surrogate within one call.
             # Case-insensitive lookup catches "Bambang" / "bambang" variants.
             existing = entity_map.get(ent.text) or next(
