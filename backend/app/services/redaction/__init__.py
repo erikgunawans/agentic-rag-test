@@ -1,26 +1,31 @@
-"""Redaction sub-package.
+"""Redaction sub-package — Phase 1 milestone v1.0.
 
-Phase 1 milestone v1.0 — Detection & Anonymization Foundation.
-See .planning/phases/01-detection-anonymization-foundation/01-CONTEXT.md for the
-locked architectural decisions (D-01..D-20) that shape this module.
+Public surface:
 
-Public surface (after all Phase 1 plans land):
-    from app.services.redaction import RedactionError
-    from app.services.redaction_service import (
-        RedactionResult, RedactionService, get_redaction_service,
-    )
+- ``RedactionError`` is re-exported here for ``from app.services.redaction
+  import RedactionError`` style imports.
+- ``RedactionResult``, ``RedactionService``, and ``get_redaction_service``
+  must be imported from the leaf module ``app.services.redaction_service``
+  directly. They are NOT re-exported here.
 
-Note: To avoid the circular import chain
-    __init__.py -> redaction_service.py -> anonymization.py -> detection.py ->
-    uuid_filter.py -> __init__.py
-this package's `__init__.py` re-exports ONLY `RedactionError`. The service
-classes live in `app.services.redaction_service` and must be imported from
-that module directly.
+NOTE (B2 option B): this package deliberately re-exports ONLY
+``RedactionError``. Re-exporting the service classes here would re-enter
+the package mid-load through the chain
+``__init__ → redaction_service → anonymization → detection → uuid_filter →
+__init__`` and Python would raise
+``ImportError: cannot import name 'RedactionError'``.
+
+``errors.py`` is the leaf module of the package's import graph; every
+internal redaction module imports ``RedactionError`` directly from
+``app.services.redaction.errors``. The re-export here is purely a
+convenience for external consumers.
+
+See ``.planning/phases/01-detection-anonymization-foundation/01-CONTEXT.md``
+(D-01..D-20) for the locked architectural decisions that shape this module.
 """
 
 from __future__ import annotations
 
-# Re-exports populated as Wave 2 / Wave 3 plans land. Keep this minimal.
-# Plan 04 will create errors.py and re-export RedactionError below.
+from app.services.redaction.errors import RedactionError
 
-__all__: list[str] = []
+__all__ = ["RedactionError"]

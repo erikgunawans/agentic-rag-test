@@ -1,15 +1,30 @@
+import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.routers import threads, chat, documents, document_tools, admin_settings, user_preferences, audit_trail, obligations, clause_library, document_templates, approvals, user_management, regulatory, notifications, dashboard, integrations, google_export, bjr, compliance_snapshots, pdp, folders
 from app.services.tracing_service import configure_tracing
+from app.services.redaction_service import get_redaction_service
 from app.database import get_supabase_client
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     configure_tracing()
+    # PERF-01 / D-15: eager warm-up so the first chat request doesn't pay
+    # the Presidio + spaCy model load. Wrapped in try/except matching the
+    # existing supabase-recovery pattern — if the warm-up trips on Railway
+    # (e.g. a model-download blip), we log a warning and let boot continue
+    # rather than block the whole API. I15: use logger.warning, not print.
+    try:
+        get_redaction_service()
+    except Exception:
+        logger.warning(
+            "get_redaction_service() warm-up failed", exc_info=True
+        )
     # Recover any docs stalled in 'processing' from a previous crash
     try:
         get_supabase_client().table("documents").update(
