@@ -8,6 +8,32 @@ LexCore is an Indonesian legal AI platform for Contract Lifecycle Management (CL
 
 Indonesian legal teams can manage the full contract lifecycle — chat with documents, draft contracts, run compliance checks, route approvals, audit decisions — with confidence that AI outputs are accurate, citable, and traceable.
 
+## Current Milestone: v1.0 PII Redaction System
+
+**Goal:** Ensure real PII never reaches cloud chat / auxiliary LLM providers while keeping the user experience transparent — anonymize on-the-fly at chat-time, de-anonymize before display. Embeddings remain configurable (local or cloud) with documented tradeoff.
+
+**Source:** [`docs/PRD-PII-Redaction-System-v1.1.md`](../docs/PRD-PII-Redaction-System-v1.1.md)
+
+**Target features:**
+
+- **PII detection** (Presidio + spaCy NER, two-pass thresholds, UUID filter, 16 entity types across surrogate vs hard-redact buckets)
+- **Anonymization** (Faker surrogates, gender-matched, collision-free, surname-component cross-check)
+- **Conversation-scoped entity registry** (per-thread real→surrogate mapping persisted to DB, case-insensitive lookups, consistency guarantee)
+- **Entity resolution** (algorithmic / LLM / none modes; LLM mode supports local OR cloud with mandatory pre-anonymization for cloud)
+- **De-anonymization** (placeholder-tokenized 3-phase pipeline; algorithmic / LLM / none fuzzy modes)
+- **Response buffering & SSE status events** (full LLM response buffering when redaction is active; sub-agent reasoning suppression)
+- **System-prompt guidance** (instructs LLM to preserve exact surrogate formatting)
+- **Missed-PII secondary scan** (optional LLM scan over already-anonymized text)
+- **LLM provider configuration** (global `LLM_PROVIDER` + per-feature overrides; pre-flight egress filter for cloud calls; graceful degradation; admin settings UI)
+- **Tool-call & sub-agent coverage** (document search / SQL / grep / sub-agents anonymize inputs and de-anonymize outputs)
+- **Embedding provider configuration** (`EMBEDDING_PROVIDER=local|cloud`; default cloud preserves existing RAG-02 OpenAI flow; local option supported)
+- **Observability & tracing** (pluggable LangSmith / Langfuse; debug logs for entities, surrogates, fuzzy matches, UUID drops, provider per call, egress-filter results)
+- **Reliability & performance** (NER engine loaded once at startup; per-conversation registry async lock; <500ms typical chat overhead; graceful provider-failure degradation)
+
+**Privacy invariant (v1.0 scope):** No raw PII reaches cloud chat / auxiliary LLM providers. Cloud auxiliary calls (entity resolution, missed-scan, fuzzy de-anon, title generation, metadata extraction) only ever see surrogate-form data. Embedding provider is a deployer choice with documented tradeoff.
+
+**Out of scope (deferred):** multi-language support, filename / document-metadata PII redaction, audit-trail UI, custom entity recognizers, per-user toggle, re-embedding on `EMBEDDING_PROVIDER` switch (deployer-managed migration).
+
 ## Requirements
 
 ### Validated
@@ -81,9 +107,46 @@ Indonesian legal teams can manage the full contract lifecycle — chat with docu
 
 ### Active
 
-<!-- Current scope for the in-progress milestone. Filled by /gsd-new-milestone. -->
+<!-- Current scope for the in-progress milestone v1.0. REQ-IDs detailed in REQUIREMENTS.md. -->
 
-(None yet — `/gsd-new-milestone` will populate this with the next milestone's scope.)
+#### PII Detection (PII-*)
+- ☐ **PII-01..05**: Presidio + spaCy NER, two-pass thresholds, configurable surrogate vs hard-redact entity sets, UUID false-positive filter
+
+#### Anonymization (ANON-*)
+- ☐ **ANON-01..06**: Faker realistic surrogates, hard-redact placeholders, collision-free, gender-matched, surname-component cross-check, programmatic find-and-replace
+
+#### Conversation-Scoped Entity Registry (REG-*)
+- ☐ **REG-01..05**: Per-thread persisted registry, case-insensitive lookups, consistency guarantee, no hard-redact entries
+
+#### Entity Resolution (RESOLVE-*)
+- ☐ **RESOLVE-01..04**: Three modes (algorithmic / LLM / none); LLM mode local + cloud sub-providers; PERSON-only resolution; provider-agnostic safeguards
+
+#### De-Anonymization (DEANON-*)
+- ☐ **DEANON-01..05**: Real-value replacement, case-insensitive matching, fuzzy pass (algorithmic / LLM / none), placeholder-tokenized 3-phase pipeline, hard-redact pass-through
+
+#### Response Buffering & SSE (BUFFER-*)
+- ☐ **BUFFER-01..03**: Full LLM response buffering when redaction is active, `redaction_status` SSE events, sub-agent reasoning suppression
+
+#### System-Prompt Guidance (PROMPT-*)
+- ☐ **PROMPT-01**: Main agent prompt instructs LLM to preserve exact surrogate formatting
+
+#### Missed-PII Secondary Scan (SCAN-*)
+- ☐ **SCAN-01..05**: Optional toggle, runs across all resolution modes, provider follows global setting, validates against hard-redact set, optionally re-runs primary NER
+
+#### LLM Provider Configuration (PROVIDER-*)
+- ☐ **PROVIDER-01..07**: `LLM_PROVIDER` global + per-feature overrides, OpenAI-compatible API for both, pre-flight egress filter for cloud, secret-managed API key, settings UI, graceful degradation
+
+#### Tool-Call & Sub-Agent Coverage (TOOL-*)
+- ☐ **TOOL-01..04**: Document search / SQL / grep / sub-agents — anonymize inputs and de-anonymize outputs symmetrically
+
+#### Embedding Provider Configuration (EMBED-*)
+- ☐ **EMBED-01..02**: `EMBEDDING_PROVIDER=local|cloud`; default cloud preserves existing OpenAI flow; local option supported
+
+#### Observability & Tracing (OBS-*)
+- ☐ **OBS-01..03**: Pluggable tracing provider, debug logs for redaction operations, audit log for provider per call
+
+#### Reliability & Performance (PERF-*)
+- ☐ **PERF-01..04**: NER engine + lazy singletons loaded once at startup, per-conversation registry async lock, <500ms typical-chat overhead target, graceful provider-failure degradation
 
 ### Out of Scope
 
@@ -133,6 +196,12 @@ Indonesian legal teams can manage the full contract lifecycle — chat with docu
 | Cohere cross-encoder reranking | Best-in-class quality for the cost | ✓ Good — eval harness shows lift |
 | 2026 Calibrated Restraint design system | Zinc-neutral base, purple accent, calibrated motion | ✓ Good — shipped sidebar + welcome card refinements without regressions |
 | GSD-managed planning artifacts | Atomic-commit planning artifacts, parallel agent workflows | — Pending — initialized 2026-04-25 |
+| Chat-time anonymization (not ingestion-time) | Avoids double-anonymization chains, preserves chunk boundaries, enables conversation-scoped entity resolution | — Adopted from PRD §7.1 for milestone v1.0 |
+| Conversation-scoped entity registries | Cross-conversation surrogate isolation; bounded registry growth; full conversation context for clustering | — Adopted from PRD §7.2 for milestone v1.0 |
+| Buffer-and-de-anonymize over stream-and-de-anonymize | Eliminates surrogate-boundary edge cases, enables fuzzy de-anonymization on complete response | — Adopted from PRD §7.3 for milestone v1.0 (latency offset by SSE status events) |
+| Two-pass Presidio detection (0.7 surrogate / 0.3 hard-redact) | Single-threshold approach trades off false-pos vs false-neg unsafely; two passes match risk profile per entity | — Adopted from PRD §7.4 for milestone v1.0 |
+| Pre-anonymized cloud LLM path | Privacy invariant ("no real PII to cloud") preserved end-to-end; defense-in-depth against vendor breach / log retention / training-data leakage | — Adopted from PRD §7.6 for milestone v1.0 |
+| `EMBEDDING_PROVIDER` configurable (local/cloud) | LexCore's existing RAG-02 uses OpenAI embeddings; PRD §3.2 mandates local; deployer-choice config preserves both | — New decision for milestone v1.0 (deviation from PRD §3.2) |
 
 ## Evolution
 
@@ -152,4 +221,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state (users, feedback, metrics)
 
 ---
-*Last updated: 2026-04-25 after initialization (brownfield bootstrap from CLAUDE.md + codebase map)*
+*Last updated: 2026-04-25 — milestone v1.0 PII Redaction System started (`/gsd-new-milestone`)*
