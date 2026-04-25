@@ -22,10 +22,13 @@ on the table is the cross-process safety net until that upgrade lands.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict
+
+from app.database import get_supabase_client
 
 # IMPORTANT: strip_honorific lives in honorifics.py, NOT name_extraction.py.
 # Phase 1's anonymization.py uses the SAME two-line split (L47 + L48). If you
@@ -77,6 +80,44 @@ class ConversationRegistry:
             m.real_value_lower: m for m in self._rows
         }
 
+    @classmethod
+    async def load(cls, thread_id: str) -> "ConversationRegistry":
+        """Lazy-load the registry for a thread on the first redact call of a turn (D-33).
+
+        One SELECT against `public.entity_registry`. Service-role client per D-25
+        (RLS is enabled with no policies — only the service role can read).
+
+        Returns an empty registry (rows=[]) for a brand-new thread; this is
+        REG-01-compliant behaviour, not an error.
+
+        The supabase-py client is sync; we wrap in `asyncio.to_thread` because
+        `redact_text` (Plan 05) calls this from inside the per-thread asyncio.Lock
+        critical section. Blocking the event loop while holding the lock would
+        starve other coroutines.
+        """
+        client = get_supabase_client()
+
+        def _select() -> list[dict]:
+            res = (
+                client.table("entity_registry")
+                .select(
+                    "real_value,real_value_lower,surrogate_value,entity_type,source_message_id"
+                )
+                .eq("thread_id", thread_id)
+                .execute()
+            )
+            return list(res.data or [])
+
+        raw_rows = await asyncio.to_thread(_select)
+        rows: list[EntityMapping] = [EntityMapping(**r) for r in raw_rows]
+
+        logger.debug(
+            "registry.load: thread_id=%s rows=%d",
+            thread_id,
+            len(rows),
+        )
+        return cls(thread_id=thread_id, rows=rows)
+
     @property
     def thread_id(self) -> str:
         """Read-only thread_id this registry is bound to."""
@@ -121,6 +162,78 @@ class ConversationRegistry:
         # land in the forbidden set.
         bare_names = [strip_honorific(name)[1] for name in person_reals]
         return extract_name_tokens(bare_names)
+
+    async def upsert_delta(self, deltas: list[EntityMapping]) -> None:
+        """Persist newly-introduced mappings to the entity_registry table (D-32).
+
+        Called from inside the asyncio.Lock critical section in
+        `redaction_service.redact_text(text, registry)` (Plan 05). Empty list
+        = no-op (zero DB hops). Successful inserts also update the in-memory
+        state so subsequent `lookup()` calls in this turn see the new entries
+        without re-querying the DB.
+
+        Uses INSERT ... ON CONFLICT (thread_id, real_value_lower) DO NOTHING
+        — the composite UNIQUE constraint (D-23) is the cross-process
+        serialisation safety net; even if two workers race past asyncio.Lock,
+        only one row lands.
+
+        Raises any DB error (REG-04 invariant: a lost write would silently
+        violate "same real → same surrogate"). Phase 1 audit_service is
+        fire-and-forget; registry writes are NOT.
+        """
+        if not deltas:
+            return  # zero-DB-hop fast path
+
+        client = get_supabase_client()
+        rows = [
+            {
+                "thread_id": self._thread_id,
+                "real_value": m.real_value,
+                "real_value_lower": m.real_value_lower,
+                "surrogate_value": m.surrogate_value,
+                "entity_type": m.entity_type,
+                "source_message_id": m.source_message_id,
+            }
+            for m in deltas
+        ]
+
+        def _upsert() -> None:
+            (
+                client.table("entity_registry")
+                .upsert(
+                    rows,
+                    on_conflict="thread_id,real_value_lower",
+                    ignore_duplicates=True,
+                )
+                .execute()
+            )
+
+        try:
+            await asyncio.to_thread(_upsert)
+        except Exception as e:
+            logger.error(
+                "registry.upsert_delta failed: thread_id=%s deltas=%d error_type=%s",
+                self._thread_id,
+                len(deltas),
+                type(e).__name__,
+            )
+            raise
+
+        # First-write-wins: matches ON CONFLICT DO NOTHING semantics. Don't
+        # overwrite existing in-memory entries even if the caller passed a
+        # delta whose real_value_lower somehow already exists (shouldn't
+        # happen — the caller diffs against registry first — but be safe).
+        for m in deltas:
+            if m.real_value_lower not in self._by_lower:
+                self._rows.append(m)
+                self._by_lower[m.real_value_lower] = m
+
+        logger.debug(
+            "registry.upsert_delta: thread_id=%s wrote=%d size_after=%d",
+            self._thread_id,
+            len(deltas),
+            len(self._rows),
+        )
 
     def __repr__(self) -> str:  # pragma: no cover — debug aid only; never logs real values
         # B4 / D-18 / D-41: counts only, never real values.
