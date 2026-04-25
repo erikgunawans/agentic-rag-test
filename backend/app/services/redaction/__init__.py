@@ -27,5 +27,10 @@ See ``.planning/phases/01-detection-anonymization-foundation/01-CONTEXT.md``
 from __future__ import annotations
 
 from app.services.redaction.errors import RedactionError
+from app.services.redaction.registry import ConversationRegistry, EntityMapping
 
-__all__ = ["RedactionError"]
+__all__ = [
+    "RedactionError",
+    "ConversationRegistry",
+    "EntityMapping",
+]
