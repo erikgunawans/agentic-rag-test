@@ -9,10 +9,10 @@ See: `.planning/PROJECT.md` (updated 2026-04-25)
 
 ## Current Position
 
-- **Phase:** Phase 2: Conversation-Scoped Registry & Round-Trip — **READY TO EXECUTE** (6 plans across 5 waves, verified)
-- **Resume file:** `.planning/phases/02-conversation-scoped-registry-and-round-trip/02-01-migration-029-entity-registry-PLAN.md` (start with Wave 1)
-- **Status:** Phase 1 SHIPPED ✓ (21 commits `8d06ffe`..`0857bb2`, 20/20 tests). Phase 2 planning complete: 6 plans, 5 waves, plan-checker trajectory 7 → 0 across 2 iterations. All 8 REQ-IDs covered (REG-01..05, DEANON-01..02, PERF-03). Phase 1 regression preserved via D-39.
-- **Last activity:** 2026-04-26 — `/gsd-plan-phase 2 --auto` complete (commits `f0e9bf2`, `7845ca9`, `8359df5`). Wave structure: W1 (migration 029 + registry skeleton, parallel), W2 ([BLOCKING] supabase db push), W3 (registry DB methods), W4 (redaction_service wiring), W5 (pytest with real-DB SC#5 race). Open question resolved: `de_anonymize_text` is a `RedactionService` method (option b — preserves Phase 1 B2 circular-import-avoidance posture); not re-exported.
+- **Phase:** Phase 2: Conversation-Scoped Registry & Round-Trip — **EXECUTING** (W1 plan 02-01 complete; 02-02 + W2..W5 still pending)
+- **Resume file:** `.planning/phases/02-conversation-scoped-registry-and-round-trip/02-02-conversation-registry-skeleton-PLAN.md` (Wave 1 sibling — unblocked)
+- **Status:** Phase 1 SHIPPED ✓ (21 commits `8d06ffe`..`0857bb2`, 20/20 tests). Phase 2 plan **02-01 SHIPPED ✓** — migration 029 (`entity_registry` table) written to disk at commit `f7a3ff5` (NOT yet pushed; Wave 2 plan 02-03 will run `supabase db push` with explicit user confirmation). 5 plans / 4 waves remain.
+- **Last activity:** 2026-04-26 — `/gsd-execute-phase 2` Wave 1 partial: plan 02-01 complete (commit `f7a3ff5`). Migration file `supabase/migrations/029_pii_entity_registry.sql` (44 lines) ships the 8-column table, composite UNIQUE(thread_id, real_value_lower) per D-23, service-role-only RLS per D-25 (zero policies, stricter than `audit_logs`), `handle_entity_registry_updated_at` trigger wired to existing `handle_updated_at()`, D-31 FUTURE-WORK note for `pg_advisory_xact_lock` upgrade in header comment. REQ-01..05 satisfied at the schema layer.
 
 ## Accumulated Context
 
@@ -52,3 +52,4 @@ See: `.planning/PROJECT.md` (updated 2026-04-25)
 *Updated: 2026-04-26 — Phase 1 EXECUTION COMPLETE ✅: 21 commits, 20/20 tests passing, all 5 ROADMAP SCs verified. Next: Phase 2 (REG-01..05, DEANON-01..02, PERF-03)*
 *Updated: 2026-04-26 — Phase 2 context gathered: 4 gray areas resolved, 24 decisions (D-21..D-44) in `02-CONTEXT.md`. Ready for /gsd-plan-phase 2.*
 *Updated: 2026-04-26 — Phase 2 PLANNING COMPLETE ✓: 6 plans / 5 waves; plan-checker trajectory 7 → 0 across 2 iterations. All 8 REQ-IDs covered. Ready for /gsd-execute-phase 2.*
+*Updated: 2026-04-26 — Phase 2 EXECUTION underway: plan 02-01 SHIPPED (commit `f7a3ff5`). Migration 029 `entity_registry` written to disk; not yet pushed. Wave 1 sibling 02-02 (ConversationRegistry skeleton) unblocked. REG-01..05 satisfied at schema layer.*

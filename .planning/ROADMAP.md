@@ -46,7 +46,7 @@
   4. Hard-redacted placeholders (`[CREDIT_CARD]`, `[US_SSN]`, …) never appear as keys in the registry — they are intentionally one-way.
   5. Two simultaneous chat requests on the same thread that introduce the same new entity produce a single registry row (no duplicate surrogates, no race) — verified by an async-lock contention test.
 **Plans**: 6 plans across 5 waves
-  - [ ] **Wave 1** — 02-01-PLAN.md — Migration 029 entity_registry table (REG-01..05)
+  - [x] **Wave 1** — 02-01-PLAN.md — Migration 029 entity_registry table (REG-01..05) ✓ commit `f7a3ff5` (2026-04-26)
   - [ ] **Wave 1** — 02-02-PLAN.md — ConversationRegistry + EntityMapping skeleton (REG-01..05)
   - [ ] **Wave 2** — 02-03-PLAN.md — [BLOCKING] supabase db push migration 029
   - [ ] **Wave 3** — 02-04-PLAN.md — Registry DB methods (load / upsert_delta) + reexports
@@ -153,4 +153,5 @@ Milestone v1.0 phase numbering starts at **Phase 1** (workflow flag `--reset-pha
 ---
 *Roadmap created: 2026-04-25 (brownfield baseline)*
 *Last updated: 2026-04-26 — Phase 2 plan list re-waved (Plan 05 → Wave 4, Plan 06 → Wave 5) following revision iter 1 of `/gsd-plan-phase`*
+*Last updated: 2026-04-26 — Phase 2 plan 02-01 SHIPPED ✓ (commit `f7a3ff5`); migration 029 entity_registry table written to disk*
 </content>
