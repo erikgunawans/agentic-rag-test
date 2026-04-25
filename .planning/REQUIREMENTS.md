@@ -203,7 +203,7 @@
 ## Traceability
 
 <!-- Maps requirements to phases. Validated Baseline maps to "Pre-GSD" (shipped before initialization).
-     v1.0 phase mapping is filled by the gsd-roadmapper agent in the next workflow step. -->
+     v1.0 phase mapping derived by gsd-roadmapper on 2026-04-25. -->
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
@@ -217,25 +217,31 @@
 | AUTH-01 through AUTH-04 | Pre-GSD | ✓ Complete |
 | SET-01 through SET-02 | Pre-GSD | ✓ Complete |
 | DEPLOY-01 through DEPLOY-03 | Pre-GSD | ✓ Complete |
-| PII-01..05 | v1.0 — TBD (roadmapper) | ☐ Pending |
-| ANON-01..06 | v1.0 — TBD (roadmapper) | ☐ Pending |
-| REG-01..05 | v1.0 — TBD (roadmapper) | ☐ Pending |
-| RESOLVE-01..04 | v1.0 — TBD (roadmapper) | ☐ Pending |
-| DEANON-01..05 | v1.0 — TBD (roadmapper) | ☐ Pending |
-| BUFFER-01..03 | v1.0 — TBD (roadmapper) | ☐ Pending |
-| PROMPT-01 | v1.0 — TBD (roadmapper) | ☐ Pending |
-| SCAN-01..05 | v1.0 — TBD (roadmapper) | ☐ Pending |
-| PROVIDER-01..07 | v1.0 — TBD (roadmapper) | ☐ Pending |
-| TOOL-01..04 | v1.0 — TBD (roadmapper) | ☐ Pending |
-| EMBED-01..02 | v1.0 — TBD (roadmapper) | ☐ Pending |
-| OBS-01..03 | v1.0 — TBD (roadmapper) | ☐ Pending |
-| PERF-01..04 | v1.0 — TBD (roadmapper) | ☐ Pending |
+| PII-01..05 | v1.0 — Phase 1 | ☐ Pending |
+| ANON-01..06 | v1.0 — Phase 1 | ☐ Pending |
+| REG-01..05 | v1.0 — Phase 2 | ☐ Pending |
+| RESOLVE-01..04 | v1.0 — Phase 3 | ☐ Pending |
+| DEANON-01..02 | v1.0 — Phase 2 | ☐ Pending |
+| DEANON-03..05 | v1.0 — Phase 4 | ☐ Pending |
+| BUFFER-01..03 | v1.0 — Phase 5 | ☐ Pending |
+| PROMPT-01 | v1.0 — Phase 4 | ☐ Pending |
+| SCAN-01..05 | v1.0 — Phase 4 | ☐ Pending |
+| PROVIDER-01..07 | v1.0 — Phase 3 | ☐ Pending |
+| TOOL-01..04 | v1.0 — Phase 5 | ☐ Pending |
+| EMBED-01..02 | v1.0 — Phase 6 | ☐ Pending |
+| OBS-01 | v1.0 — Phase 1 | ☐ Pending |
+| OBS-02..03 | v1.0 — Phase 6 | ☐ Pending |
+| PERF-01 | v1.0 — Phase 1 | ☐ Pending |
+| PERF-02 | v1.0 — Phase 6 | ☐ Pending |
+| PERF-03 | v1.0 — Phase 2 | ☐ Pending |
+| PERF-04 | v1.0 — Phase 6 | ☐ Pending |
 
 **Coverage:**
 - Validated Baseline: 38 requirements (✓ Complete, shipped pre-GSD)
-- v1.0 (Active) requirements: 54 — across 13 categories, mapping to phases TBD by roadmapper
+- v1.0 (Active) requirements: 54 — across 13 categories, mapped to 6 phases (1: 13, 2: 8, 3: 11, 4: 9, 5: 7, 6: 6)
 - v2 (Deferred) requirements: 0
 - Unmapped: 0 ✓
+- Duplicates (REQ-ID in multiple phases): 0 ✓
 
 **v1.0 requirement counts by category:**
 - PII detection: 5 | Anonymization: 6 | Entity registry: 5 | Entity resolution: 4
@@ -245,4 +251,4 @@
 
 ---
 *Requirements defined: 2026-04-25*
-*Last updated: 2026-04-25 — milestone v1.0 PII Redaction System requirements added (54 REQ-IDs from `docs/PRD-PII-Redaction-System-v1.1.md`)*
+*Last updated: 2026-04-25 — milestone v1.0 PII Redaction System: 54 REQ-IDs mapped to phases 1–6 by `gsd-roadmapper`*
