@@ -14,7 +14,7 @@
 
 ### Phases (summary)
 
-- [ ] **Phase 1: Detection & Anonymization Foundation** — Presidio NER + Faker surrogates wired in as lazy singletons with tracing
+- [x] **Phase 1: Detection & Anonymization Foundation** ✅ 2026-04-26 — Presidio NER + Faker surrogates wired in as lazy singletons with tracing (21 commits, 20/20 tests pass, 5/5 SCs verified)
 - [ ] **Phase 2: Conversation-Scoped Registry & Round-Trip** — Per-thread registry persists; basic surrogate→real de-anonymization round-trip works
 - [ ] **Phase 3: Entity Resolution & LLM Provider Configuration** — `algorithmic`/`llm`/`none` resolution modes; global + per-feature `LLM_PROVIDER` plumbing with egress filter and admin UI
 - [ ] **Phase 4: Fuzzy De-anonymization, Missed-PII Scan & Prompt Guidance** — 3-phase placeholder-tokenized de-anon pipeline; optional secondary LLM scan; system-prompt formatting guidance
@@ -33,7 +33,7 @@
   3. A document-ID lookalike string (UUID segment) inside chat input is NOT redacted; tool calls that pass UUIDs continue to work end-to-end.
   4. Person-name surrogates are gender-matched (female-original yields female surrogate when gender is detectable; ambiguous originals fall back to random) and never reuse a real surname or first name from the same input batch.
   5. A backend cold-start loads Presidio NER, gender-detection model, and the nickname dictionary exactly once (lazy-singleton); subsequent redaction calls reuse them, and every call appears as a span in the configured tracing provider (`TRACING_PROVIDER=langsmith` or `langfuse`).
-**Plans**: TBD
+**Plans**: 01-01..01-07 ✅ executed 2026-04-26 (21 commits `8d06ffe`..`0857bb2`; 20/20 tests pass)
 
 ### Phase 2: Conversation-Scoped Registry & Round-Trip
 **Goal:** Ship the conversation-scoped real↔surrogate registry so the same real entity always maps to the same surrogate within a thread, the mapping survives a thread reload, and surrogates round-trip back to real values for user display.
