@@ -27,7 +27,7 @@ export function SuggestionCards() {
       <button
         key={path}
         onClick={() => navigate(path)}
-        className="group relative flex flex-col gap-3 rounded-2xl border border-border/50 bg-card p-4 text-left cursor-pointer animate-fade-in-up overflow-hidden focus-ring card-luminous"
+        className="group relative flex items-start gap-3 rounded-2xl border border-border/50 bg-card px-3.5 py-2.5 text-left cursor-pointer animate-fade-in-up overflow-hidden focus-ring card-luminous"
         style={{ animationDelay: `${index * 80}ms` }}
       >
         {/* Ambient colour wash on hover */}
@@ -38,25 +38,23 @@ export function SuggestionCards() {
 
         {/* Icon with tinted background */}
         <div
-          className="flex h-8 w-8 items-center justify-center rounded-lg relative z-10 transition-transform duration-300 group-hover:scale-110"
+          className="flex h-7 w-7 items-center justify-center rounded-lg shrink-0 relative z-10 transition-transform duration-300 group-hover:scale-110 mt-0.5"
           style={{ background: `color-mix(in oklch, ${colorVar} 12%, transparent)` }}
         >
-          <Icon className="h-4 w-4 shrink-0" style={{ color: colorVar }} />
+          <Icon className="h-3.5 w-3.5 shrink-0" style={{ color: colorVar }} />
         </div>
 
-        <div className="flex-1 relative z-10">
+        <div className="flex-1 min-w-0 relative z-10">
           <p className="text-sm font-medium text-foreground leading-snug">{t(titleKey)}</p>
-          <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{t(descKey)}</p>
+          <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed line-clamp-1">{t(descKey)}</p>
         </div>
 
-        <div className="flex items-center justify-end relative z-10">
-          <span
-            className="text-[11px] font-medium tracking-wide opacity-40 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all duration-200"
-            style={{ color: colorVar }}
-          >
-            →
-          </span>
-        </div>
+        <span
+          className="text-[11px] font-medium tracking-wide opacity-40 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all duration-200 relative z-10 mt-1 shrink-0"
+          style={{ color: colorVar }}
+        >
+          →
+        </span>
       </button>
     )
   }
