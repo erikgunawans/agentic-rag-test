@@ -70,6 +70,20 @@ class Settings(BaseSettings):
     langsmith_project: str = "rag-masterclass"
     langchain_tracing_v2: str = "false"
 
+    # PII Redaction (milestone v1.0 — Phase 1 Detection & Anonymization Foundation)
+    # See docs/PRD-PII-Redaction-System-v1.1.md §6 and .planning/phases/01-detection-anonymization-foundation/01-CONTEXT.md D-03/D-04/D-08
+    pii_redaction_enabled: bool = True
+    pii_surrogate_entities: str = "PERSON,EMAIL_ADDRESS,PHONE_NUMBER,LOCATION,DATE_TIME,URL,IP_ADDRESS"
+    pii_redact_entities: str = "CREDIT_CARD,US_SSN,US_ITIN,US_BANK_NUMBER,IBAN_CODE,CRYPTO,US_PASSPORT,US_DRIVER_LICENSE,MEDICAL_LICENSE"
+    pii_surrogate_score_threshold: float = 0.7
+    pii_redact_score_threshold: float = 0.3
+
+    # Tracing provider switch (OBS-01)
+    # "" / "none"  → no-op @traced decorator (zero overhead)
+    # "langsmith" → wraps langsmith.traceable
+    # "langfuse"  → wraps langfuse.observe
+    tracing_provider: str = ""
+
 
 @lru_cache
 def get_settings() -> Settings:
