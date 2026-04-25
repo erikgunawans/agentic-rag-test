@@ -1,5 +1,5 @@
 from openai import AsyncOpenAI
-from langsmith import traceable
+from app.services.tracing_service import traced
 from app.config import get_settings
 from app.database import get_supabase_client
 
@@ -11,7 +11,7 @@ class EmbeddingService:
         self.client = AsyncOpenAI(api_key=settings.openai_api_key)
         self.model = settings.openai_embedding_model
 
-    @traceable
+    @traced
     async def embed_text(self, text: str, model: str | None = None) -> list[float]:
         response = await self.client.embeddings.create(
             model=model or self.model,
@@ -19,7 +19,7 @@ class EmbeddingService:
         )
         return response.data[0].embedding
 
-    @traceable
+    @traced
     async def embed_batch(self, texts: list[str], model: str | None = None) -> list[list[float]]:
         response = await self.client.embeddings.create(
             model=model or self.model,
@@ -28,7 +28,7 @@ class EmbeddingService:
         # Sort by index to preserve order
         return [item.embedding for item in sorted(response.data, key=lambda x: x.index)]
 
-    @traceable
+    @traced
     async def retrieve_chunks(
         self,
         query: str,
@@ -50,7 +50,7 @@ class EmbeddingService:
         ).execute()
         return [row["content"] for row in (result.data or [])]
 
-    @traceable
+    @traced
     async def retrieve_chunks_with_metadata(
         self,
         query: str,

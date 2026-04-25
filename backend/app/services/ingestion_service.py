@@ -7,7 +7,7 @@ import fitz  # PyMuPDF
 import tiktoken
 from docx import Document as DocxDocument
 from bs4 import BeautifulSoup
-from langsmith import traceable
+from app.services.tracing_service import traced
 from app.config import get_settings
 from app.database import get_supabase_client
 from app.services.embedding_service import EmbeddingService
@@ -175,7 +175,7 @@ def _contextualize_chunks(chunks: list[str], metadata: dict | None) -> list[str]
     return [f"{header}\n\n{chunk}" for chunk in chunks]
 
 
-@traceable
+@traced
 async def process_document(
     doc_id: str,
     user_id: str,

@@ -4,7 +4,7 @@ import logging
 from dataclasses import dataclass
 import fitz  # PyMuPDF
 from openai import AsyncOpenAI
-from langsmith import traceable
+from app.services.tracing_service import traced
 from app.config import get_settings
 
 
@@ -65,7 +65,7 @@ class VisionService:
         doc.close()
         return images
 
-    @traceable(name="vision_ocr_page")
+    @traced(name="vision_ocr_page")
     async def ocr_page(self, image_bytes: bytes, page_num: int) -> str:
         """OCR a single page image using OpenAI vision API."""
         b64 = base64.b64encode(image_bytes).decode("utf-8")
@@ -95,7 +95,7 @@ class VisionService:
         )
         return response.choices[0].message.content or ""
 
-    @traceable(name="vision_ocr_pdf")
+    @traced(name="vision_ocr_pdf")
     async def ocr_pdf(self, file_bytes: bytes) -> OcrResult:
         """OCR an entire scanned PDF, returning structured result."""
         page_images = self.extract_page_images(file_bytes)

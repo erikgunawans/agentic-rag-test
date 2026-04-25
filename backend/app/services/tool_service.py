@@ -2,7 +2,7 @@ import json
 import logging
 import re
 import httpx
-from langsmith import traceable
+from app.services.tracing_service import traced
 from app.config import get_settings
 from app.database import get_supabase_client
 from app.services.hybrid_retrieval_service import HybridRetrievalService
@@ -243,7 +243,7 @@ class ToolService:
             tools.append(tool)
         return tools
 
-    @traceable(name="execute_tool")
+    @traced(name="execute_tool")
     async def execute_tool(
         self,
         name: str,
@@ -304,7 +304,7 @@ class ToolService:
         else:
             return {"error": f"Unknown tool: {name}"}
 
-    @traceable(name="tool_search_documents")
+    @traced(name="tool_search_documents")
     async def _execute_search_documents(
         self,
         query: str,
@@ -367,7 +367,7 @@ class ToolService:
             logger.error("search_documents failed: %s", e)
             return {"error": str(e), "chunks": [], "count": 0}
 
-    @traceable(name="tool_query_database")
+    @traced(name="tool_query_database")
     async def _execute_query_database(self, sql_query: str, user_id: str) -> dict:
         """Execute a read-only SQL query scoped to the user's documents."""
         sql_stripped = sql_query.strip()
@@ -396,7 +396,7 @@ class ToolService:
             logger.error("query_database failed: %s", e)
             return {"error": str(e), "rows": [], "count": 0}
 
-    @traceable(name="tool_web_search")
+    @traced(name="tool_web_search")
     async def _execute_web_search(self, query: str) -> dict:
         """Search the web via Tavily API."""
         if not settings.tavily_api_key:
@@ -430,7 +430,7 @@ class ToolService:
 
     # ── Knowledge Base Exploration Handlers ──────────────────────────
 
-    @traceable(name="tool_kb_list_files")
+    @traced(name="tool_kb_list_files")
     async def _execute_kb_list_files(self, folder_id: str | None, user_id: str) -> dict:
         """List subfolders and documents in a folder (like ls)."""
         try:
@@ -481,7 +481,7 @@ class ToolService:
             logger.error("kb_list_files failed: %s", e)
             return {"error": str(e), "items": [], "count": 0}
 
-    @traceable(name="tool_kb_tree")
+    @traced(name="tool_kb_tree")
     async def _execute_kb_tree(self, max_depth: int, user_id: str) -> dict:
         """Return the folder tree structure (like tree)."""
         try:
@@ -520,7 +520,7 @@ class ToolService:
             logger.error("kb_tree failed: %s", e)
             return {"error": str(e), "tree": "", "total_folders": 0}
 
-    @traceable(name="tool_kb_grep")
+    @traced(name="tool_kb_grep")
     async def _execute_kb_grep(
         self, pattern: str, case_insensitive: bool, max_results: int, user_id: str,
     ) -> dict:
@@ -560,7 +560,7 @@ class ToolService:
             logger.error("kb_grep failed: %s", e)
             return {"error": error_msg, "matches": [], "count": 0}
 
-    @traceable(name="tool_kb_glob")
+    @traced(name="tool_kb_glob")
     async def _execute_kb_glob(self, pattern: str, user_id: str) -> dict:
         """Find documents by filename pattern (like glob)."""
         if not pattern:
@@ -612,7 +612,7 @@ class ToolService:
             logger.error("kb_glob failed: %s", e)
             return {"error": str(e), "files": [], "count": 0}
 
-    @traceable(name="tool_kb_read")
+    @traced(name="tool_kb_read")
     async def _execute_kb_read(
         self,
         document_id: str | None,

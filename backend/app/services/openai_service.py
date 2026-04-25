@@ -1,6 +1,6 @@
 from typing import AsyncGenerator
 from openai import AsyncOpenAI
-from langsmith import traceable
+from app.services.tracing_service import traced
 from app.config import get_settings
 
 
@@ -10,13 +10,13 @@ class OpenAIService:
         self.client = AsyncOpenAI(api_key=settings.openai_api_key)
         self.vector_store_id = settings.openai_vector_store_id
 
-    @traceable(name="create_openai_thread")
+    @traced(name="create_openai_thread")
     async def create_thread(self) -> str:
         """Creates a new OpenAI thread and returns its ID."""
         thread = await self.client.beta.threads.create()
         return thread.id
 
-    @traceable(name="stream_chat_response")
+    @traced(name="stream_chat_response")
     async def stream_response(
         self,
         message: str,

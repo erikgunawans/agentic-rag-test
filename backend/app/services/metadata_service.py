@@ -2,7 +2,7 @@ import json
 import logging
 import tiktoken
 from openai import AsyncOpenAI
-from langsmith import traceable
+from app.services.tracing_service import traced
 from app.config import get_settings
 from app.models.metadata import DocumentMetadata
 
@@ -41,7 +41,7 @@ class MetadataService:
         )
         self.model = settings.openrouter_model
 
-    @traceable(name="extract_document_metadata")
+    @traced(name="extract_document_metadata")
     async def extract_metadata(self, text: str, model: str | None = None) -> DocumentMetadata | None:
         truncated = _truncate(text)
         try:

@@ -3,13 +3,13 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.routers import threads, chat, documents, document_tools, admin_settings, user_preferences, audit_trail, obligations, clause_library, document_templates, approvals, user_management, regulatory, notifications, dashboard, integrations, google_export, bjr, compliance_snapshots, pdp, folders
-from app.services.langsmith_service import configure_langsmith
+from app.services.tracing_service import configure_tracing
 from app.database import get_supabase_client
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    configure_langsmith()
+    configure_tracing()
     # Recover any docs stalled in 'processing' from a previous crash
     try:
         get_supabase_client().table("documents").update(

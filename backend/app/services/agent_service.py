@@ -1,6 +1,6 @@
 import json
 import logging
-from langsmith import traceable
+from app.services.tracing_service import traced
 from app.models.agents import AgentDefinition, OrchestratorResult
 
 logger = logging.getLogger(__name__)
@@ -106,7 +106,7 @@ CLASSIFICATION_PROMPT = (
 )
 
 
-@traceable(name="get_agent")
+@traced(name="get_agent")
 def get_agent(name: str) -> AgentDefinition:
     """Look up an agent by name."""
     if name not in AGENT_REGISTRY:
@@ -114,7 +114,7 @@ def get_agent(name: str) -> AgentDefinition:
     return AGENT_REGISTRY[name]
 
 
-@traceable(name="get_agent_tools")
+@traced(name="get_agent_tools")
 def get_agent_tools(agent: AgentDefinition, all_tools: list[dict]) -> list[dict]:
     """Filter tools to only those the agent is allowed to use."""
     return [
@@ -123,7 +123,7 @@ def get_agent_tools(agent: AgentDefinition, all_tools: list[dict]) -> list[dict]
     ]
 
 
-@traceable(name="classify_intent")
+@traced(name="classify_intent")
 async def classify_intent(
     message: str,
     history: list[dict],

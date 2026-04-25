@@ -1,6 +1,6 @@
 import json
 import logging
-from langsmith import traceable
+from app.services.tracing_service import traced
 from app.services.openrouter_service import OpenRouterService
 from app.database import get_supabase_client
 from app.models.pdp import PersonalDataScanResult
@@ -22,7 +22,7 @@ async def _llm_json(system_prompt: str, user_prompt: str) -> dict:
     return json.loads(result["content"])
 
 
-@traceable(name="personal_data_scan")
+@traced(name="personal_data_scan")
 async def scan_for_personal_data(doc_text: str) -> PersonalDataScanResult:
     """Scan a document for personal data categories per UU PDP."""
     system_prompt = """Anda adalah pakar privasi data Indonesia yang mengkhususkan diri pada UU PDP No. 27/2022.

@@ -1,6 +1,6 @@
 from typing import AsyncGenerator
 from openai import AsyncOpenAI
-from langsmith import traceable
+from app.services.tracing_service import traced
 from app.config import get_settings
 
 settings = get_settings()
@@ -14,7 +14,7 @@ class OpenRouterService:
         )
         self.model = settings.openrouter_model
 
-    @traceable(name="stream_chat_response")
+    @traced(name="stream_chat_response")
     async def stream_response(
         self, messages: list[dict], model: str | None = None
     ) -> AsyncGenerator[dict, None]:
@@ -29,7 +29,7 @@ class OpenRouterService:
                 yield {"delta": delta, "done": False}
         yield {"delta": "", "done": True}
 
-    @traceable(name="tool_calling_completion")
+    @traced(name="tool_calling_completion")
     async def complete_with_tools(
         self,
         messages: list[dict],

@@ -1,6 +1,6 @@
 import json
 import logging
-from langsmith import traceable
+from app.services.tracing_service import traced
 from app.config import get_settings
 from app.services.openrouter_service import OpenRouterService
 from app.services.system_settings_service import get_system_settings
@@ -27,7 +27,7 @@ async def _llm_json(system_prompt: str, user_prompt: str) -> dict:
     return json.loads(result["content"])
 
 
-@traceable(name="bjr_evidence_assessment")
+@traced(name="bjr_evidence_assessment")
 async def assess_evidence(
     evidence_text: str,
     checklist_item_title: str,

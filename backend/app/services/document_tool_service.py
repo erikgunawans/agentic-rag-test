@@ -1,7 +1,7 @@
 import json
 import logging
 from pydantic import BaseModel
-from langsmith import traceable
+from app.services.tracing_service import traced
 from app.config import get_settings
 from app.services.openrouter_service import OpenRouterService
 from app.services.ingestion_service import parse_text
@@ -106,7 +106,7 @@ async def _llm_json(system_prompt: str, user_prompt: str) -> dict:
 
 # ── Document Creation ──────────────────────────────────────────────────
 
-@traceable(name="document_creation")
+@traced(name="document_creation")
 async def create_document(
     doc_type: str,
     fields: dict,
@@ -176,7 +176,7 @@ Generate a complete, professional {doc_type} document based on the provided para
 
 # ── Document Comparison ────────────────────────────────────────────────
 
-@traceable(name="document_comparison")
+@traced(name="document_comparison")
 async def compare_documents(
     doc_a_text: str,
     doc_b_text: str,
@@ -208,7 +208,7 @@ Return JSON with keys: summary, differences, risk_assessment, recommendation, co
 
 # ── Compliance Check ───────────────────────────────────────────────────
 
-@traceable(name="compliance_check")
+@traced(name="compliance_check")
 async def check_compliance(
     doc_text: str,
     framework: str,
@@ -249,7 +249,7 @@ Return JSON with keys: overall_status, summary, findings, missing_provisions, co
 
 # ── Contract Analysis ──────────────────────────────────────────────────
 
-@traceable(name="contract_analysis")
+@traced(name="contract_analysis")
 async def analyze_contract(
     doc_text: str,
     analysis_types: list[str],

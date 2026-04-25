@@ -1,7 +1,7 @@
 import json
 import logging
 import re
-from langsmith import traceable
+from app.services.tracing_service import traced
 from app.config import get_settings
 from app.database import get_supabase_client
 from app.services.openrouter_service import OpenRouterService
@@ -44,7 +44,7 @@ _MAX_GRAPH_CONTEXT_CHARS = 2000
 
 class GraphService:
 
-    @traceable(name="extract_entities_from_chunks")
+    @traced(name="extract_entities_from_chunks")
     async def extract_entities(
         self,
         chunks: list[str],
@@ -113,7 +113,7 @@ class GraphService:
                 return f"{match.group(1).lower()}_{match.group(2)}_{match.group(3)}"
         return re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
 
-    @traceable(name="store_graph_entities")
+    @traced(name="store_graph_entities")
     async def store_entities(
         self,
         extraction: ExtractionResult,
@@ -211,7 +211,7 @@ class GraphService:
                 return eid
         return None
 
-    @traceable(name="get_graph_context")
+    @traced(name="get_graph_context")
     async def get_graph_context(
         self,
         chunk_ids: list[str],

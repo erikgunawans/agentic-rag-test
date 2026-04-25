@@ -4,7 +4,7 @@ import json
 import logging
 import time
 from openai import AsyncOpenAI
-from langsmith import traceable
+from app.services.tracing_service import traced
 from app.config import get_settings
 from app.database import get_supabase_client
 from app.services.embedding_service import EmbeddingService
@@ -43,7 +43,7 @@ class HybridRetrievalService:
         )
         self._cohere_client: "httpx.AsyncClient | None" = None
 
-    @traceable(name="hybrid_retrieve")
+    @traced(name="hybrid_retrieve")
     async def retrieve(
         self,
         query: str,
@@ -163,7 +163,7 @@ class HybridRetrievalService:
 
         return results
 
-    @traceable(name="vector_search")
+    @traced(name="vector_search")
     async def _vector_search(
         self,
         query: str,
@@ -190,7 +190,7 @@ class HybridRetrievalService:
             filter_date_to=filter_date_to,
         )
 
-    @traceable(name="fulltext_search")
+    @traced(name="fulltext_search")
     async def _fulltext_search(
         self,
         query: str,
@@ -245,7 +245,7 @@ class HybridRetrievalService:
             fused.append(item)
         return fused
 
-    @traceable(name="llm_rerank")
+    @traced(name="llm_rerank")
     async def _llm_rerank(
         self, query: str, chunks: list[dict], model: str | None
     ) -> list[dict]:
@@ -287,7 +287,7 @@ class HybridRetrievalService:
             logger.warning("LLM reranking failed, keeping original order: %s", e)
             return chunks
 
-    @traceable(name="cohere_rerank")
+    @traced(name="cohere_rerank")
     async def _cohere_rerank(
         self, query: str, chunks: list[dict], top_n: int | None = None
     ) -> list[dict]:
@@ -317,7 +317,7 @@ class HybridRetrievalService:
             logger.warning("Cohere reranking failed, keeping original order: %s", e)
             return chunks
 
-    @traceable(name="query_expansion")
+    @traced(name="query_expansion")
     async def _expand_query(self, query: str, model: str | None) -> list[str]:
         """Generate query variants for bilingual (ID/EN) retrieval."""
         result = await self.openrouter_client.chat.completions.create(
