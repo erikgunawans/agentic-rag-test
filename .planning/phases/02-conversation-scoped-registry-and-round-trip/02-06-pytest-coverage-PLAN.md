@@ -69,6 +69,7 @@ Output: Four new/modified test files. Roughly 200 lines for the integration suit
 @backend/app/services/redaction_service.py
 @backend/app/services/redaction/registry.py
 @backend/app/database.py
+@backend/scripts/set_admin_role.py
 
 <interfaces>
 <!-- Existing primitives this plan calls. Read once; no codebase exploration needed. -->
@@ -108,6 +109,36 @@ From CLAUDE.md "Testing" section — test credentials:
 
 From backend/app/database.py L1-8: `get_supabase_client()` returns the service-role client used by the test fixtures and assertions.
 
+From backend/scripts/set_admin_role.py L23-31 (canonical project pattern for resolving user-id-from-email):
+```python
+client = get_supabase_client()
+# Find user by email
+users = client.auth.admin.list_users()
+target = None
+for u in users:
+    if u.email == email:
+        target = u
+        break
+```
+This is the ONLY project-canonical way to resolve a user_id from an email. Phase 2 conftest's `test_user_id` fixture mirrors this exact shape (B-4 fix). DO NOT use `client.auth.admin.get_user_by_email(...)` (may not exist in older supabase-py versions). DO NOT query `user_profiles.email` — that column does NOT exist (verified against migration 016 schema; user_profiles columns are `id, user_id, display_name, department, is_active, deactivated_at, deactivated_by, last_login_at, created_at, updated_at`).
+
+From supabase/migrations/016_security_hardening.sql L14-26 (B-4 verification):
+```sql
+create table public.user_profiles (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null unique references auth.users(id) on delete cascade,
+  display_name text,
+  department text,
+  is_active boolean not null default true,
+  deactivated_at timestamptz,
+  deactivated_by uuid references auth.users(id) on delete set null,
+  last_login_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+```
+**No `email` column.** Email is stored only in `auth.users`; `auth.admin.list_users()` is the only service-role-friendly way to resolve a user by email. The `auth.users.id` returned by `list_users()` matches the FK target of `threads.user_id` (and `user_profiles.user_id`).
+
 From supabase/migrations/001_initial_schema.sql L7-15 + audit of migrations 002-028 (W-3 verification, dated 2026-04-26):
 ```sql
 create table public.threads (
@@ -138,6 +169,8 @@ ROADMAP Phase 2 Success Criteria (verbatim from ROADMAP.md L42-47):
   <files>backend/tests/conftest.py</files>
   <read_first>
     - backend/tests/conftest.py (current — preserve Phase 1 fixtures verbatim; only ADD new fixtures at the bottom)
+    - backend/scripts/set_admin_role.py L1-50 (B-4 — canonical project pattern: `client.auth.admin.list_users()` to resolve user from email; mirror this shape EXACTLY in the `test_user_id` fixture)
+    - supabase/migrations/016_security_hardening.sql L14-26 (B-4 — confirms `user_profiles` has NO `email` column; do NOT query `user_profiles.email`)
     - .planning/phases/02-conversation-scoped-registry-and-round-trip/02-PATTERNS.md §"Pattern B — `seeded_faker` + `redaction_service` fixtures" (the explicit "What to ADD for Phase 2" section)
     - .planning/phases/02-conversation-scoped-registry-and-round-trip/02-CONTEXT.md decisions D-43, D-44
     - CLAUDE.md "Testing" section (test credentials)
@@ -154,28 +187,42 @@ import pytest_asyncio
 
 If `pytest_asyncio` is already imported (Phase 1 uses `pytest.mark.asyncio` but may not import the package directly), confirm it is in `requirements.txt` — `grep "pytest-asyncio" backend/requirements.txt`. If absent, surface immediately to the orchestrator before continuing — DO NOT silently add a dependency.
 
-(B) Helper to obtain a real user_id for thread ownership. Add as a session-scoped fixture (the test user is created at test time only if missing — Phase 1 conftest doesn't already supply one):
+(B) Helper to obtain a real user_id for thread ownership. Add as a session-scoped fixture (the test user is created at test time only if missing — Phase 1 conftest doesn't already supply one).
+
+**B-4 fix — use the canonical project pattern (`client.auth.admin.list_users()`).** The previous version of this fixture queried `user_profiles.email`, but that column does NOT exist (verified against migration 016 schema). Mirror `backend/scripts/set_admin_role.py` L23-31 exactly:
 
 ```python
 @pytest.fixture(scope="session")
 def test_user_id():
     """Returns a stable user_id owned by the TEST_EMAIL super_admin.
 
-    Service-role client looks up the user; we don't need to authenticate.
-    The threads table FK requires a real auth.users row, so we resolve
-    test@test.com once per test session.
+    Uses client.auth.admin.list_users() — the canonical project pattern
+    from backend/scripts/set_admin_role.py L26 — because the user_profiles
+    table has NO email column (verified against migration 016 schema).
+
+    auth.users is the source of truth for emails; user_profiles.user_id
+    references auth.users.id, which equals threads.user_id (the FK target).
     """
     import os
     from app.database import get_supabase_client
     client = get_supabase_client()
-    # auth.admin.list_users is paged — TEST_EMAIL is the super_admin so it's in page 1.
-    # Conservative: query the user_profiles table which Phase 1 conftest knows exists.
     test_email = os.environ.get("TEST_EMAIL", "test@test.com")
-    res = client.table("user_profiles").select("id").eq("email", test_email).single().execute()
-    if not res.data:
-        pytest.fail(f"Test user {test_email!r} not found in user_profiles — set up via /set_admin_role")
-    return res.data["id"]
+    # Service-role can call auth.admin endpoints. list_users() returns up to
+    # 50 users by default — TEST_EMAIL super_admin will be in page 1.
+    users = client.auth.admin.list_users()
+    test_user = next((u for u in users if u.email == test_email), None)
+    if test_user is None:
+        pytest.fail(
+            f"Test user {test_email!r} not found in auth.users. "
+            f"Set up the user account first (see CLAUDE.md \"Testing\" section)."
+        )
+    return test_user.id  # auth.users.id matches the threads.user_id FK target
 ```
+
+Notes:
+- The return value is `test_user.id` (auth.users.id), which is the value `threads.user_id` references.
+- Do NOT use `client.auth.admin.get_user_by_email(...)` — that method may not exist in older supabase-py versions; `list_users()` + filter is the project's existing pattern.
+- Do NOT add a fallback that queries `user_profiles.email` — there is no such column. The fixture MUST go straight to `auth.admin.list_users()`.
 
 (C) Per-test fresh thread fixture (D-44).
 
@@ -272,20 +319,23 @@ cd backend && source venv/bin/activate && pytest tests/api/test_redaction.py -q 
 The Phase 1 tests should still be collected (the autouse fixture doesn't affect collection).
   </action>
   <verify>
-    <automated>cd backend && source venv/bin/activate && grep -q "def fresh_thread_id" tests/conftest.py && grep -q "def empty_registry" tests/conftest.py && grep -q "def _reset_thread_locks" tests/conftest.py && grep -q "def test_user_id" tests/conftest.py && grep -q "_thread_locks_master = asyncio.Lock()" tests/conftest.py && grep -q "violates not-null" tests/conftest.py && echo "OK"</automated>
+    <automated>cd backend && source venv/bin/activate && grep -q "def fresh_thread_id" tests/conftest.py && grep -q "def empty_registry" tests/conftest.py && grep -q "def _reset_thread_locks" tests/conftest.py && grep -q "def test_user_id" tests/conftest.py && grep -q "_thread_locks_master = asyncio.Lock()" tests/conftest.py && grep -q "violates not-null" tests/conftest.py && grep -q "client.auth.admin.list_users" tests/conftest.py && ! grep -E 'user_profiles.*email|\.eq\("email"' tests/conftest.py && echo "OK"</automated>
   </verify>
   <acceptance_criteria>
     - `backend/tests/conftest.py` contains `def fresh_thread_id` (pytest_asyncio fixture).
     - `backend/tests/conftest.py` contains `def empty_registry`.
     - `backend/tests/conftest.py` contains `def _reset_thread_locks` with `autouse=True`.
     - `backend/tests/conftest.py` contains `def test_user_id` (session-scoped).
+    - **B-4 positive grep**: `backend/tests/conftest.py` contains literal `client.auth.admin.list_users(` (canonical project pattern from `set_admin_role.py` L26 used in `test_user_id`).
+    - **B-4 negative grep**: `backend/tests/conftest.py` does NOT contain `user_profiles` immediately followed by anything resembling `.eq("email"` or `.select(...).eq("email"...)` — i.e. the fixture must NOT query a non-existent `user_profiles.email` column. Practical check: `grep -E 'user_profiles.*email|\.eq\("email"' backend/tests/conftest.py` returns ZERO matches.
     - `backend/tests/conftest.py` contains literal `_rs._thread_locks_master = asyncio.Lock()` inside `_reset_thread_locks` (W-4 — master lock rebind).
     - `backend/tests/conftest.py` contains literal `violates not-null` substring inside `fresh_thread_id` (W-3 — defensive try/except diagnostic).
+    - **B-4 acceptance criterion (functional)**: invoking the `test_user_id` fixture against the live Supabase project returns the auth.users.id of `TEST_EMAIL` without raising. Practical check: a smoke pytest run that uses `fresh_thread_id` (which depends on `test_user_id`) MUST NOT fail with PostgREST error 42703 ("column user_profiles.email does not exist") nor with "Test user not found".
     - **W-4 acceptance criterion**: After autouse fixture runs, `_rs._thread_locks_master._loop` matches the current event loop (or is None if not yet bound). Practical test: a smoke pytest run with two tests that both use `empty_registry` must NOT raise `RuntimeError: Lock is bound to a different event loop` from the second test.
     - Phase 1 fixtures (`seeded_faker`, `redaction_service`) are unchanged: `git diff conftest.py` shows ZERO modifications to lines L1-50.
     - Phase 1 tests still collect: `pytest tests/api/test_redaction.py -q --collect-only` exits 0.
   </acceptance_criteria>
-  <done>Conftest is Phase 2-ready. Plan 06 Tasks 2 and 3 can now use the fixtures without cross-test event-loop contamination (W-4) or stale-schema column surprises (W-3).</done>
+  <done>Conftest is Phase 2-ready. Plan 06 Tasks 2 and 3 can now use the fixtures without cross-test event-loop contamination (W-4), stale-schema column surprises (W-3), or non-existent `user_profiles.email` queries (B-4).</done>
 </task>
 
 <task type="auto" tdd="false">
@@ -708,6 +758,16 @@ cd backend && source venv/bin/activate && pytest tests/ -q --collect-only 2>&1 |
   grep "violates not-null" backend/tests/conftest.py
   ```
   Returns >= 1.
+- B-4 canonical user-id-from-email pattern:
+  ```bash
+  grep "client.auth.admin.list_users" backend/tests/conftest.py
+  ```
+  Returns >= 1.
+- B-4 negative grep — no `user_profiles.email` queries:
+  ```bash
+  grep -E 'user_profiles.*email|\.eq\("email"' backend/tests/conftest.py
+  ```
+  Returns ZERO matches (expect non-zero exit code from grep).
 - Combined regression PASSES:
   ```bash
   cd backend && source venv/bin/activate && \
@@ -728,6 +788,7 @@ cd backend && source venv/bin/activate && pytest tests/ -q --collect-only 2>&1 |
 - Phase 1's 20 tests still pass.
 - W-3: fresh_thread_id fixture is stale-schema-aware (defensive try/except surfaces NOT-NULL-without-default column additions).
 - W-4: _thread_locks_master rebind in autouse fixture eliminates cross-test "Lock is bound to a different event loop" failures.
+- B-4: test_user_id fixture uses canonical `client.auth.admin.list_users()` pattern from `set_admin_role.py` L26 — does NOT query non-existent `user_profiles.email` column. Eliminates PostgREST 42703 errors that would block ALL Phase 2 integration tests.
 </success_criteria>
 
 <output>
@@ -736,7 +797,7 @@ Create `.planning/phases/02-conversation-scoped-registry-and-round-trip/02-06-SU
 - Combined pytest output (last 10 lines of the full run).
 - Confirm SC#5 hit the live DB (cite the SELECT row count assertion).
 - Confirm Phase 1 regression: 20/20 pass.
-- Confirm W-3 + W-4 fixtures present (master lock rebind, defensive try/except).
+- Confirm W-3 + W-4 + B-4 fixtures present (master lock rebind, defensive try/except, list_users() pattern).
 - Note any executor decisions (e.g. extra edge-case tests added).
 </output>
 </content>

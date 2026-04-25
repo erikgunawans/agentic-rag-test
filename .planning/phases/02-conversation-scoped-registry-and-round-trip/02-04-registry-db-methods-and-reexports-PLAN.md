@@ -95,6 +95,8 @@ from app.services.redaction.errors import RedactionError
 __all__ = ["RedactionError"]
 ```
 There is also a "B2 option B" rationale comment block in this file from Phase 1 — preserve it verbatim.
+
+**asyncio.to_thread vs sync call (CRITICAL):** Both analog services above (`system_settings_service.py`, `audit_service.py`) call `client.table(...).execute()` synchronously — verified by direct grep, NEITHER uses `asyncio.to_thread`. Phase 2 MUST wrap the supabase call in `asyncio.to_thread` because (1) registry writes happen inside the asyncio.Lock critical section in `redaction_service.py` (Plan 05), and (2) supabase-py is a sync HTTP client. Blocking the event loop while holding a per-thread lock would serialize all of FastAPI's request handlers behind the slowest registry write. The closures `_select` / `_upsert` build the entire query inside the closure — never pass a pre-built supabase-py chain to to_thread (the chain builder is not thread-safe). **Mimic the SELECT/INSERT shape from the analogs, NOT the synchronous call pattern.**
 </interfaces>
 </context>
 
@@ -106,8 +108,8 @@ There is also a "B2 option B" rationale comment block in this file from Phase 1 
   <read_first>
     - backend/app/services/redaction/registry.py (Plan 02 output — current file; read in full so the executor diff-edits, not rewrites)
     - backend/app/database.py L1-30 (get_supabase_client signature)
-    - backend/app/services/system_settings_service.py L1-25 (sync client + cache pattern; Phase 2 drops the cache, keeps the SELECT shape)
-    - backend/app/services/audit_service.py L1-32 (insert + error handling pattern; Phase 2 swaps "fire and forget" for "raise on error")
+    - backend/app/services/system_settings_service.py L1-25 (analog A — service-role read shape and cache pattern. NOTE: this file does NOT use asyncio.to_thread; Phase 2 ADDS to_thread because registry writes happen inside an asyncio.Lock critical section, where blocking the event loop starves other coroutines. Mimic the SELECT shape, NOT the synchronous call pattern.)
+    - backend/app/services/audit_service.py L1-32 (analog B — service-role insert shape. NOTE: same caveat as above; audit_service is fire-and-forget AND synchronous. Phase 2's upsert_delta is neither — to_thread the call, raise on error.)
     - .planning/phases/02-conversation-scoped-registry-and-round-trip/02-PATTERNS.md §"Pattern A — Service-role read with module-level cache" + §"Pattern B — Service-role insert"
     - .planning/phases/02-conversation-scoped-registry-and-round-trip/02-CONTEXT.md decisions D-25, D-27, D-32, D-33, D-36
   </read_first>
@@ -350,3 +352,4 @@ Create `.planning/phases/02-conversation-scoped-registry-and-round-trip/02-04-SU
 - Open-question resolution explicitly captured: "Option (b) chosen — de_anonymize_text NOT re-exported"
 - Phase 1 regression check result
 </output>
+</content>

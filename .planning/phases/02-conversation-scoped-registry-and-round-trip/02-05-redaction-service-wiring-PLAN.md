@@ -107,6 +107,15 @@ def anonymize(masked_text: str, entities: list[Entity]) -> tuple[str, dict[str, 
     # ... iteration (right-to-left), Faker generation with retry budget ...
 ```
 
+Phase 1 within-call collision check (anonymization.py L222-232 verbatim — important anchor for I-4):
+```python
+existing = entity_map.get(ent.text) or next(
+    (v for k, v in entity_map.items() if k.lower() == ent.text.lower()),
+    None,
+)
+```
+This block lives inside the per-entity iteration loop in the `else:` branch of the `if ent.bucket == "redact":` check (i.e. only runs for surrogate-bucket entities). The Phase 2 registry-lookup short-circuit goes BEFORE this block — see Task 1 step (C).
+
 From backend/app/services/redaction_service.py (Phase 1 anchors):
 - L32-53: imports block
 - L58-84: `class RedactionResult(BaseModel)` (frozen Pydantic)
@@ -186,7 +195,9 @@ else:
 
 DO NOT modify the existing Faker generation/retry block downstream — the `forbidden_tokens` variable name is preserved so the existing collision-check logic at L222-232 (Phase 1) keeps working unchanged.
 
-(C) Per-thread surrogate reuse — find the per-entity iteration loop (the `for ent in ...` block where Faker generates a surrogate). IMMEDIATELY BEFORE the `if ent.type == "PERSON":` Faker-generation branch (Phase 1 anonymization.py L222-232 area), add a registry-lookup short-circuit:
+(C) Per-thread surrogate reuse — find the per-entity iteration loop (the `for ent in ...` block where Faker generates a surrogate). The Phase 2 registry-lookup short-circuit goes inside this loop, in the `else:` branch (surrogate bucket only — Phase 1's `if ent.bucket == "redact":` branch handles hard-redact and must not be touched).
+
+Add this registry-lookup short-circuit at the TOP of the surrogate-bucket `else:` branch:
 
 ```python
 # REG-04 / D-32: if the registry already has this real value, reuse the
@@ -202,7 +213,16 @@ if registry is not None:
         continue
 ```
 
-Place this `if registry is not None:` block at the TOP of the per-entity iteration body (right after the entity_type filtering / honorific handling that Phase 1 does, BEFORE Faker is called). The `continue` skips all Phase 1 logic for that entity.
+**Placement (I-4 — order matters):** Place this `if registry is not None:` block INSIDE the surrogate-bucket `else:` branch, IMMEDIATELY BEFORE the Phase 1 within-call collision check at L222-232:
+```python
+existing = entity_map.get(ent.text) or next(
+    (v for k, v in entity_map.items() if k.lower() == ent.text.lower()),
+    None,
+)
+```
+The registry-lookup short-circuit MUST appear BEFORE the line `existing = entity_map.get(ent.text) or next(`. Order matters for performance: the registry lookup is O(1) (dict-keyed by casefolded value via `registry._by_lower`) while the within-call scan is O(n) over `entity_map.items()`. Placing the registry check first short-circuits the within-call scan when the registry already has the entity, AND makes the control flow easier to read (registry hit → `continue`; registry miss → fall through to Phase 1's within-call + Faker logic). Either order would be correctness-equivalent (both produce the same surrogate when the registry has the entity), but BEFORE is faster and clearer.
+
+The `continue` skips all Phase 1 logic for that entity (the within-call check, Faker generation, `entity_map[ent.text] = replacement`, `used_surrogates.add(replacement)`, and the slice-replacement at the bottom of the loop iteration). Because `continue` exits the iteration, the slice-replacement is performed inline (`out = out[: ent.start] + hit + out[ent.end :]`) BEFORE `continue`.
 
 Critical: the `entity_map[ent.text] = hit` line uses the EXISTING `entity_map` shape Phase 1 returns (`dict[str, str]`). Plan 05 Task 2 (redaction_service.py) computes the delta against `registry.entries()` to figure out what to upsert. Don't try to mark "registry hits" separately here — the delta is computed in the caller.
 
@@ -227,6 +247,12 @@ cd backend && source venv/bin/activate && pytest backend/tests/api/test_redactio
     - File contains literal `registry.lookup(ent.text)` (per-thread surrogate reuse).
     - File contains literal `entity_map[ent.text] = hit` followed by `continue` (skips Faker for registry hits).
     - File does NOT contain a top-level `from app.services.redaction.registry import ConversationRegistry` (forward-ref only — break-import-cycle invariant).
+    - **I-4 positional ordering acceptance criterion**: In `anonymization.py`, the `if registry is not None:` short-circuit block appears BEFORE the line `existing = entity_map.get(ent.text)`. Verify via grep with line numbers, e.g.:
+      ```bash
+      cd backend && grep -n "if registry is not None:" app/services/redaction/anonymization.py
+      cd backend && grep -n "existing = entity_map.get(ent.text)" app/services/redaction/anonymization.py
+      ```
+      The first grep's line number MUST be LESS THAN the second grep's line number (within the same per-entity iteration body). This proves the registry short-circuit precedes the within-call scan, satisfying I-4 ordering for both performance (O(1) before O(n)) and readability (registry hit → continue; miss → fall through).
     - Phase 1 tests still pass: `pytest backend/tests/api/test_redaction.py -q` exits 0 with 20 passed.
     - The verify automated command prints `OK` and the pytest summary line shows `20 passed` (or higher if Plan 02/04 added imports — but no NEW failures).
   </acceptance_criteria>
@@ -558,6 +584,7 @@ After editing, run BOTH:
 - `grep -n "@traced" backend/app/services/redaction_service.py` — covers `redact_text` AND `de_anonymize_text` (2 new + Phase 1 carryover).
 - `grep -n "registry: ConversationRegistry" backend/app/services/redaction_service.py` — at least 2 occurrences (redact_text signature + de_anonymize_text signature).
 - `grep -n "UNKNOWN" backend/app/services/redaction_service.py` — returns 0 (W-2: fragile fallback removed; entity_index assertion replaces it).
+- I-4 positional ordering — `grep -n "if registry is not None:" backend/app/services/redaction/anonymization.py` line number < `grep -n "existing = entity_map.get(ent.text)" backend/app/services/redaction/anonymization.py` line number.
 </verification>
 
 <success_criteria>
@@ -568,6 +595,7 @@ After editing, run BOTH:
 - D-39: registry=None ⇒ Phase 1 behaviour exactly. 20/20 Phase 1 tests still pass.
 - D-41: spans + logs carry counts only, no real values.
 - W-2: every persisted delta carries the correct Presidio `entity_type` derived from the same call's `entities` list (no `"UNKNOWN"` magic-string fallback).
+- I-4: registry short-circuit precedes the within-call collision scan in anonymization.py — order verified by line-number comparison.
 </success_criteria>
 
 <output>
@@ -577,5 +605,6 @@ Create `.planning/phases/02-conversation-scoped-registry-and-round-trip/02-05-SU
 - Confirm 20/20 Phase 1 tests still pass.
 - Note any structural choice: e.g. did the executor refactor detection into a shared `_detect_and_anonymize` helper, or duplicate the body? (Either is fine.)
 - Confirm W-2 satisfied: entity_index dict used; no `"UNKNOWN"` literal in delta loop; assertion guards the invariant.
+- Confirm I-4 satisfied: line-number check shows registry short-circuit precedes within-call scan in anonymization.py.
 </output>
 </content>
