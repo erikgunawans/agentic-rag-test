@@ -49,7 +49,7 @@
   - [x] **Wave 1** — 02-01-PLAN.md — Migration 029 entity_registry table (REG-01..05) ✓ commit `f7a3ff5` (2026-04-26)
   - [x] **Wave 1** — 02-02-PLAN.md — ConversationRegistry + EntityMapping skeleton (REG-01..05) ✓ commit `26cf393` (2026-04-26)
   - [x] **Wave 2** — 02-03-PLAN.md — [BLOCKING] supabase db push migration 029 ✓ applied via Supabase MCP `apply_migration` (2026-04-26) — local CLI absent
-  - [ ] **Wave 3** — 02-04-PLAN.md — Registry DB methods (load / upsert_delta) + reexports
+  - [x] **Wave 3** — 02-04-PLAN.md — Registry DB methods (load / upsert_delta) + reexports ✓ commits `abe7c55` + `865cec2` (2026-04-26); 20/20 Phase 1 regression pass; live load() smoke against real DB succeeded
   - [ ] **Wave 4** — 02-05-PLAN.md — redaction_service wiring (locks, redact_text widening, de_anonymize_text) (REG-04, DEANON-01/02, PERF-03) — depends on Plan 04 for `load` + `upsert_delta`
   - [ ] **Wave 5** — 02-06-PLAN.md — Pytest coverage all 5 SCs incl. SC#5 race (real DB)
 
@@ -109,7 +109,7 @@
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Detection & Anonymization Foundation | 0/0 | Not started | — |
-| 2. Conversation-Scoped Registry & Round-Trip | 3/6 | In progress | — |
+| 2. Conversation-Scoped Registry & Round-Trip | 4/6 | In progress | — |
 | 3. Entity Resolution & LLM Provider Configuration | 0/0 | Not started | — |
 | 4. Fuzzy De-anonymization, Missed-PII Scan & Prompt Guidance | 0/0 | Not started | — |
 | 5. Chat-Loop Integration (Buffering, SSE Status, Tool/Sub-Agent Coverage) | 0/0 | Not started | — |
@@ -155,4 +155,5 @@ Milestone v1.0 phase numbering starts at **Phase 1** (workflow flag `--reset-pha
 *Last updated: 2026-04-26 — Phase 2 plan list re-waved (Plan 05 → Wave 4, Plan 06 → Wave 5) following revision iter 1 of `/gsd-plan-phase`*
 *Last updated: 2026-04-26 — Phase 2 plan 02-01 SHIPPED ✓ (commit `f7a3ff5`); migration 029 entity_registry table written to disk*
 *Last updated: 2026-04-26 — Phase 2 plan 02-02 SHIPPED ✓ (commit `26cf393`); ConversationRegistry + EntityMapping skeleton (127 lines, no DB methods); Wave 1 complete; ready for Wave 2 (02-03 supabase db push)*
+*Last updated: 2026-04-26 — Phase 2 plan 02-04 SHIPPED ✓ (commits `abe7c55` + `865cec2`); ConversationRegistry.load + upsert_delta wired to live entity_registry table; ConversationRegistry + EntityMapping re-exported from `app.services.redaction` (de_anonymize_text deliberately NOT re-exported per D-39 option b); 20/20 Phase 1 regression pass; live load() smoke succeeded; Wave 3 complete; ready for Wave 4 (02-05 redaction_service wiring)*
 </content>
