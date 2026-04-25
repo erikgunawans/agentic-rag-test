@@ -45,7 +45,13 @@
   3. Surrogates emitted by the LLM in any letter-case round-trip back to the original real values before user-facing display (e.g. `John.Doe@example.com` → original `john.doe@example.com`).
   4. Hard-redacted placeholders (`[CREDIT_CARD]`, `[US_SSN]`, …) never appear as keys in the registry — they are intentionally one-way.
   5. Two simultaneous chat requests on the same thread that introduce the same new entity produce a single registry row (no duplicate surrogates, no race) — verified by an async-lock contention test.
-**Plans**: TBD
+**Plans**: 6 plans across 5 waves
+  - [ ] **Wave 1** — 02-01-PLAN.md — Migration 029 entity_registry table (REG-01..05)
+  - [ ] **Wave 1** — 02-02-PLAN.md — ConversationRegistry + EntityMapping skeleton (REG-01..05)
+  - [ ] **Wave 2** — 02-03-PLAN.md — [BLOCKING] supabase db push migration 029
+  - [ ] **Wave 3** — 02-04-PLAN.md — Registry DB methods (load / upsert_delta) + reexports
+  - [ ] **Wave 4** — 02-05-PLAN.md — redaction_service wiring (locks, redact_text widening, de_anonymize_text) (REG-04, DEANON-01/02, PERF-03) — depends on Plan 04 for `load` + `upsert_delta`
+  - [ ] **Wave 5** — 02-06-PLAN.md — Pytest coverage all 5 SCs incl. SC#5 race (real DB)
 
 ### Phase 3: Entity Resolution & LLM Provider Configuration
 **Goal:** Ship the three entity-resolution modes (`algorithmic` / `llm` / `none`) on top of a configurable LLM-provider abstraction, so PERSON-entity coreference (nicknames, partial names, title-stripped variants) collapses to one canonical surrogate, and any cloud auxiliary call is gated by a pre-flight egress filter.
@@ -146,4 +152,5 @@ Milestone v1.0 phase numbering starts at **Phase 1** (workflow flag `--reset-pha
 
 ---
 *Roadmap created: 2026-04-25 (brownfield baseline)*
-*Last updated: 2026-04-25 — milestone v1.0 PII Redaction System: phases 1–6 derived from 54 v1.0 REQ-IDs*
+*Last updated: 2026-04-26 — Phase 2 plan list re-waved (Plan 05 → Wave 4, Plan 06 → Wave 5) following revision iter 1 of `/gsd-plan-phase`*
+</content>
