@@ -1,8 +1,36 @@
 # Progress
 
-PJAA CLM Platform (LexCore) v0.2.0.0. All phases complete (1-3, BJR, RAG 8/8). 2026 UI refresh shipped. LLM auto-naming for chat threads. Global folders with share-with-all and cascading subtree visibility. 28 migrations, 22 routers, 18 services.
+PJAA CLM Platform (LexCore) v0.2.0.0. All phases complete (1-3, BJR, RAG 8/8). 2026 UI refresh shipped. LLM thread auto-naming, global folders, sidebar default collapsed, gradient chat button. 28 migrations applied. Fully deployed to Railway + Vercel. 22 routers, 18 services. SuggestionCards height reduction deployed.
 
-## Checkpoint 2026-04-23 (LLM thread auto-naming + global folders)
+## Checkpoint 2026-04-24 (State sync — no new features)
+
+- **Session:** Sync checkpoint. SuggestionCards height reduction + PROGRESS.md still uncommitted from prior session.
+- **Branch:** master (`3b5c0b8`), pushed to origin/master + origin/main
+- **Uncommitted:**
+  - `frontend/src/components/chat/SuggestionCards.tsx` — card height reduced (horizontal layout, less padding, icon beside text)
+  - `PROGRESS.md` — checkpoint updates
+- **Untracked:** `.planning/`, `AGENTS.md`, SVG logo files, `docs/PRD-Agent-Harness.md`, `docs/PRD_SPECTRA7_Platform_v1.docx`, `graphify-out/`, `frontend/graphify-out/`, `frontend/src/graphify-out/`
+- **Deploy:** Railway + Vercel both live (last deploy 2026-04-23), SuggestionCards change deployed via `vercel --prod`
+- **Next:** Commit uncommitted changes, QA global folders + thread auto-naming in production, stakeholder demo
+
+## Checkpoint 2026-04-23 (Full deploy — 4 features shipped to production)
+
+- **Session:** Built 4 features, deployed to Railway + Vercel, applied migration 028 to Supabase
+- **Branch:** master (`3b5c0b8`), pushed to origin/master + origin/main
+- **Done:**
+  - **LLM thread auto-naming** (`c8daaca`): SSE `thread_title` event, language-aware, non-blocking
+  - **Global folders** (`21f3382`): `is_global` column, `is_in_global_subtree()` RPC, cascading subtree visibility, right-click share, Globe icon, read-only for non-owners
+  - **Sidebar default collapsed** (`08e51aa`): `panelCollapsed` init `true` in AppLayout
+  - **Gradient chat button** (`08e51aa`): purple→indigo gradient on New Chat button
+  - **Mobile FolderTree fix** (`3b5c0b8`): Missing props on third FolderTree instance
+  - **Migration 028 applied** to Supabase via MCP (global folders live in production)
+  - **Deploy**: Railway healthy (5/5 smoke tests), Vercel READY
+- **Files changed:** 10 files (4 backend, 5 frontend, 1 migration)
+- **Tests:** TypeScript OK, backend import OK, smoke test 5/5
+- **Deploy:** Railway + Vercel both live, migration applied
+- **Next:** QA test global folders + thread auto-naming in production, stakeholder demo
+
+## Checkpoint 2026-04-23 (LLM thread auto-naming + global folders — pre-deploy)
 
 - **Session:** Added two features: auto-generated chat thread titles via LLM, and global folders with sharing
 - **Branch:** master (`21f3382`)
