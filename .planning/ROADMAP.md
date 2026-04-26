@@ -16,7 +16,7 @@
 
 - [x] **Phase 1: Detection & Anonymization Foundation** ✅ 2026-04-26 — Presidio NER + Faker surrogates wired in as lazy singletons with tracing (21 commits, 20/20 tests pass, 5/5 SCs verified)
 - [x] **Phase 2: Conversation-Scoped Registry & Round-Trip** ✅ 2026-04-26 — Per-thread registry persists; surrogate→real de-anonymization round-trip works (6 plans across 5 waves; 39/39 tests pass; all 5 SCs verified against live Supabase DB)
-- [ ] **Phase 3: Entity Resolution & LLM Provider Configuration** — `algorithmic`/`llm`/`none` resolution modes; global + per-feature `LLM_PROVIDER` plumbing with egress filter and admin UI
+- [x] **Phase 3: Entity Resolution & LLM Provider Configuration** ✅ 2026-04-26 — `algorithmic`/`llm`/`none` resolution modes; global + per-feature `LLM_PROVIDER` plumbing with egress filter and admin UI (7 plans across 6 waves; migration 030 applied to live Supabase; 79/79 tests pass; 5/5 SCs verified)
 - [ ] **Phase 4: Fuzzy De-anonymization, Missed-PII Scan & Prompt Guidance** — 3-phase placeholder-tokenized de-anon pipeline; optional secondary LLM scan; system-prompt formatting guidance
 - [ ] **Phase 5: Chat-Loop Integration (Buffering, SSE Status, Tool/Sub-Agent Coverage)** — Full end-to-end privacy invariant: buffered responses, status events, symmetric tool/sub-agent anonymization
 - [ ] **Phase 6: Embedding Provider & Production Hardening** — `EMBEDDING_PROVIDER=local|cloud`; latency target met; graceful provider-failure degradation; full audit logging
@@ -63,14 +63,14 @@
   3. With `ENTITY_RESOLUTION_MODE=llm` + provider=`local`, the local OpenAI-compatible endpoint (LM Studio / Ollama) operates on raw real content with no third-party egress.
   4. Non-PERSON entities (emails, phones, URLs) use exact-match normalization and are never sent to the resolution LLM.
   5. An admin can switch `LLM_PROVIDER` and any per-feature override (`ENTITY_RESOLUTION_LLM_PROVIDER`, `MISSED_SCAN_LLM_PROVIDER`, `TITLE_GEN_LLM_PROVIDER`, `METADATA_LLM_PROVIDER`, `FUZZY_DEANON_LLM_PROVIDER`) from the admin settings UI; changes take effect within the 60s `system_settings` cache window without redeploy.
-**Plans**: 7 plans across 6 waves
-  - [ ] **Wave 1** — 03-01-PLAN.md — config.py + migration 030 SQL (RESOLVE-01, PROVIDER-01..03, PROVIDER-05..07)
-  - [ ] **Wave 2** — 03-02-PLAN.md — [BLOCKING] apply migration 030 to live Supabase (PROVIDER-06, RESOLVE-01)
-  - [ ] **Wave 3** — 03-03-PLAN.md — nicknames_id + clustering + egress filter (RESOLVE-02, RESOLVE-04, PROVIDER-04)
-  - [ ] **Wave 4** — 03-04-PLAN.md — LLMProviderClient with provider-aware branching + egress wrapping (PROVIDER-01..05, PROVIDER-07, RESOLVE-03)
-  - [ ] **Wave 4** — 03-06-PLAN.md — admin_settings.py SystemSettingsUpdate + AdminSettingsPage 'pii' section (PROVIDER-06, PROVIDER-07, RESOLVE-01)
-  - [ ] **Wave 5** — 03-05-PLAN.md — anonymization.py cluster-aware + redaction_service.py mode dispatch + egress fallback (RESOLVE-01..04, PROVIDER-04)
-  - [ ] **Wave 6** — 03-07-PLAN.md — pytest coverage all 5 SCs + D-66 egress matrix + D-65 provider-client suite (RESOLVE-01..04, PROVIDER-01, PROVIDER-04, PROVIDER-06, PROVIDER-07)
+**Plans**: 7 plans across 6 waves ✅ executed 2026-04-26 — 11/11 REQ-IDs SATISFIED, 5/5 SCs verified, 79/79 tests pass
+  - [x] **Wave 1** — 03-01-PLAN.md — config.py + migration 030 SQL (RESOLVE-01, PROVIDER-01..03, PROVIDER-05..07) ✓ commits `bb3202b` + `b2c7b3c`
+  - [x] **Wave 2** — 03-02-PLAN.md — apply migration 030 to live Supabase (PROVIDER-06, RESOLVE-01) ✓ applied via Supabase MCP `apply_migration` (orchestrator-context); 9 columns + 7 CHECK constraints verified
+  - [x] **Wave 3** — 03-03-PLAN.md — nicknames_id + clustering + egress filter (RESOLVE-02, RESOLVE-04, PROVIDER-04) ✓ commits `496cc57` + `86ce3d4` + `5510d80`
+  - [x] **Wave 4** — 03-04-PLAN.md — LLMProviderClient with provider-aware branching + egress wrapping (PROVIDER-01..05, PROVIDER-07, RESOLVE-03) ✓ commits `a54443c` + `cfdaf03`
+  - [x] **Wave 4** — 03-06-PLAN.md — admin_settings.py SystemSettingsUpdate + AdminSettingsPage 'pii' section (PROVIDER-06, PROVIDER-07, RESOLVE-01) ✓ commits `2e0014b` + `92fa98e`
+  - [x] **Wave 5** — 03-05-PLAN.md — anonymization.py cluster-aware + redaction_service.py mode dispatch + egress fallback (RESOLVE-01..04, PROVIDER-04) ✓ commits `26fe66a` + `7813919`
+  - [x] **Wave 6** — 03-07-PLAN.md — pytest coverage all 5 SCs + D-66 egress matrix + D-65 provider-client suite (RESOLVE-01..04, PROVIDER-01, PROVIDER-04, PROVIDER-06, PROVIDER-07) ✓ commits `e74dbf6` + `104e62c` + `97d2684`
 **UI hint**: yes
 
 ### Phase 4: Fuzzy De-anonymization, Missed-PII Scan & Prompt Guidance
