@@ -28,6 +28,14 @@ of real first-name / surname tokens (D-07) and already-used surrogates.
 After 10 failed attempts, fall back to a deterministic
 ``[ENTITY_TYPE_<6-hex-blake2b>]`` placeholder.
 
+Phase 3 (D-45 / D-48): the public ``anonymize`` signature now takes a list
+of pre-clustered PERSON groups (``list[Cluster]``) plus the flat list of
+non-PERSON entities. Each cluster receives EXACTLY ONE Faker surrogate;
+every member span (variant) in the cluster rewrites to that single
+surrogate so coreferent mentions stay consistent within a turn. Non-PERSON
+entities flow through the existing per-entity Faker / registry-lookup path
+(D-62 / RESOLVE-04) — no clustering, no LLM contact.
+
 Privacy (D-18 / B4): logger calls in this module never include real entity
 values — only counts, types, and timings.
 """
@@ -42,6 +50,7 @@ from typing import TYPE_CHECKING, Literal
 import gender_guesser.detector as gg
 from faker import Faker
 
+from app.services.redaction.clustering import Cluster
 from app.services.redaction.detection import Entity
 from app.services.redaction.gender_id import lookup_gender
 from app.services.redaction.honorifics import reattach_honorific, strip_honorific
@@ -191,16 +200,26 @@ def _generate_surrogate(
 
 def anonymize(
     masked_text: str,
-    entities: list[Entity],
+    clusters: list[Cluster],
+    non_person_entities: list[Entity],
     registry: "ConversationRegistry | None" = None,
 ) -> tuple[str, dict[str, str], int]:
-    """Substitute entities right-to-left to keep offsets stable.
+    """Substitute entities right-to-left, cluster-aware for PERSON spans.
 
     Args:
         masked_text: The UUID-masked text from ``detect_entities``. Entity
             offsets reference THIS string, not the original input.
-        entities: Detected PII spans, each carrying a ``bucket`` of either
-            ``"surrogate"`` or ``"redact"``.
+        clusters: Pre-clustered PERSON groups (D-45). Each ``Cluster`` carries
+            a canonical real name, the variant set (D-48: first-only /
+            last-only / honorific-prefixed / nickname), and the tuple of
+            member ``Entity`` spans that should rewrite to ONE shared
+            surrogate. Plan 03-05 ships either algorithmic Union-Find
+            clusters (mode=algorithmic), LLM-refined clusters (mode=llm), or
+            single-member pseudo-clusters (mode=none).
+        non_person_entities: Detected EMAIL / PHONE / URL / LOCATION /
+            DATE_TIME / IP_ADDRESS / hard-redact spans (D-62 / RESOLVE-04).
+            These flow through the existing per-entity Faker + registry path
+            — no clustering, no LLM contact.
         registry: When supplied (Phase 2 D-37 / D-32 / REG-04), the per-call
             cross-call collision check expands its forbidden-token set with
             ``registry.forbidden_tokens()`` and existing real-value surrogates
@@ -211,18 +230,19 @@ def anonymize(
     Returns:
         ``(anonymized_text, entity_map, hard_redacted_count)`` where
         ``entity_map`` contains ONLY surrogate-bucket pairs (real -> surrogate);
-        hard-redact entries are excluded per FR-3.5 / D-08. In registry mode
-        the map still uses ``Entity.text`` as the key (Plan 05 W-2 invariant)
-        so the caller can diff against ``registry.entries()`` to compute the
-        delta to upsert.
+        hard-redact entries are excluded per FR-3.5 / D-08. PERSON variants
+        in a cluster all map to the SAME canonical surrogate; the canonical
+        real value also lands in the map under its own key (D-48 — caller
+        diffs against this to compose variant rows for upsert_delta).
     """
     faker = get_faker()
-    real_persons = [e.text for e in entities if e.type == "PERSON"]
-    # D-07: build the per-call forbidden-token set from real PERSON names.
-    # Honorifics are stripped before tokenisation so e.g. "Pak" doesn't
-    # accidentally land in the forbidden set.
-    bare_persons = [strip_honorific(name)[1] for name in real_persons]
+
     # D-07 / D-37: per-call ∪ per-thread forbidden-token set. Per-PERSON only (D-38).
+    # Phase 3: PERSON tokens are sourced from cluster MEMBERS (the actual detected
+    # spans), not just the canonical, so e.g. "Bambang" + "Bambang Sutrisno" still
+    # both contribute their tokens to the forbidden set.
+    real_persons = [m.text for c in clusters for m in c.members]
+    bare_persons = [strip_honorific(name)[1] for name in real_persons]
     call_forbidden = extract_name_tokens(bare_persons)
     if registry is not None:
         forbidden_tokens = call_forbidden | registry.forbidden_tokens()
@@ -234,24 +254,84 @@ def anonymize(
     hard_redacted_count = 0
     out = masked_text
 
+    # ------------------------------------------------------------------
+    # D-45 / D-48: allocate ONE Faker surrogate per cluster up front.
+    # Variants within the cluster will all rewrite to the same value.
+    # If the cluster's canonical real value already exists in the registry
+    # (cross-turn reuse — REG-04), reuse the persisted surrogate; otherwise
+    # synthesize a pseudo-Entity for the canonical to drive the existing
+    # Phase 1 _generate_surrogate collision budget.
+    # ------------------------------------------------------------------
+    cluster_surrogate: dict[str, str] = {}  # casefold(canonical) → surrogate
+    for cluster in clusters:
+        if not cluster.members:
+            continue
+        key = cluster.canonical.casefold()
+        if key in cluster_surrogate:
+            continue  # defensive: duplicate canonical (shouldn't happen)
+
+        # Cross-turn reuse: if the canonical real value lives in the registry,
+        # use its persisted surrogate (REG-04 / D-32).
+        if registry is not None:
+            existing = registry.lookup(cluster.canonical)
+            if existing is not None:
+                cluster_surrogate[key] = existing
+                used_surrogates.add(existing)
+                entity_map[cluster.canonical] = existing
+                continue
+
+        # Synthesize a pseudo-Entity to drive the Phase 1 surrogate generator.
+        # The collision budget + forbidden-token check still apply because
+        # _generate_surrogate is called on the SAME Faker + same forbidden
+        # set + same used_surrogates accumulator.
+        pseudo = Entity(
+            type="PERSON",
+            start=0,
+            end=len(cluster.canonical),
+            score=1.0,
+            text=cluster.canonical,
+            bucket="surrogate",
+        )
+        surrogate = _generate_surrogate(pseudo, faker, forbidden_tokens, used_surrogates)
+        cluster_surrogate[key] = surrogate
+        used_surrogates.add(surrogate)
+        # Record the canonical → surrogate pair so the caller's delta loop
+        # (redaction_service._redact_text_with_registry) can compose the
+        # canonical's own variant row.
+        entity_map[cluster.canonical] = surrogate
+
+    # ------------------------------------------------------------------
+    # Build the unified rewrite list. Each tuple is (Entity, cluster_replacement
+    # | None). cluster_replacement is non-None for PERSON members; None for
+    # non-PERSON entities (which flow through the Phase 1 + Phase 2 per-entity
+    # path below).
+    # ------------------------------------------------------------------
+    all_spans: list[tuple[Entity, str | None]] = []
+    for cluster in clusters:
+        surrogate = cluster_surrogate.get(cluster.canonical.casefold())
+        if surrogate is None:
+            continue  # defensive: empty cluster
+        for member in cluster.members:
+            all_spans.append((member, surrogate))
+    for ent in non_person_entities:
+        all_spans.append((ent, None))
+
     # Right-to-left iteration: replacing later spans first keeps earlier
     # offsets valid even when the surrogate length differs from the original.
-    for ent in sorted(entities, key=lambda e: e.start, reverse=True):
+    for ent, cluster_replacement in sorted(
+        all_spans, key=lambda pair: pair[0].start, reverse=True
+    ):
         if ent.bucket == "redact":
             replacement = f"[{ent.type}]"  # D-08
             hard_redacted_count += 1
+        elif cluster_replacement is not None:
+            # PERSON: cluster surrogate already chosen above (D-45). Every
+            # variant in the cluster rewrites to the SAME canonical surrogate.
+            replacement = cluster_replacement
+            entity_map[ent.text] = replacement
         else:
-            # REG-04 / D-32 / I-4: if the registry already has this real value,
-            # reuse the existing surrogate and skip Faker generation entirely.
-            # Add to entity_map so the caller (redact_text) can still observe
-            # what was substituted in THIS call; the delta computation will
-            # exclude it (real_value already in registry._by_lower).
-            #
-            # I-4 ordering: this O(1) registry lookup runs BEFORE the O(n)
-            # within-call scan below — short-circuits when the registry has
-            # the entity, and makes control flow easier to read (registry hit
-            # → continue; miss → fall through to Phase 1's within-call + Faker
-            # logic).
+            # Non-PERSON (D-62 / RESOLVE-04): existing Phase 1 + Phase 2
+            # per-entity path — registry lookup → entity_map cache → Faker.
             if registry is not None:
                 hit = registry.lookup(ent.text)
                 if hit is not None:
@@ -260,7 +340,6 @@ def anonymize(
                     continue
 
             # ANON-03: same real value -> same surrogate within one call.
-            # Case-insensitive lookup catches "Bambang" / "bambang" variants.
             existing = entity_map.get(ent.text) or next(
                 (v for k, v in entity_map.items() if k.lower() == ent.text.lower()),
                 None,
@@ -276,8 +355,9 @@ def anonymize(
         out = out[: ent.start] + replacement + out[ent.end :]
 
     logger.debug(
-        "redaction.anonymize: entities=%d surrogate_pairs=%d hard_redacted=%d",
-        len(entities),
+        "redaction.anonymize: clusters=%d non_person=%d surrogate_pairs=%d hard_redacted=%d",
+        len(clusters),
+        len(non_person_entities),
         len(entity_map),
         hard_redacted_count,
     )
