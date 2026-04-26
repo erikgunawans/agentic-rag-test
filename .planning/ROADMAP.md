@@ -109,7 +109,7 @@
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Detection & Anonymization Foundation | 0/0 | Not started | — |
-| 2. Conversation-Scoped Registry & Round-Trip | 4/6 | In progress | — |
+| 2. Conversation-Scoped Registry & Round-Trip | 5/6 | In progress | — |
 | 3. Entity Resolution & LLM Provider Configuration | 0/0 | Not started | — |
 | 4. Fuzzy De-anonymization, Missed-PII Scan & Prompt Guidance | 0/0 | Not started | — |
 | 5. Chat-Loop Integration (Buffering, SSE Status, Tool/Sub-Agent Coverage) | 0/0 | Not started | — |
