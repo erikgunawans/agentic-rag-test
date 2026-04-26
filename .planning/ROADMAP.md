@@ -63,7 +63,14 @@
   3. With `ENTITY_RESOLUTION_MODE=llm` + provider=`local`, the local OpenAI-compatible endpoint (LM Studio / Ollama) operates on raw real content with no third-party egress.
   4. Non-PERSON entities (emails, phones, URLs) use exact-match normalization and are never sent to the resolution LLM.
   5. An admin can switch `LLM_PROVIDER` and any per-feature override (`ENTITY_RESOLUTION_LLM_PROVIDER`, `MISSED_SCAN_LLM_PROVIDER`, `TITLE_GEN_LLM_PROVIDER`, `METADATA_LLM_PROVIDER`, `FUZZY_DEANON_LLM_PROVIDER`) from the admin settings UI; changes take effect within the 60s `system_settings` cache window without redeploy.
-**Plans**: TBD
+**Plans**: 7 plans across 6 waves
+  - [ ] **Wave 1** — 03-01-PLAN.md — config.py + migration 030 SQL (RESOLVE-01, PROVIDER-01..03, PROVIDER-05..07)
+  - [ ] **Wave 2** — 03-02-PLAN.md — [BLOCKING] apply migration 030 to live Supabase (PROVIDER-06, RESOLVE-01)
+  - [ ] **Wave 3** — 03-03-PLAN.md — nicknames_id + clustering + egress filter (RESOLVE-02, RESOLVE-04, PROVIDER-04)
+  - [ ] **Wave 4** — 03-04-PLAN.md — LLMProviderClient with provider-aware branching + egress wrapping (PROVIDER-01..05, PROVIDER-07, RESOLVE-03)
+  - [ ] **Wave 4** — 03-06-PLAN.md — admin_settings.py SystemSettingsUpdate + AdminSettingsPage 'pii' section (PROVIDER-06, PROVIDER-07, RESOLVE-01)
+  - [ ] **Wave 5** — 03-05-PLAN.md — anonymization.py cluster-aware + redaction_service.py mode dispatch + egress fallback (RESOLVE-01..04, PROVIDER-04)
+  - [ ] **Wave 6** — 03-07-PLAN.md — pytest coverage all 5 SCs + D-66 egress matrix + D-65 provider-client suite (RESOLVE-01..04, PROVIDER-01, PROVIDER-04, PROVIDER-06, PROVIDER-07)
 **UI hint**: yes
 
 ### Phase 4: Fuzzy De-anonymization, Missed-PII Scan & Prompt Guidance
@@ -110,7 +117,7 @@
 |-------|----------------|--------|-----------|
 | 1. Detection & Anonymization Foundation | 0/0 | Not started | — |
 | 2. Conversation-Scoped Registry & Round-Trip | 6/6 | Complete | 2026-04-26 |
-| 3. Entity Resolution & LLM Provider Configuration | 0/0 | Not started | — |
+| 3. Entity Resolution & LLM Provider Configuration | 0/7 | Plans drafted | — |
 | 4. Fuzzy De-anonymization, Missed-PII Scan & Prompt Guidance | 0/0 | Not started | — |
 | 5. Chat-Loop Integration (Buffering, SSE Status, Tool/Sub-Agent Coverage) | 0/0 | Not started | — |
 | 6. Embedding Provider & Production Hardening | 0/0 | Not started | — |
@@ -158,3 +165,4 @@ Milestone v1.0 phase numbering starts at **Phase 1** (workflow flag `--reset-pha
 *Last updated: 2026-04-26 — Phase 2 plan 02-04 SHIPPED ✓ (commits `abe7c55` + `865cec2`); ConversationRegistry.load + upsert_delta wired to live entity_registry table; ConversationRegistry + EntityMapping re-exported from `app.services.redaction` (de_anonymize_text deliberately NOT re-exported per D-39 option b); 20/20 Phase 1 regression pass; live load() smoke succeeded; Wave 3 complete; ready for Wave 4 (02-05 redaction_service wiring)*
 *Last updated: 2026-04-26 — Phase 2 EXECUTION COMPLETE ✅: plan 02-06 SHIPPED (commits `b2d690e` + `d9639d1` + `11412fe`); 19 new tests added (15 integration + 4 unit); combined regression 39/39 pass (20 Phase 1 + 15 Phase 2 integration + 4 Phase 2 unit) in ~15s; all 5 Phase 2 ROADMAP SCs verified against live Supabase DB; SC#5 race verified via asyncio.gather + composite UNIQUE serialisation. Phase 2 ready for verification → Phase 3.*
 </content>
+*Last updated: 2026-04-26 — Phase 3 PLANNING COMPLETE: 7 plans across 6 waves drafted (03-01..03-07); all 11 REQ-IDs covered (RESOLVE-01..04, PROVIDER-01..07). Wave 2 plan 03-02 is the [BLOCKING] migration apply task.*
