@@ -20,9 +20,24 @@ interface SystemSettings {
   tools_max_iterations: number
   agents_enabled: boolean
   confidence_threshold: number
+  // Phase 3: PII redaction & LLM provider (D-59 / D-60)
+  entity_resolution_mode?: 'algorithmic' | 'llm' | 'none'
+  llm_provider?: 'local' | 'cloud'
+  llm_provider_fallback_enabled?: boolean
+  entity_resolution_llm_provider?: 'local' | 'cloud' | null
+  missed_scan_llm_provider?: 'local' | 'cloud' | null
+  title_gen_llm_provider?: 'local' | 'cloud' | null
+  metadata_llm_provider?: 'local' | 'cloud' | null
+  fuzzy_deanon_llm_provider?: 'local' | 'cloud' | null
+  pii_missed_scan_enabled?: boolean
 }
 
-type AdminSection = 'llm' | 'embedding' | 'rag' | 'tools' | 'hitl'
+interface LlmProviderStatus {
+  cloud_key_configured: boolean
+  local_endpoint_reachable: boolean
+}
+
+type AdminSection = 'llm' | 'embedding' | 'rag' | 'tools' | 'hitl' | 'pii'
 
 const SECTIONS: { id: AdminSection; icon: typeof Brain; labelKey: string }[] = [
   { id: 'llm', icon: Brain, labelKey: 'admin.llm.title' },
@@ -30,6 +45,15 @@ const SECTIONS: { id: AdminSection; icon: typeof Brain; labelKey: string }[] = [
   { id: 'rag', icon: Settings2, labelKey: 'admin.rag.title' },
   { id: 'tools', icon: Wrench, labelKey: 'admin.tools.title' },
   { id: 'hitl', icon: ShieldCheck, labelKey: 'admin.hitl.title' },
+  { id: 'pii', icon: Shield, labelKey: 'admin.pii.title' },
+]
+
+const PER_FEATURE_OVERRIDES: { field: keyof SystemSettings; labelKey: string }[] = [
+  { field: 'entity_resolution_llm_provider', labelKey: 'admin.pii.overrides.entityResolution' },
+  { field: 'missed_scan_llm_provider', labelKey: 'admin.pii.overrides.missedScan' },
+  { field: 'title_gen_llm_provider', labelKey: 'admin.pii.overrides.titleGen' },
+  { field: 'metadata_llm_provider', labelKey: 'admin.pii.overrides.metadata' },
+  { field: 'fuzzy_deanon_llm_provider', labelKey: 'admin.pii.overrides.fuzzyDeanon' },
 ]
 
 const inputClass = "w-full rounded-md border bg-secondary text-foreground px-3 py-2 text-sm"
@@ -44,6 +68,23 @@ export function AdminSettingsPage() {
   const [activeSection, setActiveSection] = useState<AdminSection>('llm')
   const { panelCollapsed, togglePanel } = useSidebar()
   const [mobilePanelOpen, setMobilePanelOpen] = useState(false)
+  const [piiStatus, setPiiStatus] = useState<LlmProviderStatus | null>(null)
+
+  // D-58: fetch masked status badge data for the PII section.
+  // Endpoint returns booleans only; never the raw cloud key.
+  useEffect(() => {
+    if (activeSection !== 'pii') return
+    let cancelled = false
+    apiFetch('/admin/settings/llm-provider-status')
+      .then((r) => r.json())
+      .then((data: LlmProviderStatus) => {
+        if (!cancelled) setPiiStatus(data)
+      })
+      .catch(() => {
+        if (!cancelled) setPiiStatus({ cloud_key_configured: false, local_endpoint_reachable: false })
+      })
+    return () => { cancelled = true }
+  }, [activeSection])
 
   const loadSettings = useCallback(async () => {
     const res = await apiFetch('/admin/settings')
@@ -418,6 +459,127 @@ export function AdminSettingsPage() {
                     &lt; {((form.confidence_threshold ?? 0.85) * 100).toFixed(0)}% &rarr; PENDING REVIEW
                   </span>
                 </div>
+              </div>
+            </section>
+          )}
+
+          {activeSection === 'pii' && (
+            <section className="space-y-4">
+              <div>
+                <h2 className="text-sm font-semibold">{t('admin.pii.title')}</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">{t('admin.pii.description')}</p>
+              </div>
+
+              {/* Status badges (D-58) — sourced from GET /admin/settings/llm-provider-status */}
+              <div className="flex flex-wrap gap-2">
+                <span
+                  className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${
+                    piiStatus?.cloud_key_configured
+                      ? 'bg-green-500/10 border-green-500/30 text-green-600 dark:text-green-400'
+                      : 'bg-red-500/10 border-red-500/30 text-red-600 dark:text-red-400'
+                  }`}
+                >
+                  {piiStatus?.cloud_key_configured
+                    ? t('admin.pii.cloudKey.configured')
+                    : t('admin.pii.cloudKey.missing')}
+                </span>
+                <span
+                  className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${
+                    piiStatus?.local_endpoint_reachable
+                      ? 'bg-green-500/10 border-green-500/30 text-green-600 dark:text-green-400'
+                      : 'bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400'
+                  }`}
+                >
+                  {piiStatus?.local_endpoint_reachable
+                    ? t('admin.pii.localEndpoint.reachable')
+                    : t('admin.pii.localEndpoint.unreachable')}
+                </span>
+              </div>
+
+              {/* Mode (entity_resolution_mode) */}
+              <div className="space-y-1">
+                <label className="text-xs font-medium">{t('admin.pii.mode.label')}</label>
+                <select
+                  value={form.entity_resolution_mode ?? 'algorithmic'}
+                  onChange={(e) =>
+                    updateField('entity_resolution_mode', e.target.value as 'algorithmic' | 'llm' | 'none')
+                  }
+                  className={inputClass}
+                >
+                  <option value="algorithmic">{t('admin.pii.mode.algorithmic')}</option>
+                  <option value="llm">{t('admin.pii.mode.llm')}</option>
+                  <option value="none">{t('admin.pii.mode.none')}</option>
+                </select>
+              </div>
+
+              {/* Global provider (llm_provider) */}
+              <div className="space-y-1">
+                <label className="text-xs font-medium">{t('admin.pii.provider.label')}</label>
+                <select
+                  value={form.llm_provider ?? 'local'}
+                  onChange={(e) =>
+                    updateField('llm_provider', e.target.value as 'local' | 'cloud')
+                  }
+                  className={inputClass}
+                >
+                  <option value="local">{t('admin.pii.provider.local')}</option>
+                  <option value="cloud">{t('admin.pii.provider.cloud')}</option>
+                </select>
+              </div>
+
+              <Separator />
+
+              {/* Fallback toggle (llm_provider_fallback_enabled) */}
+              <label className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  checked={form.llm_provider_fallback_enabled ?? false}
+                  onChange={(e) => updateField('llm_provider_fallback_enabled', e.target.checked)}
+                />
+                <div>
+                  <p className="text-sm font-medium">{t('admin.pii.fallback.label')}</p>
+                </div>
+              </label>
+
+              {/* Phase 4 forward-compat: secondary missed-PII scan (pii_missed_scan_enabled) */}
+              <label className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  checked={form.pii_missed_scan_enabled ?? true}
+                  onChange={(e) => updateField('pii_missed_scan_enabled', e.target.checked)}
+                />
+                <div>
+                  <p className="text-sm font-medium">{t('admin.pii.missedScan.label')}</p>
+                </div>
+              </label>
+
+              <Separator />
+
+              {/* Per-feature overrides (5 selects: Inherit / local / cloud) */}
+              <div className="space-y-3">
+                <h3 className="text-xs font-semibold">{t('admin.pii.overrides.title')}</h3>
+                {PER_FEATURE_OVERRIDES.map(({ field, labelKey }) => {
+                  const current = (form[field] as 'local' | 'cloud' | null | undefined) ?? null
+                  const value = current === null || current === undefined ? 'inherit' : current
+                  return (
+                    <div key={field} className="space-y-1">
+                      <label className="text-xs font-medium">{t(labelKey)}</label>
+                      <select
+                        value={value}
+                        onChange={(e) => {
+                          const v = e.target.value
+                          const next = v === 'inherit' ? null : (v as 'local' | 'cloud')
+                          updateField(field, next as SystemSettings[typeof field])
+                        }}
+                        className={inputClass}
+                      >
+                        <option value="inherit">{t('admin.pii.overrides.inherit')}</option>
+                        <option value="local">{t('admin.pii.provider.local')}</option>
+                        <option value="cloud">{t('admin.pii.provider.cloud')}</option>
+                      </select>
+                    </div>
+                  )
+                })}
               </div>
             </section>
           )}
