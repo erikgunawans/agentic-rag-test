@@ -1,5 +1,6 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
+from typing import Literal
 
 
 class Settings(BaseSettings):
@@ -83,6 +84,29 @@ class Settings(BaseSettings):
     # "langsmith" → wraps langsmith.traceable
     # "langfuse"  → wraps langfuse.observe
     tracing_provider: str = ""
+
+    # Phase 3: Entity resolution mode + global LLM provider (D-57, D-60)
+    entity_resolution_mode: Literal["algorithmic", "llm", "none"] = "algorithmic"
+    llm_provider: Literal["local", "cloud"] = "local"
+    llm_provider_fallback_enabled: bool = False
+    llm_provider_timeout_seconds: int = 30  # D-50
+
+    # Phase 3: Per-feature provider overrides (None = inherit global) (D-51 / PROVIDER-07)
+    entity_resolution_llm_provider: Literal["local", "cloud"] | None = None
+    missed_scan_llm_provider: Literal["local", "cloud"] | None = None
+    title_gen_llm_provider: Literal["local", "cloud"] | None = None
+    metadata_llm_provider: Literal["local", "cloud"] | None = None
+    fuzzy_deanon_llm_provider: Literal["local", "cloud"] | None = None
+
+    # Phase 3: Endpoints + creds (D-50, D-58)
+    local_llm_base_url: str = "http://localhost:1234/v1"
+    local_llm_model: str = "llama-3.1-8b-instruct"
+    cloud_llm_base_url: str = "https://api.openai.com/v1"
+    cloud_llm_model: str = "gpt-4o-mini"
+    cloud_llm_api_key: str = ""  # D-58: env-only; admin UI shows masked status badge
+
+    # Phase 4 forward-compat (ship column + setting now per D-57; consumed in Phase 4)
+    pii_missed_scan_enabled: bool = True
 
 
 @lru_cache

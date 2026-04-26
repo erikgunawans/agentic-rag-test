@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: verifying
-last_updated: "2026-04-26T07:10:07.896Z"
-last_activity: "2026-04-26 — `/gsd-execute-phase 2` Wave 5 COMPLETE: Plan 02-06 shipped. `backend/tests/conftest.py` (Task 1, commit `b2d690e`, +128 lines) adds `test_user_id` (session-scoped, B-4 canonical pattern via `client.auth.admin.list_users()`), `fresh_thread_id` (per-test threads-row INSERT with W-3 defensive try/except + ON DELETE CASCADE teardown), `empty_registry` (`ConversationRegistry.load(fresh_thread_id)`), and autouse `_reset_thread_locks` (W-4 — clears `_thread_locks` AND rebinds `_thread_locks_master` to current event loop). Phase 1 fixtures preserved verbatim. `backend/tests/api/test_redaction_registry.py` (Task 2, commit `d9639d1`, 511 lines, 7 classes / 15 methods) covers all 5 SCs against live Supabase project `qedhulpfezucnfadlfiz`: SC#1 (case-insensitive consistency — Title vs lower PERSON, ALL-CAPS email, single-row-per-lower invariant), SC#2 (resume across restart — load-after-drop + resumed-registry-reuses-surrogate), SC#3 (de-anon round-trip — uppercased / titlecased / mixed-case → original casing), SC#4 (hard-redact never persisted — CC + synthetic [US_SSN]/[IBAN_CODE] survive), SC#5 (asyncio.gather race — `len(rows) == 1` against entity_registry + concurrent outputs share surrogate), SC#5b (cross-turn surname collision per D-37 / PRD §7.5), SC#6 (B4 caplog log-privacy for new methods). Three Rule-1 deviations applied during Task 2 verification: (1) ALL-CAPS PERSON test rewritten to Title vs lower (xx-multilingual model doesn't detect all-caps), (2) SC#2 lookup adjusted to bare PERSON form (entity_map keys preserve honorifics), (3) US_SSN test replaced with synthetic [US_SSN] placeholders (UsSsnRecognizer only loads for 'en'). `backend/tests/unit/test_conversation_registry.py` (Task 3, commit `11412fe`, 4 unit tests) covers in-memory primitives without DB — casefold lookup, entries() copy semantics, D-38 PERSON-only forbidden_tokens, read-only thread_id property. Combined regression: 39/39 pass (20 Phase 1 + 15 Phase 2 integration + 4 Phase 2 unit) in ~15s. SUMMARY at `02-06-pytest-coverage-SUMMARY.md`. Phase 2 verification is the orchestrator's next step."
+status: executing
+last_updated: "2026-04-26T07:25:05.212Z"
+last_activity: 2026-04-26
 progress:
   total_phases: 6
   completed_phases: 2
@@ -20,14 +20,17 @@ progress:
 See: `.planning/PROJECT.md` (updated 2026-04-25)
 
 **Core value:** Indonesian legal teams can manage the full contract lifecycle with confidence that AI outputs are accurate, citable, and traceable.
-**Current focus:** Milestone v1.0 — PII Redaction System (chat-time anonymization, no real PII to cloud LLMs).
+**Current focus:** Phase --phase — 03
 
 ## Current Position
 
+Phase: --phase (03) — EXECUTING
+Plan: 1 of --name
+
 - **Phase:** Phase 2: Conversation-Scoped Registry & Round-Trip — **EXECUTION COMPLETE** ✅ (all 6 plans across 5 waves shipped; phase verification is the orchestrator's next step)
 - **Resume file:** --resume-file
-- **Status:** Phase 1 SHIPPED ✓ (21 commits `8d06ffe`..`0857bb2`, 20/20 tests). Phase 2 SHIPPED ✓ — Wave 1 **02-01** (`f7a3ff5`, migration 029 SQL) + **02-02** (`26cf393`, ConversationRegistry + EntityMapping skeleton); Wave 2 **02-03** (migration 029 applied to live Supabase via MCP `apply_migration`); Wave 3 **02-04** (`abe7c55` + `865cec2`, load + upsert_delta wired to live table); Wave 4 **02-05** (`d0b8dc3` + `9cc1f42`, RedactionService wiring — _thread_locks, registry-aware redact_text, de_anonymize_text placeholder-tokenized 2-pass); Wave 5 **02-06** (`b2d690e` + `d9639d1` + `11412fe`, pytest coverage — 39/39 tests pass against live DB, all 5 SCs verified incl. asyncio.gather race + composite UNIQUE serialisation).
-- **Last activity:** 2026-04-26 — `/gsd-execute-phase 2` Wave 5 COMPLETE: Plan 02-06 shipped. `backend/tests/conftest.py` (Task 1, commit `b2d690e`, +128 lines) adds `test_user_id` (session-scoped, B-4 canonical pattern via `client.auth.admin.list_users()`), `fresh_thread_id` (per-test threads-row INSERT with W-3 defensive try/except + ON DELETE CASCADE teardown), `empty_registry` (`ConversationRegistry.load(fresh_thread_id)`), and autouse `_reset_thread_locks` (W-4 — clears `_thread_locks` AND rebinds `_thread_locks_master` to current event loop). Phase 1 fixtures preserved verbatim. `backend/tests/api/test_redaction_registry.py` (Task 2, commit `d9639d1`, 511 lines, 7 classes / 15 methods) covers all 5 SCs against live Supabase project `qedhulpfezucnfadlfiz`: SC#1 (case-insensitive consistency — Title vs lower PERSON, ALL-CAPS email, single-row-per-lower invariant), SC#2 (resume across restart — load-after-drop + resumed-registry-reuses-surrogate), SC#3 (de-anon round-trip — uppercased / titlecased / mixed-case → original casing), SC#4 (hard-redact never persisted — CC + synthetic [US_SSN]/[IBAN_CODE] survive), SC#5 (asyncio.gather race — `len(rows) == 1` against entity_registry + concurrent outputs share surrogate), SC#5b (cross-turn surname collision per D-37 / PRD §7.5), SC#6 (B4 caplog log-privacy for new methods). Three Rule-1 deviations applied during Task 2 verification: (1) ALL-CAPS PERSON test rewritten to Title vs lower (xx-multilingual model doesn't detect all-caps), (2) SC#2 lookup adjusted to bare PERSON form (entity_map keys preserve honorifics), (3) US_SSN test replaced with synthetic [US_SSN] placeholders (UsSsnRecognizer only loads for 'en'). `backend/tests/unit/test_conversation_registry.py` (Task 3, commit `11412fe`, 4 unit tests) covers in-memory primitives without DB — casefold lookup, entries() copy semantics, D-38 PERSON-only forbidden_tokens, read-only thread_id property. Combined regression: 39/39 pass (20 Phase 1 + 15 Phase 2 integration + 4 Phase 2 unit) in ~15s. SUMMARY at `02-06-pytest-coverage-SUMMARY.md`. Phase 2 verification is the orchestrator's next step.
+- **Status:** Executing Phase --phase
+- **Last activity:** 2026-04-26
 
 ## Accumulated Context
 
