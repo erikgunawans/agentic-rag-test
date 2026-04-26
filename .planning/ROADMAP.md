@@ -15,7 +15,7 @@
 ### Phases (summary)
 
 - [x] **Phase 1: Detection & Anonymization Foundation** ✅ 2026-04-26 — Presidio NER + Faker surrogates wired in as lazy singletons with tracing (21 commits, 20/20 tests pass, 5/5 SCs verified)
-- [ ] **Phase 2: Conversation-Scoped Registry & Round-Trip** — Per-thread registry persists; basic surrogate→real de-anonymization round-trip works
+- [x] **Phase 2: Conversation-Scoped Registry & Round-Trip** ✅ 2026-04-26 — Per-thread registry persists; surrogate→real de-anonymization round-trip works (6 plans across 5 waves; 39/39 tests pass; all 5 SCs verified against live Supabase DB)
 - [ ] **Phase 3: Entity Resolution & LLM Provider Configuration** — `algorithmic`/`llm`/`none` resolution modes; global + per-feature `LLM_PROVIDER` plumbing with egress filter and admin UI
 - [ ] **Phase 4: Fuzzy De-anonymization, Missed-PII Scan & Prompt Guidance** — 3-phase placeholder-tokenized de-anon pipeline; optional secondary LLM scan; system-prompt formatting guidance
 - [ ] **Phase 5: Chat-Loop Integration (Buffering, SSE Status, Tool/Sub-Agent Coverage)** — Full end-to-end privacy invariant: buffered responses, status events, symmetric tool/sub-agent anonymization
@@ -51,7 +51,7 @@
   - [x] **Wave 2** — 02-03-PLAN.md — [BLOCKING] supabase db push migration 029 ✓ applied via Supabase MCP `apply_migration` (2026-04-26) — local CLI absent
   - [x] **Wave 3** — 02-04-PLAN.md — Registry DB methods (load / upsert_delta) + reexports ✓ commits `abe7c55` + `865cec2` (2026-04-26); 20/20 Phase 1 regression pass; live load() smoke against real DB succeeded
   - [x] **Wave 4** — 02-05-PLAN.md — redaction_service wiring (locks, redact_text widening, de_anonymize_text) ✓ commits `d0b8dc3` + `9cc1f42` (2026-04-26); 20/20 Phase 1 regression pass; round-trip + hard-redact-passthrough + case-insensitive smoke tests pass
-  - [ ] **Wave 5** — 02-06-PLAN.md — Pytest coverage all 5 SCs incl. SC#5 race (real DB)
+  - [x] **Wave 5** — 02-06-PLAN.md — Pytest coverage all 5 SCs incl. SC#5 race (real DB) ✓ commits `b2d690e` + `d9639d1` + `11412fe` (2026-04-26); 39/39 tests pass (20 Phase 1 + 15 Phase 2 integration + 4 unit); SC#5 race verified against live entity_registry UNIQUE constraint via asyncio.gather + `len(rows) == 1` assertion
 
 ### Phase 3: Entity Resolution & LLM Provider Configuration
 **Goal:** Ship the three entity-resolution modes (`algorithmic` / `llm` / `none`) on top of a configurable LLM-provider abstraction, so PERSON-entity coreference (nicknames, partial names, title-stripped variants) collapses to one canonical surrogate, and any cloud auxiliary call is gated by a pre-flight egress filter.
@@ -109,7 +109,7 @@
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Detection & Anonymization Foundation | 0/0 | Not started | — |
-| 2. Conversation-Scoped Registry & Round-Trip | 5/6 | In progress | — |
+| 2. Conversation-Scoped Registry & Round-Trip | 6/6 | Complete | 2026-04-26 |
 | 3. Entity Resolution & LLM Provider Configuration | 0/0 | Not started | — |
 | 4. Fuzzy De-anonymization, Missed-PII Scan & Prompt Guidance | 0/0 | Not started | — |
 | 5. Chat-Loop Integration (Buffering, SSE Status, Tool/Sub-Agent Coverage) | 0/0 | Not started | — |
@@ -156,4 +156,5 @@ Milestone v1.0 phase numbering starts at **Phase 1** (workflow flag `--reset-pha
 *Last updated: 2026-04-26 — Phase 2 plan 02-01 SHIPPED ✓ (commit `f7a3ff5`); migration 029 entity_registry table written to disk*
 *Last updated: 2026-04-26 — Phase 2 plan 02-02 SHIPPED ✓ (commit `26cf393`); ConversationRegistry + EntityMapping skeleton (127 lines, no DB methods); Wave 1 complete; ready for Wave 2 (02-03 supabase db push)*
 *Last updated: 2026-04-26 — Phase 2 plan 02-04 SHIPPED ✓ (commits `abe7c55` + `865cec2`); ConversationRegistry.load + upsert_delta wired to live entity_registry table; ConversationRegistry + EntityMapping re-exported from `app.services.redaction` (de_anonymize_text deliberately NOT re-exported per D-39 option b); 20/20 Phase 1 regression pass; live load() smoke succeeded; Wave 3 complete; ready for Wave 4 (02-05 redaction_service wiring)*
+*Last updated: 2026-04-26 — Phase 2 EXECUTION COMPLETE ✅: plan 02-06 SHIPPED (commits `b2d690e` + `d9639d1` + `11412fe`); 19 new tests added (15 integration + 4 unit); combined regression 39/39 pass (20 Phase 1 + 15 Phase 2 integration + 4 Phase 2 unit) in ~15s; all 5 Phase 2 ROADMAP SCs verified against live Supabase DB; SC#5 race verified via asyncio.gather + composite UNIQUE serialisation. Phase 2 ready for verification → Phase 3.*
 </content>
