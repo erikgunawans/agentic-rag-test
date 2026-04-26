@@ -1,14 +1,19 @@
 """Public RedactionService — composes detection + anonymization (D-13..D-15).
 
-This is the single entry point for Phase 1's PII redaction layer. It glues
-together the four building blocks shipped earlier in the phase:
+This is the single entry point for the v1.0 PII redaction layer. It glues
+together the building blocks shipped across Phases 1-3:
 
-- ``uuid_filter`` (Plan 04) — pre-mask UUIDs so Presidio never touches them.
-- ``detection`` (Plan 05) — Presidio + spaCy ``xx_ent_wiki_sm`` two-pass
+- ``uuid_filter`` (Phase 1) — pre-mask UUIDs so Presidio never touches them.
+- ``detection`` (Phase 1) — Presidio + spaCy ``xx_ent_wiki_sm`` two-pass
   threshold filter; returns ``(masked_text, entities, sentinels)``.
-- ``anonymization`` (Plan 06 — this plan) — substitutes each entity with a
-  Faker surrogate or a ``[TYPE]`` placeholder.
-- ``tracing_service`` (Plan 01) — provides the ``@traced`` decorator.
+- ``clustering`` (Phase 3 Wave 3) — Union-Find PERSON cluster builder +
+  D-48 sub-surrogate variant set generator.
+- ``llm_provider`` (Phase 3 Wave 4) — provider-aware AsyncOpenAI client with
+  pre-flight egress filter for cloud calls (D-53..D-56).
+- ``anonymization`` (Phase 1 / Phase 3) — cluster-aware Faker dispatch:
+  one surrogate per cluster; non-PERSON spans flow through the per-entity
+  Phase 1 path (D-62 / RESOLVE-04).
+- ``tracing_service`` (Phase 1) — provides the ``@traced`` decorator.
 
 Design invariants:
 
@@ -17,21 +22,33 @@ Design invariants:
   here — it lives inside ``detect_entities``. This file imports only
   ``restore_uuids``.
 - D-13: public method is ``async def redact_text(text) -> RedactionResult``.
-  Phase 2 will widen the signature to accept a registry; the async shape is
-  stable for that future.
-- D-14: Phase 1 is stateless — no per-conversation registry, no thread
-  parameter, no caching of real values across calls.
+  Phase 2 widened the signature to accept a registry; Phase 3 dispatches on
+  ``settings.entity_resolution_mode`` inside the registry-aware path.
+- D-14: Phase 1 stateless path remains stateless — no per-conversation
+  registry, no thread parameter, no caching of real values across calls.
 - D-15: ``get_redaction_service()`` is ``@lru_cache``'d. The FastAPI lifespan
   calls it once at startup so Presidio + Faker + gender detector are loaded
   before the first chat request (PERF-01).
-- D-18: ``redact_text`` is wrapped in ``@traced(name="redaction.redact_text")``
+- D-18 / B4: ``redact_text`` is wrapped in ``@traced(name="redaction.redact_text")``
   for OBS-01. Span attributes are counts and timings only — never real
-  entity values (B4).
+  entity values.
+- D-29 / D-30: per-thread asyncio.Lock spans detect → cluster → LLM-call →
+  generate-surrogates → upsert-deltas → return. The Phase 3 LLM call
+  happens INSIDE the lock; ``LLMProviderClient`` enforces a
+  settings-controlled timeout (default 30 s) so the lock is bounded.
+- D-52 / D-54 / NFR-3: ``_EgressBlocked`` and any other exception from the
+  cloud-LLM path fall back to algorithmic clusters; never re-raised to the
+  chat loop.
+- D-62 / RESOLVE-04: only PERSON entities are clustered. EMAIL / PHONE /
+  URL / LOCATION / DATE_TIME / IP_ADDRESS / hard-redact spans flow through
+  the existing Phase 1 + Phase 2 per-entity path — no clustering, no LLM
+  contact.
 """
 
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import re
 import time
@@ -39,12 +56,16 @@ from functools import lru_cache
 
 from pydantic import BaseModel, ConfigDict
 
+from app.config import get_settings
+from app.services.llm_provider import LLMProviderClient
 from app.services.redaction.anonymization import (
     anonymize,
     get_faker,
     get_gender_detector,
 )
-from app.services.redaction.detection import detect_entities, get_analyzer
+from app.services.redaction.clustering import Cluster, cluster_persons, variants_for
+from app.services.redaction.detection import Entity, detect_entities, get_analyzer
+from app.services.redaction.egress import _EgressBlocked
 from app.services.redaction.registry import ConversationRegistry, EntityMapping
 
 # W10: the UUID pre-mask helper is intentionally NOT imported here. It is
@@ -98,8 +119,171 @@ class RedactionResult(BaseModel):
     latency_ms: float
 
 
+def _split_person_non_person(
+    entities: list[Entity],
+) -> tuple[list[Entity], list[Entity]]:
+    """D-62 / RESOLVE-04: PERSON entities go through clustering; everything
+    else (EMAIL / PHONE / URL / LOCATION / DATE_TIME / IP_ADDRESS / hard-redact)
+    flows through the existing Phase 1 + Phase 2 per-entity path.
+
+    Returns ``(person_entities, non_person_entities)``.
+    """
+    person_entities = [e for e in entities if e.type == "PERSON"]
+    non_person_entities = [e for e in entities if e.type != "PERSON"]
+    return person_entities, non_person_entities
+
+
+def _clusters_for_mode_none(person_entities: list[Entity]) -> list[Cluster]:
+    """D-62 / Claude's Discretion §"none" mode: each PERSON entity becomes
+    its own pseudo-cluster (canonical = entity.text, members = (entity,)).
+
+    No merges; no nickname expansion. The variant set is still computed via
+    ``variants_for`` so cross-turn de-anonymization still has the variant
+    rows in entity_registry to round-trip on. This is explicitly worse for
+    coreference quality than algorithmic mode but is the deterministic
+    "do nothing" path.
+    """
+    return [
+        Cluster(
+            canonical=e.text,
+            variants=variants_for(e.text),
+            members=(e,),
+        )
+        for e in person_entities
+    ]
+
+
+async def _resolve_clusters_via_llm(
+    person_entities: list[Entity],
+    registry: ConversationRegistry,
+) -> tuple[list[Cluster], bool, str, bool]:
+    """D-49 / D-52 / D-54: try to refine algorithmic clusters via the LLM
+    provider; on ANY failure (egress trip, network, schema mismatch) fall
+    back to the algorithmic clusters.
+
+    Returns:
+        ``(clusters, provider_fallback, fallback_reason, egress_tripped)``.
+
+    Caller holds the per-thread asyncio.Lock; this function MUST NOT raise
+    (NFR-3 — never crash, never leak). The cloud LLM call happens inside
+    ``LLMProviderClient`` which enforces a settings-controlled timeout
+    (D-50, default 30 s) so the lock is bounded.
+    """
+    # First, always compute the algorithmic clusters — they are the fallback
+    # answer if the LLM path errors out OR returns invalid JSON.
+    algorithmic_clusters = cluster_persons(person_entities)
+
+    # No PERSON entities → no LLM call needed. Empty cluster list is the
+    # correct answer, not an error.
+    if not algorithmic_clusters:
+        return [], False, "", False
+
+    # Build the provisional surrogate map for the egress filter (D-56).
+    # The filter's job is to scan the outbound payload for ANY real value
+    # that might be in the registry OR in this turn's in-flight set; using
+    # the canonical real values as keys here keeps the filter scope
+    # exhaustive without leaking provisional surrogates that don't exist
+    # yet (anonymize() hasn't run yet — Faker output not assigned).
+    provisional_surrogates: dict[str, str] = {
+        c.canonical: c.canonical for c in algorithmic_clusters
+    }
+
+    # Compose the resolution prompt. Schema documented in CONTEXT.md D-49.
+    # The model's job is to RE-GROUP existing members (no name invention).
+    prompt_clusters = [
+        {"canonical": c.canonical, "members": [m.text for m in c.members]}
+        for c in algorithmic_clusters
+    ]
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "You are a coreference resolver. The user provides "
+                "preliminary PERSON clusters. Return JSON "
+                '{"clusters": [{"canonical": str, "members": list[str]}, ...]} '
+                "with the same members regrouped if you can identify obvious "
+                "mergeable clusters; otherwise return the input unchanged. "
+                "Never invent names. Never include any text outside the JSON "
+                "object."
+            ),
+        },
+        {
+            "role": "user",
+            "content": json.dumps({"clusters": prompt_clusters}, ensure_ascii=False),
+        },
+    ]
+
+    try:
+        client = LLMProviderClient()
+        result = await client.call(
+            feature="entity_resolution",
+            messages=messages,
+            registry=registry,
+            provisional_surrogates=provisional_surrogates,
+        )
+
+        # Schema validation. Any mismatch raises ValueError → falls back.
+        refined = result.get("clusters") if isinstance(result, dict) else None
+        if not isinstance(refined, list):
+            raise ValueError("invalid resolution response (clusters not a list)")
+
+        # Re-attach Entity members by looking up each member text in the
+        # algorithmic-cluster member pool. Hallucinated names are silently
+        # dropped (T-CLUST-02 mitigation) — never invented.
+        text_to_entity: dict[str, Entity] = {
+            m.text: m for c in algorithmic_clusters for m in c.members
+        }
+        clusters_built: list[Cluster] = []
+        for entry in refined:
+            if not isinstance(entry, dict):
+                raise ValueError("invalid resolution response entry (not a dict)")
+            canonical = entry.get("canonical")
+            members_raw = entry.get("members")
+            if not isinstance(canonical, str) or not isinstance(members_raw, list):
+                raise ValueError("invalid resolution response entry shape")
+            members = tuple(
+                text_to_entity[m] for m in members_raw if m in text_to_entity
+            )
+            if not members:
+                continue
+            clusters_built.append(
+                Cluster(
+                    canonical=canonical,
+                    variants=variants_for(canonical),
+                    members=members,
+                )
+            )
+        if not clusters_built:
+            raise ValueError("resolution response empty after re-attach")
+
+        # Successful refinement.
+        return clusters_built, False, "", False
+
+    except _EgressBlocked as exc:
+        # D-54: pre-flight egress trip. Algorithmic fallback (already computed).
+        # The egress filter already logged a WARNING with hashes-only.
+        # We log the fallback decision at INFO; counts only.
+        logger.info(
+            "redaction.llm_fallback reason=egress_blocked clusters_formed=%d match_count=%d",
+            len(algorithmic_clusters),
+            exc.result.match_count,
+        )
+        return algorithmic_clusters, True, "egress_blocked", True
+
+    except Exception as exc:  # noqa: BLE001
+        # D-52: network / 5xx / invalid_response / etc → algorithmic fallback.
+        # NEVER re-raise (NFR-3). Type name only; never raw values.
+        reason = type(exc).__name__
+        logger.info(
+            "redaction.llm_fallback reason=%s clusters_formed=%d",
+            reason,
+            len(algorithmic_clusters),
+        )
+        return algorithmic_clusters, True, reason, False
+
+
 class RedactionService:
-    """Phase 1 redaction service — stateless, single async public method (D-14).
+    """v1.0 redaction service — single async public method (D-14).
 
     The constructor eagerly warms every ``@lru_cache``'d singleton the
     pipeline depends on so the first real request doesn't pay the
@@ -139,21 +323,29 @@ class RedactionService:
         text: str,
         registry: ConversationRegistry | None = None,
     ) -> RedactionResult:
-        """D-13 / D-14 / D-39: detect + anonymize. Stateless or registry-aware.
+        """D-13 / D-14 / D-39: detect + cluster + anonymize. Stateless or
+        registry-aware.
 
         Args:
             text: Raw input text. May contain UUIDs, Indonesian or English
                 names, emails, phone numbers, credit-card-like strings, etc.
             registry: When ``None`` (Phase 1 default — D-39), behaviour is
-                identical to the stateless legacy path. When supplied, the
-                call is wrapped in a per-thread ``asyncio.Lock`` (D-29 / D-30)
-                and:
-                  - existing real values reuse their stored surrogate (REG-04)
+                identical to the stateless legacy path (mode=algorithmic
+                pseudo-clusters; no LLM contact; no upsert). When supplied,
+                the call is wrapped in a per-thread ``asyncio.Lock``
+                (D-29 / D-30) and:
+                  - PERSON entities are clustered per
+                    ``settings.entity_resolution_mode`` (algorithmic / llm /
+                    none — D-45 / D-49 / D-62)
+                  - the cloud-LLM path is gated by the egress filter and
+                    falls back to algorithmic on any failure (D-52 / D-54)
+                  - existing real values reuse their stored surrogate
+                    (REG-04)
                   - Faker generation honours both per-call AND per-thread
                     forbidden tokens (D-37)
-                  - newly-introduced mappings are upserted to the
-                    ``entity_registry`` table inside the critical section
-                    (D-32).
+                  - newly-introduced mappings (canonical + variants) are
+                    upserted to the ``entity_registry`` table inside the
+                    critical section (D-32 / D-48)
 
         Returns:
             ``RedactionResult`` with anonymized text, the real -> surrogate
@@ -175,7 +367,9 @@ class RedactionService:
             # D-39: stateless legacy path. Phase 1 body unchanged.
             return await self._redact_text_stateless(text)
 
-        # D-29 / D-30: per-thread lock spans detect → generate → upsert.
+        # D-29 / D-30 / D-61: per-thread lock spans detect → cluster → LLM-call
+        # → generate-surrogates → upsert-deltas. Phase 3 LLM call lives
+        # INSIDE the lock per D-61 step 3.
         lock = await self._get_thread_lock(registry.thread_id)
         t_lock_start = time.perf_counter()
         async with lock:
@@ -195,9 +389,11 @@ class RedactionService:
             return result
 
     async def _redact_text_stateless(self, text: str) -> RedactionResult:
-        """Phase 1 stateless redact path — body unchanged from the original
-        ``redact_text`` (D-39: registry=None ⇒ identical legacy behaviour).
-        """
+        """Phase 1 stateless redact path — registry=None ⇒ no clustering, no
+        LLM, no upsert. Each PERSON entity gets its own pseudo-cluster so
+        the cluster-aware ``anonymize()`` API still works correctly (D-39:
+        identical legacy behaviour from the caller's perspective — same
+        return shape, same surrogate properties)."""
         t0 = time.perf_counter()
 
         # W10: detect_entities returns the masked text it built so we don't
@@ -205,8 +401,18 @@ class RedactionService:
         # original input.
         masked_text, entities, sentinels = detect_entities(text)
 
+        person_entities, non_person_entities = _split_person_non_person(entities)
+        # Stateless path: each PERSON entity gets its own pseudo-cluster
+        # (no merges, no nickname expansion). Behaviour matches the legacy
+        # Phase 1 per-entity path because each cluster has a single member
+        # whose canonical equals its own text.
+        clusters = _clusters_for_mode_none(person_entities)
+
         anonymized_masked, entity_map, hard_redacted_count = anonymize(
-            masked_text, entities
+            masked_text=masked_text,
+            clusters=clusters,
+            non_person_entities=non_person_entities,
+            registry=None,
         )
         anonymized_text = restore_uuids(anonymized_masked, sentinels)
 
@@ -237,62 +443,127 @@ class RedactionService:
     ) -> RedactionResult:
         """Registry-aware redact path. Caller holds the per-thread lock.
 
-        Mirrors the body of ``_redact_text_stateless`` but threads ``registry``
-        into ``anonymize(...)`` so existing surrogates are reused and
-        forbidden tokens honour ``registry.forbidden_tokens()`` (Plan 05
-        Task 1). Then computes the delta (entries in ``entity_map`` whose
-        ``real_value_lower`` is not already in ``registry._by_lower``) and
-        persists it via ``await registry.upsert_delta(deltas)`` (D-32).
-
-        W-2 invariant: every delta carries the correct Presidio
-        ``entity_type`` derived from the same call's ``entities`` list. We
-        build a ``text → Entity`` index ONCE so the delta loop is O(n)
-        (instead of an O(n*m) ``next(...)`` linear scan) and assert the
-        index lookup never misses (Phase 1's anonymize() contract guarantees
-        every ``entity_map`` key is precisely an ``Entity.text`` from the
-        same call — Plan 05 Task 1 preserves this for the registry-hit path
-        too).
+        D-61 8-step flow (verbatim from CONTEXT.md):
+            1. (Caller) Acquire per-thread asyncio.Lock.
+            2. Detect entities (Presidio two-pass).
+            3. Cluster PERSON entities (mode-dispatched: algorithmic / llm /
+               none — Phase 3).
+            4. Generate Faker surrogates per cluster (Phase 1 collision
+               budget preserved by anonymize()).
+            5. Compose variant set per cluster (D-48 first-only / last-only /
+               honorific-prefixed / nickname).
+            6. Compute deltas vs loaded registry; await registry.upsert_delta
+               (Phase 2 D-32).
+            7. Build entity_map for THIS call's text rewrite using ALL
+               variant rows.
+            8. (Caller) Release the lock; return RedactionResult.
         """
         t0 = time.perf_counter()
 
         masked_text, entities, sentinels = detect_entities(text)
 
-        # Phase 2 swap: pass `registry=` so anonymize() reuses existing
-        # surrogates and expands the forbidden-token set thread-wide.
+        # Step 3: split PERSON / non-PERSON; cluster PERSON by mode.
+        person_entities, non_person_entities = _split_person_non_person(entities)
+
+        settings = get_settings()
+        mode = settings.entity_resolution_mode  # 'algorithmic' | 'llm' | 'none'
+
+        # D-63 tracing accumulators. NEVER store raw values here.
+        provider_fallback = False
+        egress_tripped = False
+        fallback_reason = ""
+
+        if mode == "algorithmic":
+            clusters = cluster_persons(person_entities)
+            clusters_merged_via = "algorithmic"
+        elif mode == "none":
+            clusters = _clusters_for_mode_none(person_entities)
+            clusters_merged_via = "none"
+        else:
+            # mode == "llm" — pre-cluster algorithmically, then ask the LLM
+            # to refine. On ANY failure (egress, network, schema mismatch),
+            # fall back to algorithmic clusters. Never raises.
+            (
+                clusters,
+                provider_fallback,
+                fallback_reason,
+                egress_tripped,
+            ) = await _resolve_clusters_via_llm(person_entities, registry)
+            clusters_merged_via = "llm"
+
+        # Steps 4 + 7: cluster-aware Faker dispatch + entity_map build.
+        # anonymize() now allocates ONE surrogate per cluster (D-45) — every
+        # variant in cluster.members rewrites to the same canonical surrogate.
         anonymized_masked, entity_map, hard_redacted_count = anonymize(
-            masked_text, entities, registry=registry
+            masked_text=masked_text,
+            clusters=clusters,
+            non_person_entities=non_person_entities,
+            registry=registry,
         )
         anonymized_text = restore_uuids(anonymized_masked, sentinels)
 
-        # === Delta computation (W-2) ===
-        # entity_map keys are real values. Build a text→Entity index ONCE
-        # so the delta loop is O(n) instead of O(n*m).
-        entity_index: dict[str, "Entity"] = {e.text: e for e in entities}
-
+        # ==============================================================
+        # Step 6: delta computation (D-32 / D-48).
+        # PERSON deltas: one row per variant in cluster.variants, all sharing
+        # the cluster's canonical surrogate (sub-surrogate write-through).
+        # Non-PERSON deltas: existing Phase 2 path — one row per real value.
+        # All deltas funnel through registry.upsert_delta which is
+        # INSERT … ON CONFLICT (thread_id, real_value_lower) DO NOTHING
+        # (D-32 — cross-process race-safe).
+        # ==============================================================
         deltas: list[EntityMapping] = []
-        for real_value, surrogate in entity_map.items():
-            real_lower = real_value.casefold()
-            if real_lower in registry._by_lower:
-                # Already persisted — registry.lookup() hit during anonymize().
+        seen_lower: set[str] = set()  # de-dupe within this call
+
+        # PERSON variant rows (D-48). The canonical's surrogate lives in
+        # entity_map under the canonical real value (anonymize() puts it
+        # there even when no variant span was detected for the canonical
+        # itself — see anonymization.py).
+        for cluster in clusters:
+            canonical_surrogate = entity_map.get(cluster.canonical)
+            if not canonical_surrogate:
+                continue  # defensive: empty cluster (shouldn't happen)
+            for variant in cluster.variants:
+                vlow = variant.casefold()
+                if vlow in seen_lower:
+                    continue
+                seen_lower.add(vlow)
+                if vlow in registry._by_lower:
+                    continue  # already persisted (cross-turn or earlier in this call)
+                deltas.append(
+                    EntityMapping(
+                        real_value=variant,
+                        real_value_lower=vlow,
+                        surrogate_value=canonical_surrogate,
+                        entity_type="PERSON",
+                        source_message_id=None,  # Phase 5 chat router backfills
+                    )
+                )
+
+        # Non-PERSON deltas. anonymize()'s entity_map keys are real values,
+        # but we want a per-Entity walk so we can carry the correct
+        # entity_type for each delta (W-2 invariant). Build a text→Entity
+        # index ONCE so the loop is O(n) instead of O(n*m).
+        non_person_index: dict[str, Entity] = {e.text: e for e in non_person_entities}
+        for ent_text, ent in non_person_index.items():
+            surrogate = entity_map.get(ent_text)
+            if surrogate is None:
+                continue  # hard-redact / no surrogate emitted
+            elow = ent_text.casefold()
+            if elow in seen_lower:
                 continue
-            ent = entity_index.get(real_value)
-            # Invariant: anonymize() never produces an entity_map key that
-            # isn't an Entity.text in `entities`. If this assertion fires,
-            # anonymize() has regressed (Phase 1 D-07 contract violation) —
-            # surface, do not mask with "UNKNOWN".
-            assert ent is not None, (
-                f"anonymize() produced entity_map key with no matching Entity: "
-                f"thread_id={registry.thread_id!r} key_len={len(real_value)}"
-            )
+            seen_lower.add(elow)
+            if elow in registry._by_lower:
+                continue  # already persisted
             deltas.append(
                 EntityMapping(
-                    real_value=real_value,
-                    real_value_lower=real_lower,
+                    real_value=ent_text,
+                    real_value_lower=elow,
                     surrogate_value=surrogate,
                     entity_type=ent.type,
-                    source_message_id=None,  # Phase 5 chat router backfills
+                    source_message_id=None,
                 )
             )
+
         if deltas:
             # D-32: eager upsert inside the critical section. Raises on DB
             # error (REG-04 invariant — losing a write would silently break
@@ -301,15 +572,25 @@ class RedactionService:
 
         latency_ms = (time.perf_counter() - t0) * 1000.0
 
-        # D-18 / D-41 / B4: counts and timings only — never real values.
+        # D-18 / D-41 / B4 / D-63: counts, timings, mode flags ONLY.
+        # NEVER real values, NEVER member texts, NEVER cluster canonicals.
         logger.debug(
-            "redaction.redact_text(reg): chars=%d entities=%d surrogates=%d hard=%d uuid_drops=%d deltas=%d ms=%.2f",
+            "redaction.redact_text(reg): chars=%d entities=%d "
+            "clusters=%d cluster_size_max=%d merged_via=%s "
+            "surrogates=%d hard=%d uuid_drops=%d deltas=%d "
+            "provider_fallback=%s egress_tripped=%s fallback_reason=%s ms=%.2f",
             len(text),
             len(entities),
+            len(clusters),
+            max((len(c.members) for c in clusters), default=0),
+            clusters_merged_via,
             len(entity_map),
             hard_redacted_count,
             len(sentinels),
             len(deltas),
+            provider_fallback,
+            egress_tripped,
+            fallback_reason or "-",
             latency_ms,
         )
 
@@ -349,10 +630,18 @@ class RedactionService:
         """
         t0 = time.perf_counter()
         entries = registry.entries()
-        # Sort by len(surrogate_value) DESC — longest match wins.
+        # Sort by len(surrogate_value) DESC — longest surrogate match wins
+        # (prevents partial-overlap corruption across DIFFERENT clusters whose
+        # surrogates share token prefixes).
+        # Tie-break by len(real_value) DESC so canonical real values win over
+        # D-48 sub-surrogate variants (first-only / last-only / honorific-
+        # prefixed / nickname). All variants in a cluster share ONE
+        # surrogate_value (D-45) — without the tie-break, Pass 1 would
+        # non-deterministically map the surrogate to a variant's real value
+        # like "Maria" instead of the canonical "Maria Santos".
         entries_sorted = sorted(
             entries,
-            key=lambda m: len(m.surrogate_value),
+            key=lambda m: (len(m.surrogate_value), len(m.real_value)),
             reverse=True,
         )
 
