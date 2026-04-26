@@ -50,7 +50,7 @@
   - [x] **Wave 1** — 02-02-PLAN.md — ConversationRegistry + EntityMapping skeleton (REG-01..05) ✓ commit `26cf393` (2026-04-26)
   - [x] **Wave 2** — 02-03-PLAN.md — [BLOCKING] supabase db push migration 029 ✓ applied via Supabase MCP `apply_migration` (2026-04-26) — local CLI absent
   - [x] **Wave 3** — 02-04-PLAN.md — Registry DB methods (load / upsert_delta) + reexports ✓ commits `abe7c55` + `865cec2` (2026-04-26); 20/20 Phase 1 regression pass; live load() smoke against real DB succeeded
-  - [ ] **Wave 4** — 02-05-PLAN.md — redaction_service wiring (locks, redact_text widening, de_anonymize_text) (REG-04, DEANON-01/02, PERF-03) — depends on Plan 04 for `load` + `upsert_delta`
+  - [x] **Wave 4** — 02-05-PLAN.md — redaction_service wiring (locks, redact_text widening, de_anonymize_text) ✓ commits `d0b8dc3` + `9cc1f42` (2026-04-26); 20/20 Phase 1 regression pass; round-trip + hard-redact-passthrough + case-insensitive smoke tests pass
   - [ ] **Wave 5** — 02-06-PLAN.md — Pytest coverage all 5 SCs incl. SC#5 race (real DB)
 
 ### Phase 3: Entity Resolution & LLM Provider Configuration
