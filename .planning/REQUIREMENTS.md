@@ -111,11 +111,11 @@
 
 ### Conversation-Scoped Entity Registry (REG-*)
 
-- [ ] **REG-01**: System maintains one entity registry per conversation/thread (no cross-conversation sharing) *(FR-3.1)*
-- [ ] **REG-02**: System persists the registry to the database and reloads it when a conversation is resumed *(FR-3.2)*
-- [ ] **REG-03**: Registry lookups are case-insensitive *(FR-3.3)*
-- [ ] **REG-04**: Within a conversation, the same real entity always produces the same surrogate (consistency guarantee) *(FR-3.4)*
-- [ ] **REG-05**: Hard-redacted entities are NOT stored in the registry *(FR-3.5)*
+- [x] **REG-01**: System maintains one entity registry per conversation/thread (no cross-conversation sharing) *(FR-3.1)* — *Validated in Phase 2 (2026-04-26)*
+- [x] **REG-02**: System persists the registry to the database and reloads it when a conversation is resumed *(FR-3.2)* — *Validated in Phase 2 (2026-04-26)*
+- [x] **REG-03**: Registry lookups are case-insensitive *(FR-3.3)* — *Validated in Phase 2 (2026-04-26)*
+- [x] **REG-04**: Within a conversation, the same real entity always produces the same surrogate (consistency guarantee) *(FR-3.4)* — *Validated in Phase 2 (2026-04-26)*
+- [x] **REG-05**: Hard-redacted entities are NOT stored in the registry *(FR-3.5)* — *Validated in Phase 2 (2026-04-26)*
 
 ### Entity Resolution (RESOLVE-*)
 
@@ -126,8 +126,8 @@
 
 ### De-Anonymization (DEANON-*)
 
-- [ ] **DEANON-01**: System replaces surrogates back to real values before user-facing display *(FR-5.1)*
-- [ ] **DEANON-02**: De-anonymization uses case-insensitive matching to handle LLM case-reformatting *(FR-5.2)*
+- [x] **DEANON-01**: System replaces surrogates back to real values before user-facing display *(FR-5.1)* — *Validated in Phase 2 (2026-04-26)*
+- [x] **DEANON-02**: De-anonymization uses case-insensitive matching to handle LLM case-reformatting *(FR-5.2)* — *Validated in Phase 2 (2026-04-26)*
 - [ ] **DEANON-03**: Fuzzy de-anonymization runs in three modes — algorithmic (Jaro-Winkler ≥ 0.85), LLM (provider follows `LLM_PROVIDER`), or none *(FR-5.3)*
 - [ ] **DEANON-04**: De-anonymization uses a placeholder-tokenized 3-phase pipeline (replace surrogates → fuzzy-match on placeholders → resolve placeholders) to prevent surname-collision corruption *(FR-5.4)*
 - [ ] **DEANON-05**: Hard-redacted placeholders survive de-anonymization unchanged *(FR-5.5)*
@@ -182,7 +182,7 @@
 
 - [ ] **PERF-01**: Presidio NER engine, gender-detection model, and nickname dictionary are loaded once at application startup as lazy singletons *(NFR-1)*
 - [ ] **PERF-02**: Anonymization completes in under 500 ms for typical chat messages (< 2000 tokens) *(NFR-1)*
-- [ ] **PERF-03**: Concurrent requests writing to the same conversation registry are serialized via async lock to prevent race conditions *(NFR-3)*
+- [x] **PERF-03**: Concurrent requests writing to the same conversation registry are serialized via async lock to prevent race conditions *(NFR-3)* — *Validated in Phase 2 (2026-04-26)*
 - [ ] **PERF-04**: When the configured LLM provider is unavailable, auxiliary features degrade per NFR-3 — entity resolution → algorithmic clustering, missed-PII scan → skipped, title/metadata → templated default; failures are logged but never crash the application or leak raw PII *(FR-9.7, NFR-3)*
 
 ## v2 Requirements
@@ -219,9 +219,9 @@
 | DEPLOY-01 through DEPLOY-03 | Pre-GSD | ✓ Complete |
 | PII-01..05 | v1.0 — Phase 1 | ☐ Pending |
 | ANON-01..06 | v1.0 — Phase 1 | ☐ Pending |
-| REG-01..05 | v1.0 — Phase 2 | ☐ Pending |
+| REG-01..05 | v1.0 — Phase 2 | ✓ Complete (2026-04-26) |
 | RESOLVE-01..04 | v1.0 — Phase 3 | ☐ Pending |
-| DEANON-01..02 | v1.0 — Phase 2 | ☐ Pending |
+| DEANON-01..02 | v1.0 — Phase 2 | ✓ Complete (2026-04-26) |
 | DEANON-03..05 | v1.0 — Phase 4 | ☐ Pending |
 | BUFFER-01..03 | v1.0 — Phase 5 | ☐ Pending |
 | PROMPT-01 | v1.0 — Phase 4 | ☐ Pending |
@@ -233,7 +233,7 @@
 | OBS-02..03 | v1.0 — Phase 6 | ☐ Pending |
 | PERF-01 | v1.0 — Phase 1 | ☐ Pending |
 | PERF-02 | v1.0 — Phase 6 | ☐ Pending |
-| PERF-03 | v1.0 — Phase 2 | ☐ Pending |
+| PERF-03 | v1.0 — Phase 2 | ✓ Complete (2026-04-26) |
 | PERF-04 | v1.0 — Phase 6 | ☐ Pending |
 
 **Coverage:**
