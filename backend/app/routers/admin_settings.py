@@ -28,6 +28,21 @@ class SystemSettingsUpdate(BaseModel):
     rag_fulltext_weight: float | None = Field(default=None, ge=0.0, le=10.0)
     rag_rerank_mode: Literal["none", "llm", "cohere"] | None = None
 
+    # Phase 3: Entity resolution mode + global LLM provider (D-60)
+    entity_resolution_mode: Literal["algorithmic", "llm", "none"] | None = None
+    llm_provider: Literal["local", "cloud"] | None = None
+    llm_provider_fallback_enabled: bool | None = None
+
+    # Phase 3: Per-feature provider overrides (None = inherit global) (D-51)
+    entity_resolution_llm_provider: Literal["local", "cloud"] | None = None
+    missed_scan_llm_provider: Literal["local", "cloud"] | None = None
+    title_gen_llm_provider: Literal["local", "cloud"] | None = None
+    metadata_llm_provider: Literal["local", "cloud"] | None = None
+    fuzzy_deanon_llm_provider: Literal["local", "cloud"] | None = None
+
+    # Phase 4 forward-compat (column shipped in Phase 3 to avoid migration churn)
+    pii_missed_scan_enabled: bool | None = None
+
 
 @router.get("/settings")
 async def get_settings(user: dict = Depends(require_admin)):
@@ -51,3 +66,33 @@ async def patch_settings(
         details={"changed_fields": list(updates.keys())},
     )
     return result
+
+
+@router.get("/settings/llm-provider-status")
+async def get_llm_provider_status(user: dict = Depends(require_admin)) -> dict:
+    """D-58: masked status badge for cloud key + local-endpoint reachability.
+
+    NEVER returns the raw cloud key. Returns booleans only:
+      - cloud_key_configured: True iff settings.cloud_llm_api_key has any value.
+      - local_endpoint_reachable: True iff GET LOCAL_LLM_BASE_URL/models returns 2xx.
+    """
+    from app.config import get_settings as _get_app_settings
+    import httpx
+
+    app_settings = _get_app_settings()
+    cloud_key_configured = bool(app_settings.cloud_llm_api_key)
+
+    local_endpoint_reachable = False
+    probe_url = f"{app_settings.local_llm_base_url.rstrip('/')}/models"
+    try:
+        async with httpx.AsyncClient(timeout=2.0) as client:
+            resp = await client.get(probe_url)
+            local_endpoint_reachable = 200 <= resp.status_code < 300
+    except Exception:
+        # Probe failure → reachable=False; never crash the endpoint.
+        local_endpoint_reachable = False
+
+    return {
+        "cloud_key_configured": cloud_key_configured,
+        "local_endpoint_reachable": local_endpoint_reachable,
+    }
