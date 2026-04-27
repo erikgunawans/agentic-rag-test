@@ -9,6 +9,7 @@ from app.services.tool_service import ToolService
 from app.services import agent_service
 from app.config import get_settings
 from app.services.system_settings_service import get_system_settings
+from app.services.redaction.prompt_guidance import get_pii_guidance_block
 from app.models.tools import ToolCallRecord, ToolCallSummary
 
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -212,8 +213,13 @@ async def stream_chat(
 
             else:
                 # --- Single-agent path (Module 7 behavior) ---
+                # Phase 4 D-79/D-80: append PII guidance to SYSTEM_PROMPT when
+                # redaction is enabled. Phase 5 will swap to per-thread flag.
+                pii_guidance = get_pii_guidance_block(
+                    redaction_enabled=settings.pii_redaction_enabled,
+                )
                 messages = (
-                    [{"role": "system", "content": SYSTEM_PROMPT}]
+                    [{"role": "system", "content": SYSTEM_PROMPT + pii_guidance}]
                     + [{"role": m["role"], "content": m["content"]} for m in history]
                     + [{"role": "user", "content": body.message}]
                 )

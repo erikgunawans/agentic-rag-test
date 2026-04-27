@@ -2,8 +2,17 @@ import json
 import logging
 from app.services.tracing_service import traced
 from app.models.agents import AgentDefinition, OrchestratorResult
+from app.config import get_settings
+from app.services.redaction.prompt_guidance import get_pii_guidance_block
 
 logger = logging.getLogger(__name__)
+
+# Phase 4 D-79: single-source-of-truth PII guidance suffix. Module-import-time
+# binding mirrors the existing AgentDefinition fields (tool_names,
+# max_iterations) — Phase 5 may move to per-call when per-thread flags ship.
+_PII_GUIDANCE = get_pii_guidance_block(
+    redaction_enabled=get_settings().pii_redaction_enabled,
+)
 
 RESEARCH_AGENT = AgentDefinition(
     name="research",
@@ -18,7 +27,7 @@ RESEARCH_AGENT = AgentDefinition(
         "4. Always cite the source filename when referencing information\n"
         "5. If documents don't contain the answer, say so clearly\n\n"
         "Be precise and cite your sources."
-    ),
+    ) + _PII_GUIDANCE,
     tool_names=["search_documents"],
     max_iterations=5,
 )
@@ -38,7 +47,7 @@ DATA_ANALYST_AGENT = AgentDefinition(
         "metadata->>'date_period'\n"
         "4. Present results clearly — use tables or lists for multiple rows\n"
         "5. If the first query doesn't answer the question, refine and try again\n"
-    ),
+    ) + _PII_GUIDANCE,
     tool_names=["query_database"],
     max_iterations=5,
 )
@@ -53,7 +62,7 @@ GENERAL_AGENT = AgentDefinition(
         "If the user's question might benefit from current information, use web search. "
         "Otherwise, answer directly from your knowledge.\n"
         "Be concise and friendly."
-    ),
+    ) + _PII_GUIDANCE,
     tool_names=["web_search"],
     max_iterations=3,
 )
@@ -73,7 +82,7 @@ EXPLORER_AGENT = AgentDefinition(
         "For large documents, read in chunk ranges rather than all at once. "
         "Always tell the user which document and chunk range you examined. "
         "Present findings clearly with document names and folder locations."
-    ),
+    ) + _PII_GUIDANCE,
     tool_names=["kb_list_files", "kb_tree", "kb_grep", "kb_glob", "kb_read"],
     max_iterations=8,
 )
