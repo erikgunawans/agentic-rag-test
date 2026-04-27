@@ -4,7 +4,9 @@ The egress filter is the security primitive of the v1.0 PII milestone: every
 cloud-LLM call passes through this function with its outbound payload BEFORE
 any byte leaves the process. It scans for any case-insensitive word-boundary
 match against the union of:
-  - registry.entries() — all real values from prior turns of this thread
+  - registry.canonicals() — CANONICAL real values from prior turns of this
+    thread (D-48 sub-surrogate variants are EXCLUDED — see Plan 05-07
+    gap-closure rationale; variants stay in entries() for D-72 Pass 2)
   - the in-flight provisional surrogate map for THIS turn (D-56)
 
 If ANY match is found, the result is `tripped=True` and the LLMProviderClient
@@ -83,9 +85,14 @@ def egress_filter(
     matches: list[tuple[str, str]] = []
 
     # Build candidate (entity_type, real_value) list.
+    # D-48 gap-closure (Plan 05-07): use canonicals() instead of entries() so that
+    # sub-surrogate variants (first-only / last-only / honorific-prefixed) do NOT
+    # enter the egress candidate set. Variants stay in entries() for D-72 Pass 2
+    # fuzzy de-anonymization; only canonical real values gate the cloud-LLM call.
+    # Privacy invariant preserved: every distinct surrogate has its canonical
+    # real value scanned for. NER misses on the canonical still trip.
     candidates: list[tuple[str, str]] = []
-    for ent in registry.entries():
-        # EntityMapping field name confirmed by grepping registry.py before write.
+    for ent in registry.canonicals():
         candidates.append((ent.entity_type, ent.real_value))
     if provisional:
         for real_value in provisional:

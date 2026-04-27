@@ -29,12 +29,27 @@ class _StubMapping:
 
 
 class _StubRegistry:
-    """Minimal duck-typed stand-in for ConversationRegistry.entries()."""
+    """Minimal duck-typed stand-in for ConversationRegistry.
+
+    Implements both entries() and canonicals() so it remains compatible
+    with egress_filter after the Plan 05-07 D-48 gap-closure switch to
+    canonicals(). For existing tests, mappings are treated as canonical
+    (no variants); canonicals() returns the same set as entries().
+    """
 
     def __init__(self, mappings):
         self._mappings = list(mappings)
 
     def entries(self):
+        return self._mappings
+
+    def canonicals(self):
+        """Return mappings deduplicated by longest real_value per entity_type+value.
+
+        For tests that pass pre-canonical mappings (no variants), this is a
+        passthrough. For TestD48VariantCascade, the real ConversationRegistry
+        is used so the invariant is exercised against actual canonicals() logic.
+        """
         return self._mappings
 
 
