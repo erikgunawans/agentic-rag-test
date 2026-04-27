@@ -17,7 +17,7 @@
 - [x] **Phase 1: Detection & Anonymization Foundation** ✅ 2026-04-26 — Presidio NER + Faker surrogates wired in as lazy singletons with tracing (21 commits, 20/20 tests pass, 5/5 SCs verified)
 - [x] **Phase 2: Conversation-Scoped Registry & Round-Trip** ✅ 2026-04-26 — Per-thread registry persists; surrogate→real de-anonymization round-trip works (6 plans across 5 waves; 39/39 tests pass; all 5 SCs verified against live Supabase DB)
 - [x] **Phase 3: Entity Resolution & LLM Provider Configuration** ✅ 2026-04-26 — `algorithmic`/`llm`/`none` resolution modes; global + per-feature `LLM_PROVIDER` plumbing with egress filter and admin UI (7 plans across 6 waves; migration 030 applied to live Supabase; 79/79 tests pass; 5/5 SCs verified)
-- [ ] **Phase 4: Fuzzy De-anonymization, Missed-PII Scan & Prompt Guidance** — 3-phase placeholder-tokenized de-anon pipeline; optional secondary LLM scan; system-prompt formatting guidance
+- [x] **Phase 4: Fuzzy De-anonymization, Missed-PII Scan & Prompt Guidance** ✅ 2026-04-27 — 3-phase placeholder-tokenized de-anon pipeline; optional secondary LLM scan; system-prompt formatting guidance (7 plans across 6 waves; migration 031 applied to live Supabase; 135/135 tests pass; 9/9 REQ-IDs satisfied; 5/5 SCs verified)
 - [ ] **Phase 5: Chat-Loop Integration (Buffering, SSE Status, Tool/Sub-Agent Coverage)** — Full end-to-end privacy invariant: buffered responses, status events, symmetric tool/sub-agent anonymization
 - [ ] **Phase 6: Embedding Provider & Production Hardening** — `EMBEDDING_PROVIDER=local|cloud`; latency target met; graceful provider-failure degradation; full audit logging
 

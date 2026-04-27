@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-last_updated: "2026-04-27T04:50:14.616Z"
+status: planning
+last_updated: "2026-04-27T08:27:00.000Z"
 last_activity: 2026-04-27
 progress:
   total_phases: 6
-  completed_phases: 3
-  total_plans: 27
-  completed_plans: 21
-  percent: 78
+  completed_phases: 4
+  total_plans: 34
+  completed_plans: 28
+  percent: 82
 ---
 
 # State: LexCore
@@ -20,16 +20,15 @@ progress:
 See: `.planning/PROJECT.md` (updated 2026-04-25)
 
 **Core value:** Indonesian legal teams can manage the full contract lifecycle with confidence that AI outputs are accurate, citable, and traceable.
-**Current focus:** Phase 04 — fuzzy-de-anonymization-missed-pii-scan-prompt-guidance
+**Current focus:** Phase 5 — Chat-Loop Integration (Buffering, SSE Status, Tool/Sub-Agent Coverage)
 
 ## Current Position
 
-Phase: 04 (fuzzy-de-anonymization-missed-pii-scan-prompt-guidance) — EXECUTING
-Plan: 1 of 7
-Verification: passed (5/5 SCs, 11/11 REQ-IDs)
+Phase: 04 — COMPLETE ✅ (Fuzzy De-anonymization, Missed-PII Scan & Prompt Guidance)
+Verification: passed (5/5 SCs, 9/9 REQ-IDs, 16/16 decisions D-67..D-82)
 
-- **Next phase:** 4 — Fuzzy De-anonymization, Missed-PII Scan & Prompt Guidance
-- **Status:** Executing Phase 04
+- **Next phase:** 5 — Chat-Loop Integration (Buffering, SSE Status, Tool/Sub-Agent Coverage)
+- **Status:** Ready to discuss (Phase 5)
 - **Last activity:** 2026-04-27
 
 ## Accumulated Context
@@ -86,3 +85,5 @@ Verification: passed (5/5 SCs, 11/11 REQ-IDs)
 - Phase 4 plan 04-01 Task 3 (live Supabase DB apply of migration 031) pending orchestrator MCP apply — executor agent does not have mcp__claude_ai_Supabase__apply_migration in tool registry. Migration file ready at supabase/migrations/031_pii_fuzzy_settings.sql.
 
 *Updated: 2026-04-27 — Phase 4 plan 04-01 PARTIAL ✦: Tasks 1+2 SHIPPED (commits `53bdb9d` config.py +Field import +2 Settings fields with Pydantic Literal+Field(ge,le) validation, `4f0d724` supabase/migrations/031_pii_fuzzy_settings.sql with mode CHECK + threshold range CHECK + comments). Task 3 (live Supabase apply via MCP) PENDING — executor agent has no mcp__claude_ai_Supabase__apply_migration in registry (same gap as Phase 3 plan 03-02). Live REST probe confirms columns absent (PG 42703); apply queries pre-staged in `04-01-SUMMARY.md`. SUMMARY at `.planning/phases/04-fuzzy-de-anonymization-missed-pii-scan-prompt-guidance/04-01-SUMMARY.md`.*
+
+*Updated: 2026-04-27 — Phase 4 EXECUTION COMPLETE ✅: 7 plans across 6 waves; all 9 REQ-IDs (DEANON-03..05, SCAN-01..05, PROMPT-01) SATISFIED; 5/5 ROADMAP SCs verified. 135/135 backend tests pass (75 unit + 60 integration: 17 new Phase 4 + 39 Phase 1+2 + 8 Phase 3 + 75 unit including 13 new missed_scan + 11 prompt_guidance + 23 fuzzy_match). Migration 031 applied live to Supabase qedhulpfezucnfadlfiz (orchestrator MCP). 3-phase de_anon pipeline (surrogate→placeholder→fuzzy/LLM-match→real) ships in `redaction_service.py:de_anonymize_text(mode=...)` with backward-compatible `mode=None` default. Missed-PII scan auto-chained inside `_redact_text_with_registry` with single-re-run cap (`_scan_rerun_done`). Centralized prompt-guidance helper (`prompt_guidance.py`) wired into both single-agent (`chat.py`) and 4 sub-agent paths (`agent_service.py`). Admin UI surfaces fuzzy mode + threshold inside the existing PII section. Phase 3 regression introduced by auto-chain RESOLVED via parallel patch on `missed_scan.get_settings` in 2 tests (commit `b9ced3e`). Verification: `.planning/phases/04-fuzzy-de-anonymization-missed-pii-scan-prompt-guidance/04-VERIFICATION.md` (status: passed, 16/16 decisions D-67..D-82 traced). Next: Phase 5 (Chat-Loop Integration).*
