@@ -712,22 +712,279 @@ class RedactionService:
             if n > 0:
                 placeholders[token] = m.real_value  # original casing (D-36)
 
-        # Pass 2: placeholder -> real_value.
+        # Phase 4 D-72: Pass 2 — fuzzy/LLM-match against UNREPLACED variants.
+        # mode='none' bypasses Pass 2 entirely — Phase 2 behavior preserved.
+        fuzzy_matches_resolved = 0
+        fuzzy_provider_fallback = False
+        if mode == "algorithmic":
+            out, fuzzy_matches_resolved = self._fuzzy_match_algorithmic(
+                out, registry, placeholders, threshold
+            )
+        elif mode == "llm":
+            out, fuzzy_matches_resolved, fuzzy_provider_fallback = (
+                await self._fuzzy_match_llm(out, registry, placeholders)
+            )
+        # else mode == "none" → skip Pass 2 entirely.
+
+        # Pass 3: placeholder -> real_value.
         resolved = 0
         for token, real in placeholders.items():
             out, n = re.subn(re.escape(token), real, out)
             resolved += n
 
         latency_ms = (time.perf_counter() - t0) * 1000.0
-        # D-41 / B4: counts and timings only — NEVER real values.
+        # D-18 / D-41 / D-63 / B4: counts, timings, and mode strings ONLY.
+        # NEVER real values, surrogate values, or matched span text — the
+        # backing tracing provider (langsmith/langfuse/none) gets these as
+        # span attributes via the @traced decorator's structured-log path.
         logger.debug(
-            "redaction.de_anonymize_text: text_len=%d surrogate_count=%d placeholders_resolved=%d ms=%.2f",
+            "redaction.de_anonymize_text: text_len=%d surrogate_count=%d "
+            "placeholders_resolved=%d fuzzy_deanon_mode=%s "
+            "fuzzy_matches_resolved=%d fuzzy_provider_fallback=%s ms=%.2f",
             len(text),
             len(entries),
             resolved,
+            mode,
+            fuzzy_matches_resolved,
+            fuzzy_provider_fallback,
             latency_ms,
         )
         return out
+
+    # ------------------------------------------------------------------
+    # Phase 4 D-72 / D-73 / D-74 / D-78: Pass 2 helpers.
+    # ------------------------------------------------------------------
+
+    def _fuzzy_match_algorithmic(
+        self,
+        text: str,
+        registry: ConversationRegistry,
+        placeholders: dict[str, str],
+        threshold: float,
+    ) -> tuple[str, int]:
+        """D-72 algorithmic Pass 2: per-cluster Jaro-Winkler match against the
+        thread's surrogate variants; replace mangled chunks with the cluster's
+        ``<<PH_xxxx>>`` token. Returns ``(modified_text, replacement_count)``.
+
+        D-68 per-cluster scoping: variants live in clusters keyed by
+        ``EntityMapping.cluster_id`` (Phase 3 D-48). Entries whose
+        ``cluster_id`` is None (non-PERSON / unclustered PERSON) form solo
+        clusters keyed on the casefolded real value so they still benefit
+        from a fuzzy lookup against their own surrogate without cross-talk.
+
+        D-74 hard-redact survival: the chunk iterator skips any token that
+        already matches a placeholder (``<<PH_xxxx>>``) or a hard-redact
+        bracket form (``[ENTITY_TYPE]``) — belt-and-suspenders. Hard-redact
+        placeholders are never minted in Pass 1 because they are NEVER in
+        the registry (Phase 2 D-24 / REG-05), so they cannot be reverse-
+        looked-up here either.
+        """
+        from collections import defaultdict
+
+        if not placeholders:
+            return text, 0
+
+        # Build the cluster -> [variants] map AND surrogate -> placeholder
+        # reverse-lookup ONCE. We walk the registry entries dict-of-dicts
+        # rather than calling registry.lookup per chunk to keep Pass 2 O(N)
+        # in cluster size.
+        clusters: dict[str, list[str]] = defaultdict(list)
+        surrogate_to_placeholder: dict[str, str] = {}
+
+        # Reverse-lookup the placeholder -> surrogate. The placeholders dict
+        # maps token -> real_value (Pass 1 stored real values for casing
+        # preservation in Pass 3); we recover the surrogate via registry.
+        all_entries = registry.entries()
+        for ph_token, real_value in placeholders.items():
+            real_lower = real_value.casefold()
+            for ent in all_entries:
+                if ent.real_value.casefold() == real_lower:
+                    cluster_key = (
+                        getattr(ent, "cluster_id", None)
+                        or f"_solo_{real_lower}"
+                    )
+                    if ent.surrogate_value not in clusters[cluster_key]:
+                        clusters[cluster_key].append(ent.surrogate_value)
+                    surrogate_to_placeholder[ent.surrogate_value.casefold()] = (
+                        ph_token
+                    )
+                    break
+
+        if not clusters:
+            return text, 0
+
+        placeholder_re = re.compile(r"^<<PH_[0-9a-f]+>>$")
+        hard_redact_re = re.compile(r"^\[[A-Z_]+\]$")
+
+        # Right-to-left replacement to preserve offsets across multiple matches.
+        span_replacements: list[tuple[int, int, str]] = []
+        for chunk_match in re.finditer(r"\S+", text):
+            chunk = chunk_match.group(0)
+            if placeholder_re.match(chunk):
+                continue  # already a Pass-1 placeholder; never re-resolve
+            if hard_redact_re.match(chunk):
+                continue  # D-74 belt-and-suspenders: hard-redacts are inert
+            for variants in clusters.values():
+                result = best_match(chunk, variants, threshold=threshold)
+                if result is None:
+                    continue
+                matched_variant, _score = result
+                ph_token = surrogate_to_placeholder.get(
+                    matched_variant.casefold()
+                )
+                if ph_token is None:
+                    continue
+                span_replacements.append(
+                    (chunk_match.start(), chunk_match.end(), ph_token)
+                )
+                break  # first matching cluster wins for this chunk
+
+        if not span_replacements:
+            return text, 0
+
+        out = text
+        for start, end, ph in sorted(span_replacements, key=lambda r: -r[0]):
+            out = out[:start] + ph + out[end:]
+        return out, len(span_replacements)
+
+    async def _fuzzy_match_llm(
+        self,
+        text: str,
+        registry: ConversationRegistry,
+        placeholders: dict[str, str],
+    ) -> tuple[str, int, bool]:
+        """D-72 / D-73 LLM Pass 2: ask the configured LLM provider to identify
+        mangled-surrogate spans and map each to its ``<<PH_xxxx>>`` token.
+
+        Returns ``(modified_text, replacement_count, fell_back)``. ``fell_back``
+        is True when the LLM call failed AND fallback was attempted.
+
+        D-78 soft-fail: on ``_EgressBlocked``, ``ValidationError`` or any other
+        ``Exception``, this method NEVER re-raises — it logs a WARNING with
+        ``error_class`` only (B4 invariant — no payload, no spans, no values)
+        and either falls back to the algorithmic branch (when
+        ``settings.llm_provider_fallback_enabled=True`` per D-52) or returns
+        the text unchanged (skipping Pass 2 entirely).
+
+        D-73 cloud-payload invariant: the prompt's user content carries the
+        Pass-1-output text (where every known surrogate is ALREADY replaced
+        by an opaque ``<<PH_xxxx>>`` token) plus a JSON list of cluster
+        variants — all surrogate-form strings. The cloud sees ZERO raw real
+        values. ``LLMProviderClient.call`` runs the Phase 3 D-53..D-56
+        egress filter as defense-in-depth.
+
+        D-73 token-spoofing mitigation: the response is Pydantic-validated
+        via ``_FuzzyMatchResponse`` (regex-pinned token shape), and the
+        server then asserts each returned token is a member of the Pass-1
+        ``placeholders`` dict — fabricated tokens are silently dropped, so
+        the LLM cannot inject a foreign-cluster mapping.
+        """
+        if not placeholders:
+            return text, 0, False
+
+        # Build cluster variants payload (D-73 — surrogate-form only).
+        clusters_by_token: dict[str, dict] = {}
+        all_entries = registry.entries()
+        for ph_token, real_value in placeholders.items():
+            real_lower = real_value.casefold()
+            for ent in all_entries:
+                if ent.real_value.casefold() == real_lower:
+                    if ph_token not in clusters_by_token:
+                        clusters_by_token[ph_token] = {
+                            "token": ph_token,
+                            "canonical": ent.surrogate_value,
+                            "variants": [ent.surrogate_value],
+                        }
+                    elif ent.surrogate_value not in clusters_by_token[ph_token][
+                        "variants"
+                    ]:
+                        clusters_by_token[ph_token]["variants"].append(
+                            ent.surrogate_value
+                        )
+                    break
+
+        if not clusters_by_token:
+            return text, 0, False
+
+        variant_payload = list(clusters_by_token.values())
+        messages = [
+            {
+                "role": "system",
+                "content": (
+                    "Identify each instance in the user text where a slightly "
+                    "mangled form of a known cluster variant appears, and map "
+                    "it to that cluster's token. Reply ONLY with JSON in the "
+                    'form {"matches":[{"span":"<exact substring of user '
+                    'text>","token":"<<PH_xxxx>>"}]}. The placeholders '
+                    "<<PH_xxxx>> in the user text are opaque tokens you must "
+                    "preserve unchanged; map only NEW mangled forms NOT "
+                    "already replaced. Use only tokens from the provided "
+                    "cluster list. Do not invent tokens. If nothing matches, "
+                    'reply with {"matches":[]}.'
+                ),
+            },
+            {
+                "role": "user",
+                "content": (
+                    "Text:\n"
+                    f"{text}\n\n"
+                    "Clusters (JSON):\n"
+                    f"{json.dumps(variant_payload, ensure_ascii=False)}"
+                ),
+            },
+        ]
+
+        settings = get_settings()
+        client = LLMProviderClient()
+        try:
+            result = await client.call(
+                feature="fuzzy_deanon",
+                messages=messages,
+                registry=registry,
+                provisional_surrogates=None,  # D-56: no provisional set for de-anon
+            )
+            parsed = _FuzzyMatchResponse.model_validate(result)
+        except _EgressBlocked:
+            # B4 invariant: error_class only — never payload or registry contents.
+            logger.warning(
+                "event=fuzzy_deanon_skipped feature=fuzzy_deanon "
+                "error_class=_EgressBlocked"
+            )
+            if settings.llm_provider_fallback_enabled:
+                out, n = self._fuzzy_match_algorithmic(
+                    text, registry, placeholders, settings.fuzzy_deanon_threshold
+                )
+                return out, n, True
+            return text, 0, True
+        except (ValidationError, Exception) as exc:  # noqa: BLE001 — D-78 catch-all
+            logger.warning(
+                "event=fuzzy_deanon_skipped feature=fuzzy_deanon "
+                "error_class=%s",
+                type(exc).__name__,
+            )
+            if settings.llm_provider_fallback_enabled:
+                out, n = self._fuzzy_match_algorithmic(
+                    text, registry, placeholders, settings.fuzzy_deanon_threshold
+                )
+                return out, n, True
+            return text, 0, True
+
+        # Server-side validation: each token MUST be a key in Pass-1's
+        # placeholders dict. Tokens not present are silently dropped (D-73
+        # — LLM cannot inject foreign tokens). Hard-redact bracket spans
+        # are also dropped as belt-and-suspenders (D-74).
+        valid_tokens = set(placeholders.keys())
+        out = text
+        replacements = 0
+        for match in parsed.matches:
+            if match.token not in valid_tokens:
+                continue
+            if re.fullmatch(r"\[[A-Z_]+\]", match.span):
+                continue
+            new_text, n = re.subn(re.escape(match.span), match.token, out)
+            out = new_text
+            replacements += n
+        return out, replacements, False
 
 
 @lru_cache
