@@ -1,6 +1,23 @@
 # Progress
 
-PJAA CLM Platform (LexCore) v0.2.0.0. All phases complete (1-3, BJR, RAG 8/8). 2026 UI refresh shipped. LLM thread auto-naming, global folders, sidebar default collapsed, gradient chat button. 28 migrations applied. Fully deployed to Railway + Vercel. 22 routers, 18 services. SuggestionCards height reduction deployed.
+PJAA CLM Platform (LexCore) v0.2.0.0. PII Redaction milestone v1.0 Phase 5 COMPLETE. All 5 phases done (Phases 1-5 of 6). 256/256 tests pass. chat.py has full privacy integration (517 LOC). 22 routers, 18 services. 28 migrations applied. Railway + Vercel deployed.
+
+## Checkpoint 2026-04-28 (Phase 5 — Chat-Loop PII Integration complete)
+
+- **Session:** Executed Phase 5 (Chat-Loop Integration) across 4 waves, 6 plans, 22 tasks. Ran UAT — 3/6 tests passed (2 skipped: UI not ready, 1 blocked: UI not running).
+- **Branch:** master (`f7baf62`)
+- **Done:**
+  - **05-01** D-84 service-layer off-mode gate + D-92 `redact_text_batch` primitive (`redaction_service.py` +128 LOC, 19 new unit tests)
+  - **05-02** D-91 recursive tool I/O walker (`redaction/tool_redaction.py` new, 285 LOC) + D-86 `execute_tool` registry kwarg plumbing (39 new unit tests)
+  - **05-03** D-94 pre-flight egress filter in `classify_intent` + D-83 stale TODO retirement (`agent_service.py` +64 LOC, 8 new unit tests)
+  - **05-04** Full chat-loop integration: `chat.py` 291→517 LOC — D-93 batch anon chokepoint, D-88 two `redaction_status` SSE events, D-87 single-batch buffered delivery, D-90 graceful degrade, D-91 walker wrap, D-94 three egress wrappers, title-gen migration to LLMProviderClient
+  - **05-05** Frontend SSE consumer: `RedactionStatusEvent` type, `useChatState.redactionStage`, 3 i18n keys (TypeScript clean)
+  - **05-06** 7-class pytest integration suite: 14 tests (SC#1 privacy invariant, SC#2-#5, BUFFER-01, egress trip)
+  - **Verifier:** 5/5 SC verified, 7 REQ-IDs covered (BUFFER-01/02, TOOL-01/02/03/04)
+  - **UAT:** Backend cold-start PASS, TypeScript PASS, pytest 14/14 PASS; off-mode chat + active-mode PII tests skipped (UI pending)
+- **Files changed:** `backend/app/routers/chat.py`, `backend/app/services/redaction_service.py`, `backend/app/services/redaction/tool_redaction.py`, `backend/app/services/agent_service.py`, `backend/app/services/tool_service.py`, `frontend/src/lib/database.types.ts`, `frontend/src/hooks/useChatState.ts`, `frontend/src/i18n/translations.ts` + 9 new test files
+- **Tests:** 256/256 pass (14 new Phase 5 integration tests)
+- **Next:** Phase 6 (final phase of PII Redaction milestone v1.0), or deploy + manual QA with UI running
 
 ## Checkpoint 2026-04-24 (State sync — no new features)
 
