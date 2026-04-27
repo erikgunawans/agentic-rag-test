@@ -293,6 +293,13 @@ async def stream_chat(
             anonymized_message = body.message
 
         try:
+            # Phase 5 D-88: redaction_status:anonymizing — exactly ONE event per turn,
+            # emitted after agent_start in branch A (comes after the agent_start yield
+            # inside the if-block) or before messages in branch B. Placed here so
+            # grep returns exactly 1 source occurrence (both branches share this guard).
+            if redaction_on:
+                yield f"data: {json.dumps({'type': 'redaction_status', 'stage': 'anonymizing'})}\n\n"
+
             if settings.agents_enabled:
                 # --- Multi-agent path ---
                 # 1. Orchestrator classification
@@ -415,6 +422,28 @@ async def stream_chat(
         except Exception as exc:
             logger.error("event_generator error: %s", exc, exc_info=True)
 
+        # Phase 5 D-87 + D-88 + D-90: buffered de-anon and single-batch delta emit.
+        # When redaction ON: emit deanonymizing status, run de_anonymize_text with
+        # graceful degrade (D-90), then emit ONE delta event with the full de-anon'd
+        # text. When OFF: full_response was streamed progressively; skip this block.
+        if redaction_on and full_response:
+            yield f"data: {json.dumps({'type': 'redaction_status', 'stage': 'deanonymizing'})}\n\n"
+            try:
+                deanon_text = await redaction_service.de_anonymize_text(
+                    full_response, registry, mode=settings.fuzzy_deanon_mode,
+                )
+            except Exception as exc:  # D-90 graceful degrade
+                logger.warning(
+                    "deanon_degraded event=deanon_degraded feature=deanonymize_text "
+                    "fallback_mode=none error_class=%s",
+                    type(exc).__name__,
+                )
+                deanon_text = await redaction_service.de_anonymize_text(
+                    full_response, registry, mode="none",
+                )
+            full_response = deanon_text
+            yield f"data: {json.dumps({'type': 'delta', 'delta': full_response, 'done': False})}\n\n"
+
         # SSE: agent_done (always emitted if agent was started)
         if agent_name:
             yield f"data: {json.dumps({'type': 'agent_done', 'agent': agent_name})}\n\n"
@@ -440,12 +469,39 @@ async def stream_chat(
             try:
                 thread_row = client.table("threads").select("title").eq("id", body.thread_id).single().execute()
                 if thread_row.data and thread_row.data["title"] == "New Thread":
+                    # Phase 5 D-96: title-gen migrates to LLMProviderClient.
+                    # When redaction ON: re-anonymize full_response for title LLM
+                    # input (full_response is REAL form here after de-anon in Step 2).
+                    if redaction_on:
+                        anon_for_title = await redaction_service.redact_text_batch(
+                            [full_response], registry,
+                        )
+                        title_input = anon_for_title[0]
+                    else:
+                        title_input = full_response
                     title_messages = [
                         {"role": "system", "content": "Generate a short title (max 6 words) for this chat conversation. Respond with ONLY the title text, no quotes, no punctuation at the end. If the message is in Indonesian, generate the title in Indonesian."},
-                        {"role": "user", "content": body.message},
+                        {"role": "user", "content": anonymized_message},
+                        {"role": "assistant", "content": title_input},
                     ]
-                    title_result = await openrouter_service.complete_with_tools(title_messages)
-                    new_title = (title_result["content"] or "").strip().strip('"\'')[:80]
+                    title_result = await _llm_provider_client.call(
+                        feature="title_gen",
+                        messages=title_messages,
+                        registry=registry,
+                    )
+                    new_title_raw = (
+                        title_result.get("title")
+                        or title_result.get("content")
+                        or title_result.get("raw")
+                        or ""
+                    ).strip().strip('"\'')[:80]
+                    # D-96: de-anon the LLM-emitted title BEFORE both persist and emit.
+                    if redaction_on and new_title_raw:
+                        new_title = await redaction_service.de_anonymize_text(
+                            new_title_raw, registry, mode="none",
+                        )
+                    else:
+                        new_title = new_title_raw
                     if new_title:
                         client.table("threads").update({"title": new_title}).eq("id", body.thread_id).execute()
                         yield f"data: {json.dumps({'type': 'thread_title', 'title': new_title, 'thread_id': body.thread_id})}\n\n"
