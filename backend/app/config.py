@@ -74,7 +74,9 @@ class Settings(BaseSettings):
 
     # PII Redaction (milestone v1.0 — Phase 1 Detection & Anonymization Foundation)
     # See docs/PRD-PII-Redaction-System-v1.1.md §6 and .planning/phases/01-detection-anonymization-foundation/01-CONTEXT.md D-03/D-04/D-08
-    pii_redaction_enabled: bool = True
+    # NOTE: pii_redaction_enabled was removed (Plan 05-08). It now lives in system_settings
+    # (migration 032) as a DB-backed admin-toggleable column. PII_REDACTION_ENABLED env var
+    # is silently ignored (extra='ignore' in model_config). Clean it up from Railway env.
     pii_surrogate_entities: str = "PERSON,EMAIL_ADDRESS,PHONE_NUMBER,LOCATION,DATE_TIME,URL,IP_ADDRESS"
     pii_redact_entities: str = "CREDIT_CARD,US_SSN,US_ITIN,US_BANK_NUMBER,IBAN_CODE,CRYPTO,US_PASSPORT,US_DRIVER_LICENSE,MEDICAL_LICENSE"
     pii_surrogate_score_threshold: float = 0.7
