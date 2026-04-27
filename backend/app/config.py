@@ -1,3 +1,4 @@
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
 from typing import Literal
@@ -107,6 +108,12 @@ class Settings(BaseSettings):
 
     # Phase 4 forward-compat (ship column + setting now per D-57; consumed in Phase 4)
     pii_missed_scan_enabled: bool = True
+
+    # Phase 4: Fuzzy de-anonymization (D-67..D-70 / FR-5.4)
+    # Mirrors entity_resolution_mode pattern (Phase 3) — same Literal set.
+    fuzzy_deanon_mode: Literal["algorithmic", "llm", "none"] = "none"
+    # D-69: PRD-mandated default 0.85; range [0.50, 1.00] (Pydantic + DB CHECK defense in depth).
+    fuzzy_deanon_threshold: float = Field(default=0.85, ge=0.50, le=1.00)
 
 
 @lru_cache
