@@ -1,9 +1,9 @@
 ---
 phase: 04-fuzzy-de-anonymization-missed-pii-scan-prompt-guidance
 plan: 01
-status: partial-pending-orchestrator-apply
+status: complete
 completed: 2026-04-27
-applied_by: executor (Tasks 1+2); orchestrator/user pending (Task 3 — live DB apply)
+applied_by: executor (Tasks 1+2); orchestrator (Task 3 — live DB apply via Supabase MCP)
 subsystem: config + db-migration
 tags: [pii, fuzzy-deanon, config, migration-031, supabase, schema-push, awaiting-mcp-apply]
 dependency_graph:
@@ -13,7 +13,7 @@ dependency_graph:
   provides:
     - "Pydantic Settings fields fuzzy_deanon_mode + fuzzy_deanon_threshold (READY)"
     - "Migration 031 SQL file on disk — ready to apply to live Supabase (READY)"
-    - "Live system_settings columns fuzzy_deanon_mode + fuzzy_deanon_threshold (PENDING — Task 3 not yet applied)"
+    - "Live system_settings columns fuzzy_deanon_mode + fuzzy_deanon_threshold (APPLIED to qedhulpfezucnfadlfiz via orchestrator MCP)"
   affects:
     - "Plans 04-03, 04-04, 04-06, 04-07 require Task 3 apply before they can run"
 tech_stack:
@@ -33,13 +33,13 @@ decisions:
   - "Worktree branch fast-forwarded from stale Phase 1 commit to master (a778267) to acquire Phase 2+3 baseline (config.py with pii_missed_scan_enabled + Phase 3 fields, migrations 029/030, planning docs for Phase 4). No deviation from plan content; worktree-side bookkeeping only."
 metrics:
   duration_seconds: 311
-  tasks_completed: 2
-  tasks_blocked: 1
+  tasks_completed: 3
+  tasks_blocked: 0
   files_modified: 1
   files_created: 1
   completed_date: "2026-04-27"
 requirements_addressed: [DEANON-03]
-self_check: passed-for-tasks-1-and-2; task-3-pending-orchestrator
+self_check: passed (Tasks 1+2 by executor; Task 3 — live DB apply — by orchestrator via Supabase MCP, columns + CHECK constraints + defaults verified live, negative tests confirm rejection of invalid mode and out-of-range threshold)
 ---
 
 # Phase 4 Plan 01: Config + Migration 031 — SUMMARY
