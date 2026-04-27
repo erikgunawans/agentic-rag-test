@@ -1,4 +1,5 @@
 import json
+import logging
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -12,10 +13,42 @@ from app.services.system_settings_service import get_system_settings
 from app.services.redaction.prompt_guidance import get_pii_guidance_block
 from app.models.tools import ToolCallRecord, ToolCallSummary
 
+# Phase 5 — chat-loop redaction integration (D-83..D-97)
+from app.services.redaction import (
+    ConversationRegistry,
+    anonymize_tool_output,
+    deanonymize_tool_args,
+)
+from app.services.redaction.egress import egress_filter
+from app.services.redaction_service import get_redaction_service
+from app.services.llm_provider import LLMProviderClient
+
+logger = logging.getLogger(__name__)
+
+
+class EgressBlockedAbort(Exception):
+    """Phase 5 D-94: egress filter tripped at a cloud LLM call site.
+
+    Raised inside _run_tool_loop or event_generator when the pre-flight
+    egress filter detects a registered real_value substring in the
+    serialized messages payload. Caught by event_generator's outer
+    handler which emits the redaction_status:blocked event and the
+    delta:{done:true} terminator.
+
+    Router-internal exception — not part of any service contract.
+    """
+
+
 router = APIRouter(prefix="/chat", tags=["chat"])
 openrouter_service = OpenRouterService()
 tool_service = ToolService()
 settings = get_settings()
+
+# Phase 5 — module-level singletons.
+# get_redaction_service is itself an @lru_cache singleton (Phase 1 D-15).
+# LLMProviderClient.__init__ does no I/O (lazy AsyncOpenAI clients in
+# llm_provider._get_client), so module-level construction is safe.
+_llm_provider_client = LLMProviderClient()
 
 SYSTEM_PROMPT = """You are a helpful assistant with access to tools.
 
