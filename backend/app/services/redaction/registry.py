@@ -148,6 +148,34 @@ class ConversationRegistry:
         """
         return list(self._rows)
 
+    def canonicals(self) -> list[EntityMapping]:
+        """Return one EntityMapping per unique surrogate_value — the canonical only.
+
+        The D-48 invariant states that all variants in a cluster share the canonical's
+        surrogate, and the canonical is always the longest real_value (variants are
+        derived BY SUBTRACTION from the canonical: first-only, last-only,
+        honorific-prefixed, nickname). Therefore the longest real_value per
+        surrogate IS the canonical for that surrogate.
+
+        Used by `egress_filter` (Phase 5 D-94 gap-closure) to prevent variant-only
+        matches from tripping the egress when a NER false positive on a compound
+        noun (e.g., 'Confidentiality Clause') has produced D-48 variants of common
+        English words ('Confidentiality', 'Clause') that naturally appear in
+        subsequent anonymized text.
+
+        Variants remain in `entries()` and the DB row set — D-72 Pass 2 fuzzy
+        de-anonymization still walks them at full fidelity.
+
+        O(n) one-pass — n is per-thread (typically < 50). Returns a NEW list so
+        callers cannot mutate internal state.
+        """
+        by_surrogate: dict[str, EntityMapping] = {}
+        for ent in self._rows:
+            existing = by_surrogate.get(ent.surrogate_value)
+            if existing is None or len(ent.real_value) > len(existing.real_value):
+                by_surrogate[ent.surrogate_value] = ent
+        return list(by_surrogate.values())
+
     def forbidden_tokens(self) -> set[str]:
         """Per-PERSON thread-wide forbidden-token set (D-37 / D-38).
 
