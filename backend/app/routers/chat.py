@@ -1,4 +1,5 @@
 import json
+import logging
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -12,10 +13,42 @@ from app.services.system_settings_service import get_system_settings
 from app.services.redaction.prompt_guidance import get_pii_guidance_block
 from app.models.tools import ToolCallRecord, ToolCallSummary
 
+# Phase 5 — chat-loop redaction integration (D-83..D-97)
+from app.services.redaction import (
+    ConversationRegistry,
+    anonymize_tool_output,
+    deanonymize_tool_args,
+)
+from app.services.redaction.egress import egress_filter
+from app.services.redaction_service import get_redaction_service
+from app.services.llm_provider import LLMProviderClient
+
+logger = logging.getLogger(__name__)
+
+
+class EgressBlockedAbort(Exception):
+    """Phase 5 D-94: egress filter tripped at a cloud LLM call site.
+
+    Raised inside _run_tool_loop or event_generator when the pre-flight
+    egress filter detects a registered real_value substring in the
+    serialized messages payload. Caught by event_generator's outer
+    handler which emits the redaction_status:blocked event and the
+    delta:{done:true} terminator.
+
+    Router-internal exception — not part of any service contract.
+    """
+
+
 router = APIRouter(prefix="/chat", tags=["chat"])
 openrouter_service = OpenRouterService()
 tool_service = ToolService()
 settings = get_settings()
+
+# Phase 5 — module-level singletons.
+# get_redaction_service is itself an @lru_cache singleton (Phase 1 D-15).
+# LLMProviderClient.__init__ does no I/O (lazy AsyncOpenAI clients in
+# llm_provider._get_client), so module-level construction is safe.
+_llm_provider_client = LLMProviderClient()
 
 SYSTEM_PROMPT = """You are a helpful assistant with access to tools.
 
@@ -106,12 +139,44 @@ async def stream_chat(
         "llm_model": llm_model,
     }
 
-    async def _run_tool_loop(messages, tools, max_iterations, user_id, tool_context):
-        """Shared tool-calling loop used by both agent and non-agent paths."""
+    async def _run_tool_loop(
+        messages, tools, max_iterations, user_id, tool_context,
+        *, registry=None, redaction_service=None, redaction_on=False,
+    ):
+        """Shared tool-calling loop used by both agent and non-agent paths.
+
+        Phase 5 (D-89/D-91/D-94 site #1) — when ``redaction_on`` is True:
+          - Pre-flight egress filter wraps the per-iteration
+            ``complete_with_tools`` call (defense-in-depth against an
+            upstream NER miss). On trip: B4-compliant log + raise
+            ``EgressBlockedAbort`` (caught by event_generator's outer handler).
+          - ``deanonymize_tool_args`` runs BEFORE ``execute_tool``;
+            ``anonymize_tool_output`` runs AFTER.
+          - ``execute_tool`` is called with ``registry=registry`` for D-86 symmetry.
+          - tool_start / tool_result emits are SKELETON form
+            (``{type, tool}`` with NO input/output) per D-89.
+
+        When OFF: behavior is byte-identical to the Phase 0 baseline.
+        """
         tool_records = []
         for _iteration in range(max_iterations):
             if not tools:
                 break
+
+            # Phase 5 D-94 site #1: pre-flight egress filter on the
+            # per-iteration tool-calling LLM. Trips raise EgressBlockedAbort
+            # which propagates to event_generator's outer handler.
+            if redaction_on and registry is not None:
+                payload = json.dumps(messages, ensure_ascii=False)
+                egress_result = egress_filter(payload, registry, None)
+                if egress_result.tripped:
+                    logger.warning(
+                        "egress_blocked event=egress_blocked feature=tool_loop "
+                        "match_count=%d",
+                        egress_result.match_count,
+                    )
+                    raise EgressBlockedAbort("tool_loop egress blocked")
+
             result = await openrouter_service.complete_with_tools(
                 messages, tools, model=llm_model
             )
@@ -126,26 +191,61 @@ async def stream_chat(
                 except json.JSONDecodeError:
                     func_args = {}
 
-                yield "tool_start", {
-                    "type": "tool_start", "tool": func_name, "input": func_args,
-                }
+                # Phase 5 D-89: skeleton emit when redaction is ON
+                # ({type, tool} ONLY — NO 'input'); full payload when OFF.
+                if redaction_on:
+                    yield "tool_start", {
+                        "type": "tool_start", "tool": func_name,
+                    }
+                else:
+                    yield "tool_start", {
+                        "type": "tool_start", "tool": func_name, "input": func_args,
+                    }
 
                 try:
-                    tool_output = await tool_service.execute_tool(
-                        func_name, func_args, user_id, tool_context
-                    )
+                    # Phase 5 D-91: walker wrap when redaction is ON.
+                    if redaction_on and registry is not None:
+                        real_args = await deanonymize_tool_args(
+                            func_args, registry, redaction_service,
+                        )
+                        tool_output = await tool_service.execute_tool(
+                            func_name, real_args, user_id, tool_context,
+                            registry=registry,
+                        )
+                        # tool_records keep the surrogate-form func_args
+                        # (LLM-emitted) so persistence and downstream
+                        # consumers see the LLM's actual emission. The
+                        # output is anonymized for the LLM's next turn.
+                        tool_output = await anonymize_tool_output(
+                            tool_output, registry, redaction_service,
+                        )
+                    else:
+                        tool_output = await tool_service.execute_tool(
+                            func_name, func_args, user_id, tool_context,
+                        )
                     tool_records.append(ToolCallRecord(
                         tool=func_name, input=func_args, output=tool_output
                     ))
+                except EgressBlockedAbort:
+                    # Bubble up to event_generator's outer handler — DO NOT
+                    # swallow here (D-94: trip aborts the entire turn).
+                    raise
                 except Exception as e:
                     tool_output = {"error": str(e)}
                     tool_records.append(ToolCallRecord(
                         tool=func_name, input=func_args, output={}, error=str(e)
                     ))
 
-                yield "tool_result", {
-                    "type": "tool_result", "tool": func_name, "output": tool_output,
-                }
+                # Phase 5 D-89: skeleton emit when redaction is ON
+                # ({type, tool} ONLY — NO 'output'); full payload when OFF.
+                if redaction_on:
+                    yield "tool_result", {
+                        "type": "tool_result", "tool": func_name,
+                    }
+                else:
+                    yield "tool_result", {
+                        "type": "tool_result", "tool": func_name, "output": tool_output,
+                    }
 
                 messages.append({
                     "role": "assistant",
@@ -166,6 +266,32 @@ async def stream_chat(
         full_response = ""
         agent_name = None
 
+        # Phase 5 D-83/D-84/D-86/D-93: per-turn redaction setup chokepoint.
+        # When OFF: identity passthrough — anonymized_history is the loaded
+        # `history`, anonymized_message is body.message. No registry load,
+        # no SSE redaction events, no buffering. SC#5 byte-identical baseline.
+        redaction_on = settings.pii_redaction_enabled
+        redaction_service = get_redaction_service()
+        if redaction_on:
+            # D-86: ConversationRegistry.load called ONCE per turn (chokepoint).
+            registry = await ConversationRegistry.load(body.thread_id)
+            # D-93: single batched history anon under one asyncio.Lock.
+            # Order is preserved by redact_text_batch (T-05-01-2 mitigation),
+            # so we rebuild history items by index.
+            raw_strings = [m["content"] for m in history] + [body.message]
+            anonymized_strings = await redaction_service.redact_text_batch(
+                raw_strings, registry
+            )
+            anonymized_history = [
+                {**h, "content": a}
+                for h, a in zip(history, anonymized_strings[:-1])
+            ]
+            anonymized_message = anonymized_strings[-1]
+        else:
+            registry = None
+            anonymized_history = history
+            anonymized_message = body.message
+
         try:
             if settings.agents_enabled:
                 # --- Multi-agent path ---
@@ -173,7 +299,11 @@ async def stream_chat(
                 try:
                     orch_model = settings.agents_orchestrator_model or llm_model
                     classification = await agent_service.classify_intent(
-                        body.message, history, openrouter_service, orch_model
+                        anonymized_message,
+                        anonymized_history,
+                        openrouter_service,
+                        orch_model,
+                        registry=registry,
                     )
                     agent_name = classification.agent
                 except Exception:
@@ -187,8 +317,8 @@ async def stream_chat(
                 # 3. Build messages with agent's system prompt
                 messages = (
                     [{"role": "system", "content": agent_def.system_prompt}]
-                    + [{"role": m["role"], "content": m["content"]} for m in history]
-                    + [{"role": "user", "content": body.message}]
+                    + [{"role": m["role"], "content": m["content"]} for m in anonymized_history]
+                    + [{"role": "user", "content": anonymized_message}]
                 )
 
                 # 4. Get agent's tool subset
@@ -199,6 +329,9 @@ async def stream_chat(
                 async for event_type, data in _run_tool_loop(
                     messages, agent_tools, agent_def.max_iterations,
                     user["id"], tool_context,
+                    registry=registry,
+                    redaction_service=redaction_service,
+                    redaction_on=redaction_on,
                 ):
                     if event_type == "records":
                         tool_records = data
@@ -220,8 +353,8 @@ async def stream_chat(
                 )
                 messages = (
                     [{"role": "system", "content": SYSTEM_PROMPT + pii_guidance}]
-                    + [{"role": m["role"], "content": m["content"]} for m in history]
-                    + [{"role": "user", "content": body.message}]
+                    + [{"role": m["role"], "content": m["content"]} for m in anonymized_history]
+                    + [{"role": "user", "content": anonymized_message}]
                 )
 
                 tools = tool_service.get_available_tools() if settings.tools_enabled else []
@@ -230,6 +363,9 @@ async def stream_chat(
                 async for event_type, data in _run_tool_loop(
                     messages, tools, settings.tools_max_iterations,
                     user["id"], tool_context,
+                    registry=registry,
+                    redaction_service=redaction_service,
+                    redaction_on=redaction_on,
                 ):
                     if event_type == "records":
                         tool_records = data
