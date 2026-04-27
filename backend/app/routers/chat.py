@@ -199,6 +199,32 @@ async def stream_chat(
         full_response = ""
         agent_name = None
 
+        # Phase 5 D-83/D-84/D-86/D-93: per-turn redaction setup chokepoint.
+        # When OFF: identity passthrough — anonymized_history is the loaded
+        # `history`, anonymized_message is body.message. No registry load,
+        # no SSE redaction events, no buffering. SC#5 byte-identical baseline.
+        redaction_on = settings.pii_redaction_enabled
+        redaction_service = get_redaction_service()
+        if redaction_on:
+            # D-86: ConversationRegistry.load called ONCE per turn (chokepoint).
+            registry = await ConversationRegistry.load(body.thread_id)
+            # D-93: single batched history anon under one asyncio.Lock.
+            # Order is preserved by redact_text_batch (T-05-01-2 mitigation),
+            # so we rebuild history items by index.
+            raw_strings = [m["content"] for m in history] + [body.message]
+            anonymized_strings = await redaction_service.redact_text_batch(
+                raw_strings, registry
+            )
+            anonymized_history = [
+                {**h, "content": a}
+                for h, a in zip(history, anonymized_strings[:-1])
+            ]
+            anonymized_message = anonymized_strings[-1]
+        else:
+            registry = None
+            anonymized_history = history
+            anonymized_message = body.message
+
         try:
             if settings.agents_enabled:
                 # --- Multi-agent path ---
@@ -206,7 +232,11 @@ async def stream_chat(
                 try:
                     orch_model = settings.agents_orchestrator_model or llm_model
                     classification = await agent_service.classify_intent(
-                        body.message, history, openrouter_service, orch_model
+                        anonymized_message,
+                        anonymized_history,
+                        openrouter_service,
+                        orch_model,
+                        registry=registry,
                     )
                     agent_name = classification.agent
                 except Exception:
@@ -220,8 +250,8 @@ async def stream_chat(
                 # 3. Build messages with agent's system prompt
                 messages = (
                     [{"role": "system", "content": agent_def.system_prompt}]
-                    + [{"role": m["role"], "content": m["content"]} for m in history]
-                    + [{"role": "user", "content": body.message}]
+                    + [{"role": m["role"], "content": m["content"]} for m in anonymized_history]
+                    + [{"role": "user", "content": anonymized_message}]
                 )
 
                 # 4. Get agent's tool subset
@@ -253,8 +283,8 @@ async def stream_chat(
                 )
                 messages = (
                     [{"role": "system", "content": SYSTEM_PROMPT + pii_guidance}]
-                    + [{"role": m["role"], "content": m["content"]} for m in history]
-                    + [{"role": "user", "content": body.message}]
+                    + [{"role": m["role"], "content": m["content"]} for m in anonymized_history]
+                    + [{"role": "user", "content": anonymized_message}]
                 )
 
                 tools = tool_service.get_available_tools() if settings.tools_enabled else []
