@@ -630,9 +630,9 @@ class RedactionService:
         elif mode == "none":
             clusters = _clusters_for_mode_none(person_entities)
             clusters_merged_via = "none"
-        else:
-            # mode == "llm" — pre-cluster algorithmically, then ask the LLM
-            # to refine. On ANY failure (egress, network, schema mismatch),
+        elif mode == "llm":
+            # pre-cluster algorithmically, then ask the LLM to refine.
+            # On ANY failure (egress, network, schema mismatch),
             # fall back to algorithmic clusters. Never raises.
             (
                 clusters,
@@ -641,6 +641,8 @@ class RedactionService:
                 egress_tripped,
             ) = await _resolve_clusters_via_llm(person_entities, registry)
             clusters_merged_via = "llm"
+        else:
+            raise ValueError(f"unknown entity_resolution_mode: {mode!r}")
 
         # Steps 4 + 7: cluster-aware Faker dispatch + entity_map build.
         # anonymize() now allocates ONE surrogate per cluster (D-45) — every

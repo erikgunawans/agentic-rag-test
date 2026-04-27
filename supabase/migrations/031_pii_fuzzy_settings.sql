@@ -4,7 +4,7 @@
 -- and the SystemSettingsUpdate model (defense in depth — D-60 / FR-5.4 / NFR-2).
 -- See PRD-PII-Redaction-System-v1.1.md §4.FR-5.4 and 04-CONTEXT.md D-67..D-70.
 
-alter table system_settings
+alter table public.system_settings
   add column fuzzy_deanon_mode text not null default 'none'
     check (fuzzy_deanon_mode in ('algorithmic','llm','none')),
   add column fuzzy_deanon_threshold numeric(3,2) not null default 0.85

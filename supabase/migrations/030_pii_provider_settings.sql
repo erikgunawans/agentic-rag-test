@@ -4,7 +4,7 @@
 -- and the SystemSettingsUpdate model (defense in depth — D-60 / FR-9 / NFR-2).
 -- See PRD-PII-Redaction-System-v1.1.md §4.FR-4, §4.FR-9 and 03-CONTEXT.md D-57..D-60.
 
-alter table system_settings
+alter table public.system_settings
   add column entity_resolution_mode text not null default 'algorithmic'
     check (entity_resolution_mode in ('algorithmic','llm','none')),
   add column llm_provider text not null default 'local'
