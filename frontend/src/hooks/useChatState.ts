@@ -18,6 +18,11 @@ export function useChatState() {
   const [activeTools, setActiveTools] = useState<ToolStartEvent[]>([])
   const [toolResults, setToolResults] = useState<ToolResultEvent[]>([])
   const [activeAgent, setActiveAgent] = useState<{ agent: string; display_name: string } | null>(null)
+  // Phase 5 D-88 + D-94: redaction status spinner state.
+  // Set on backend redaction_status events; null when redaction is OFF or between turns.
+  const [redactionStage, setRedactionStage] = useState<
+    'anonymizing' | 'deanonymizing' | 'blocked' | null
+  >(null)
   const [loadingThreads, setLoadingThreads] = useState(false)
 
   const loadThreads = useCallback(async () => {
@@ -43,6 +48,7 @@ export function useChatState() {
   async function handleSelectThread(threadId: string) {
     setActiveThreadId(threadId)
     setStreamingContent('')
+    setRedactionStage(null)
     setForkParentId(null)
     const newSelections = new Map<string, string>()
     setBranchSelections(newSelections)
@@ -71,6 +77,7 @@ export function useChatState() {
     setBranchSelections(new Map())
     setForkParentId(null)
     setStreamingContent('')
+    setRedactionStage(null)
     return thread
   }
 
@@ -118,6 +125,7 @@ export function useChatState() {
     setActiveTools([])
     setToolResults([])
     setActiveAgent(null)
+    setRedactionStage(null)
     setForkParentId(null)
 
     try {
@@ -171,6 +179,14 @@ export function useChatState() {
               return prev
             })
             setToolResults((prev) => [...prev, event])
+          } else if (event.type === 'redaction_status') {
+            // Phase 5 D-88: status spinner state during the buffer window.
+            setRedactionStage(event.stage)
+            if (event.stage === 'blocked') {
+              // D-94 egress trip — partial text is invalid; clear it.
+              setStreamingContent('')
+              assistantContent = ''
+            }
           } else {
             const delta = 'delta' in event ? event.delta : ''
             const isDone = 'done' in event ? event.done : false
@@ -199,6 +215,7 @@ export function useChatState() {
       setActiveTools([])
       setToolResults([])
       setActiveAgent(null)
+      setRedactionStage(null)
     }
   }
 
@@ -214,6 +231,7 @@ export function useChatState() {
     setBranchSelections(new Map())
     setForkParentId(null)
     setStreamingContent('')
+    setRedactionStage(null)
   }
 
   async function handleSendFirstMessage(content: string) {
@@ -233,6 +251,7 @@ export function useChatState() {
     activeTools,
     toolResults,
     activeAgent,
+    redactionStage,
     loadingThreads,
     handleSelectThread,
     handleCreateThread,

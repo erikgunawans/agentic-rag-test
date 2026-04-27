@@ -579,6 +579,12 @@ export const translations: Record<Locale, Record<string, string>> = {
 
     // Thinking
     'thinking': 'Sedang berpikir...',
+
+    // Phase 5 D-88 + D-94: redaction status spinner labels.
+    // Static UI labels (no interpolation) — consumed by useChatState.redactionStage spinner.
+    redactionAnonymizing: 'Mengantonimkan…',
+    redactionDeanonymizing: 'Memulihkan nama…',
+    redactionBlocked: 'Pengiriman diblokir',
   },
   en: {
     // Welcome screen
@@ -1158,5 +1164,11 @@ export const translations: Record<Locale, Record<string, string>> = {
 
     // Thinking
     'thinking': 'Thinking...',
+
+    // Phase 5 D-88 + D-94: redaction status spinner labels.
+    // Static UI labels (no interpolation) — consumed by useChatState.redactionStage spinner.
+    redactionAnonymizing: 'Anonymizing…',
+    redactionDeanonymizing: 'Restoring names…',
+    redactionBlocked: 'Egress blocked',
   },
 }

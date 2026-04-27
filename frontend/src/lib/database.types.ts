@@ -35,13 +35,13 @@ export interface DeltaEvent {
 export interface ToolStartEvent {
   type: 'tool_start'
   tool: string
-  input: Record<string, unknown>
+  input?: Record<string, unknown>  // Phase 5 D-89: omitted in skeleton mode when redaction is ON
 }
 
 export interface ToolResultEvent {
   type: 'tool_result'
   tool: string
-  output: Record<string, unknown>
+  output?: Record<string, unknown>  // Phase 5 D-89: omitted in skeleton mode when redaction is ON
 }
 
 export interface AgentStartEvent {
@@ -61,7 +61,23 @@ export interface ThreadTitleEvent {
   thread_id: string
 }
 
-export type SSEEvent = DeltaEvent | ToolStartEvent | ToolResultEvent | AgentStartEvent | AgentDoneEvent | ThreadTitleEvent
+// Phase 5 D-88 + D-94: redaction status events.
+// 'anonymizing' fires once per turn after agent_start (covers history anon + tool-loop iterations).
+// 'deanonymizing' fires once per turn after the buffer completes (before de-anon runs).
+// 'blocked' fires on egress filter trip (D-94) — turn aborts cleanly.
+export interface RedactionStatusEvent {
+  type: 'redaction_status'
+  stage: 'anonymizing' | 'deanonymizing' | 'blocked'
+}
+
+export type SSEEvent =
+  | DeltaEvent
+  | ToolStartEvent
+  | ToolResultEvent
+  | AgentStartEvent
+  | AgentDoneEvent
+  | ThreadTitleEvent
+  | RedactionStatusEvent  // Phase 5 D-88
 
 export interface DocumentMetadata {
   title: string
