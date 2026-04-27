@@ -1,15 +1,22 @@
 import json
 import logging
+from typing import TYPE_CHECKING
+
 from app.services.tracing_service import traced
 from app.models.agents import AgentDefinition, OrchestratorResult
 from app.config import get_settings
+from app.services.redaction.egress import egress_filter
 from app.services.redaction.prompt_guidance import get_pii_guidance_block
+
+if TYPE_CHECKING:
+    from app.services.redaction.registry import ConversationRegistry
 
 logger = logging.getLogger(__name__)
 
 # Phase 4 D-79: single-source-of-truth PII guidance suffix. Module-import-time
-# binding mirrors the existing AgentDefinition fields (tool_names,
-# max_iterations) — Phase 5 may move to per-call when per-thread flags ship.
+# binding is correct under Phase 5 D-83's static-process-lifetime contract:
+# PII_REDACTION_ENABLED is set once at process start; per-request re-evaluation
+# would defeat the design. Per-thread granularity is a Phase 6+ enhancement.
 _PII_GUIDANCE = get_pii_guidance_block(
     redaction_enabled=get_settings().pii_redaction_enabled,
 )
@@ -134,12 +141,32 @@ def get_agent_tools(agent: AgentDefinition, all_tools: list[dict]) -> list[dict]
 
 @traced(name="classify_intent")
 async def classify_intent(
-    message: str,
-    history: list[dict],
+    message: str,            # Phase 5 D-93: caller passes anonymized body.message
+    history: list[dict],     # Phase 5 D-93: caller passes anonymized history items
     openrouter_service,
     model: str,
+    *,
+    registry: "ConversationRegistry | None" = None,  # Phase 5 D-94 (egress filter context)
 ) -> OrchestratorResult:
-    """Classify user intent via a single LLM call."""
+    """Classify user intent via a single LLM call.
+
+    Phase 5 contract (D-93 / D-94 / D-96):
+    - Caller (chat.py event_generator) passes ALREADY-anonymized message +
+      history items. The D-93 batch chokepoint upstream owns the
+      anonymization; this function does NOT touch the registry's lock.
+    - When ``registry is not None`` and ``pii_redaction_enabled=True``, a
+      pre-flight egress filter wraps the LLM call as defense-in-depth
+      against an upstream Phase 1 NER miss (T-05-03-1 mitigation). On trip,
+      returns ``OrchestratorResult(agent='general', reasoning='egress_blocked')``
+      and emits a B4-compliant warning log (counts only — no payload, no
+      entity values, no surrogates).
+    - When ``registry is None`` (legacy callers, off-mode, or test fixtures
+      that don't pass a registry): the egress wrapper is SKIPPED — function
+      behaves identically to Phase 0 baseline (SC#5 invariant).
+    - Return contract is UNCHANGED: ``OrchestratorResult`` carries a PII-free
+      agent enum string; ``reasoning`` is internal-only (not externalized
+      via SSE per Phase 4 baseline).
+    """
     # Keep classification prompt small — only last 3 history messages
     recent_history = history[-3:] if len(history) > 3 else history
     messages = [
@@ -149,6 +176,33 @@ async def classify_intent(
     ]
 
     try:
+        # Phase 5 D-94: pre-flight egress filter (defense-in-depth; covers
+        # Plan 05-04 upstream NER misses). Skipped when redaction is OFF
+        # (D-83 global gate) or no registry passed (legacy callers + test
+        # fixtures). T-05-03-4 mitigation: NO try/except around egress_filter
+        # itself — exceptions propagate to the existing outer try/except,
+        # which fails CLOSED (returns the 'general' fallback).
+        if registry is not None and get_settings().pii_redaction_enabled:
+            payload = json.dumps(messages, ensure_ascii=False)
+            # D-94: provisional set is empty by the time classify_intent
+            # runs because D-93's history batch already commits new entities
+            # to DB before any cloud LLM contact. egress_filter accepts the
+            # value positionally as `provisional`.
+            provisional_surrogates = None
+            egress_result = egress_filter(payload, registry, provisional_surrogates)
+            if egress_result.tripped:
+                # B4 invariant (T-05-03-2): counts only — never payload,
+                # entity values, or surrogates. Format mirrors Phase 3 D-55.
+                logger.warning(
+                    "egress_blocked event=egress_blocked feature=classify_intent "
+                    "entity_count=%d",
+                    egress_result.match_count,
+                )
+                return OrchestratorResult(
+                    agent="general",
+                    reasoning="egress_blocked",
+                )
+
         result = await openrouter_service.complete_with_tools(
             messages,
             tools=None,
