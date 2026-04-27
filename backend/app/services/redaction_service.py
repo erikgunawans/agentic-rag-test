@@ -60,6 +60,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from app.config import get_settings
 from app.services.llm_provider import LLMProviderClient
+from app.services.system_settings_service import get_system_settings
 from app.services.redaction.anonymization import (
     anonymize,
     get_faker,
@@ -403,7 +404,10 @@ class RedactionService:
         # circuit. Runs BEFORE _get_thread_lock and BEFORE any logger /
         # span attribute set, so off-mode produces zero log spam, zero
         # contention, and zero observable PII (T-05-01-1 mitigation).
-        if not get_settings().pii_redaction_enabled:
+        # Plan 05-08: D-84 gate sourced from system_settings (DB-backed) instead
+        # of config.py. Avoids drift between the chat-router gate and the
+        # service-layer gate (both must stay in lock-step — D-83 invariant).
+        if not bool(get_system_settings().get("pii_redaction_enabled", True)):
             return RedactionResult(
                 anonymized_text=text,
                 entity_map={},
@@ -478,7 +482,8 @@ class RedactionService:
         # D-84 off-mode identity (defense-in-depth alongside redact_text's
         # service-layer gate). Returns a shallow copy via list(...) so the
         # caller cannot accidentally mutate the input through the result.
-        if not get_settings().pii_redaction_enabled:
+        # Plan 05-08: sourced from system_settings DB column (admin-toggleable).
+        if not bool(get_system_settings().get("pii_redaction_enabled", True)):
             return list(texts)
 
         # Strict primitive: batch is the chat-loop chokepoint, not the

@@ -7,6 +7,7 @@ from app.models.agents import AgentDefinition, OrchestratorResult
 from app.config import get_settings
 from app.services.redaction.egress import egress_filter
 from app.services.redaction.prompt_guidance import get_pii_guidance_block
+from app.services.system_settings_service import get_system_settings
 
 if TYPE_CHECKING:
     from app.services.redaction.registry import ConversationRegistry
@@ -14,11 +15,12 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # Phase 4 D-79: single-source-of-truth PII guidance suffix. Module-import-time
-# binding is correct under Phase 5 D-83's static-process-lifetime contract:
-# PII_REDACTION_ENABLED is set once at process start; per-request re-evaluation
-# would defeat the design. Per-thread granularity is a Phase 6+ enhancement.
+# binding is correct under Phase 5 D-83's static-process-lifetime contract.
+# Plan 05-08: sourced from system_settings DB column (admin-toggleable, 60s
+# cached). Module-level evaluation reads the DB value at startup — changes
+# to the toggle take effect within the 60s cache TTL on subsequent requests.
 _PII_GUIDANCE = get_pii_guidance_block(
-    redaction_enabled=get_settings().pii_redaction_enabled,
+    redaction_enabled=bool(get_system_settings().get("pii_redaction_enabled", True)),
 )
 
 RESEARCH_AGENT = AgentDefinition(
@@ -182,7 +184,8 @@ async def classify_intent(
         # fixtures). T-05-03-4 mitigation: NO try/except around egress_filter
         # itself — exceptions propagate to the existing outer try/except,
         # which fails CLOSED (returns the 'general' fallback).
-        if registry is not None and get_settings().pii_redaction_enabled:
+        # Plan 05-08: redaction toggle read from system_settings (DB-backed).
+        if registry is not None and bool(get_system_settings().get("pii_redaction_enabled", True)):
             payload = json.dumps(messages, ensure_ascii=False)
             # D-94: provisional set is empty by the time classify_intent
             # runs because D-93's history batch already commits new entities
