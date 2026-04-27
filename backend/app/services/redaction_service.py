@@ -384,13 +384,28 @@ class RedactionService:
             RedactionError: if the input contains the literal sentinel
                 substring ``<<UUID_`` (D-11). Surfaced from the UUID
                 pre-mask helper inside ``detect_entities``.
+
+        D-84 (Phase 5): when ``PII_REDACTION_ENABLED=false`` this method
+        returns an identity ``RedactionResult`` (input text unchanged,
+        ``entity_map`` empty, ``hard_redacted_count=0``, ``latency_ms=0.0``)
+        BEFORE any ``_get_thread_lock`` acquisition, NER call, or DB I/O.
+        Defense-in-depth alongside Plan 05-04's top-level branch in
+        ``chat.py``.
         """
-        # TODO(Phase 5): gate `if not get_settings().pii_redaction_enabled:
-        # return RedactionResult(anonymized_text=text, entity_map={},
-        #                        hard_redacted_count=0, latency_ms=0.0)`
-        # Phase 1 ships the flag in Settings (Plan 02) for forward-compat
-        # with Phase 5 SC#5; the gate goes here, not in callers, so every
-        # downstream consumer benefits automatically.
+        # Phase 5 D-84: lock-free off-mode early return.
+        # Defense-in-depth — chat.py top-level branch (Plan 05-04) also gates
+        # at the request boundary, but every other future caller of
+        # redact_text benefits automatically from this service-layer short-
+        # circuit. Runs BEFORE _get_thread_lock and BEFORE any logger /
+        # span attribute set, so off-mode produces zero log spam, zero
+        # contention, and zero observable PII (T-05-01-1 mitigation).
+        if not get_settings().pii_redaction_enabled:
+            return RedactionResult(
+                anonymized_text=text,
+                entity_map={},
+                hard_redacted_count=0,
+                latency_ms=0.0,
+            )
         if registry is None:
             # D-39: stateless legacy path. Phase 1 body unchanged.
             return await self._redact_text_stateless(text)
