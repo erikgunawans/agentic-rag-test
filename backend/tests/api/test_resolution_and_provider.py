@@ -41,18 +41,24 @@ from app.services.system_settings_service import (
 pytestmark = pytest.mark.asyncio
 
 
-def _patched_settings(mode: str) -> SimpleNamespace:
+def _patched_settings(mode: str, *, missed_scan: bool = False) -> SimpleNamespace:
     """Return a Settings-like object with the desired entity_resolution_mode.
 
-    redaction_service.redact_text() only reads ``settings.entity_resolution_mode``
-    from get_settings(); patching that single function is the smallest blast
-    radius. We mirror the real Settings shape via SimpleNamespace so other
-    attribute reads (if any future change adds them) raise AttributeError loud.
+    redaction_service.redact_text() reads ``entity_resolution_mode`` and (since
+    Phase 4 plan 04-04) ``pii_missed_scan_enabled`` from get_settings(); patching
+    these two fields is the smallest blast radius. We mirror the real Settings
+    shape via SimpleNamespace so other attribute reads raise AttributeError loud.
+
+    Phase 3 tests in this file assert about LLM payload contents/order; the
+    auto-chained missed-PII scan adds a *second* LLM call that those assertions
+    are not designed to inspect, so missed_scan defaults to False here. Callers
+    that specifically test the scan path can opt in via ``missed_scan=True``.
     """
     real = get_settings()
     # Copy every field from real Settings + override the mode field.
     overrides = {f: getattr(real, f) for f in real.model_dump().keys()}
     overrides["entity_resolution_mode"] = mode
+    overrides["pii_missed_scan_enabled"] = missed_scan
     return SimpleNamespace(**overrides)
 
 
@@ -169,8 +175,13 @@ class TestSC2_CloudEgressFallback:
         # Patch settings to mode='llm'. Patch _get_client so cloud doesn't
         # talk to a real endpoint. Set ENTITY_RESOLUTION_LLM_PROVIDER=cloud
         # via env (D-51 priority 1) so _resolve_provider returns cloud.
+        # Also patch missed_scan.get_settings so the Phase 4 auto-chain stays
+        # disabled — this test is about resolution-LLM payload, not scan calls.
         with patch(
             "app.services.redaction_service.get_settings",
+            return_value=_patched_settings("llm"),
+        ), patch(
+            "app.services.redaction.missed_scan.get_settings",
             return_value=_patched_settings("llm"),
         ), patch(
             "app.services.llm_provider._get_client", return_value=mock_client
@@ -277,6 +288,9 @@ class TestSC4_NonPersonNeverReachLLM:
 
         with patch(
             "app.services.redaction_service.get_settings",
+            return_value=_patched_settings("llm"),
+        ), patch(
+            "app.services.redaction.missed_scan.get_settings",
             return_value=_patched_settings("llm"),
         ), patch(
             "app.services.llm_provider._get_client", return_value=mock_client
