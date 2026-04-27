@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-last_updated: "2026-04-27T08:27:00.000Z"
+last_updated: "2026-04-27T09:30:56.956Z"
 last_activity: 2026-04-27
 progress:
   total_phases: 6
   completed_phases: 4
-  total_plans: 34
-  completed_plans: 28
-  percent: 82
+  total_plans: 27
+  completed_plans: 27
+  percent: 100
 ---
 
 # State: LexCore
@@ -28,7 +28,7 @@ Phase: 04 — COMPLETE ✅ (Fuzzy De-anonymization, Missed-PII Scan & Prompt Gui
 Verification: passed (5/5 SCs, 9/9 REQ-IDs, 16/16 decisions D-67..D-82)
 
 - **Next phase:** 5 — Chat-Loop Integration (Buffering, SSE Status, Tool/Sub-Agent Coverage)
-- **Status:** Ready to discuss (Phase 5)
+- **Status:** Context gathered — Ready to plan (Phase 5)
 - **Last activity:** 2026-04-27
 
 ## Accumulated Context
@@ -87,3 +87,5 @@ Verification: passed (5/5 SCs, 9/9 REQ-IDs, 16/16 decisions D-67..D-82)
 *Updated: 2026-04-27 — Phase 4 plan 04-01 PARTIAL ✦: Tasks 1+2 SHIPPED (commits `53bdb9d` config.py +Field import +2 Settings fields with Pydantic Literal+Field(ge,le) validation, `4f0d724` supabase/migrations/031_pii_fuzzy_settings.sql with mode CHECK + threshold range CHECK + comments). Task 3 (live Supabase apply via MCP) PENDING — executor agent has no mcp__claude_ai_Supabase__apply_migration in registry (same gap as Phase 3 plan 03-02). Live REST probe confirms columns absent (PG 42703); apply queries pre-staged in `04-01-SUMMARY.md`. SUMMARY at `.planning/phases/04-fuzzy-de-anonymization-missed-pii-scan-prompt-guidance/04-01-SUMMARY.md`.*
 
 *Updated: 2026-04-27 — Phase 4 EXECUTION COMPLETE ✅: 7 plans across 6 waves; all 9 REQ-IDs (DEANON-03..05, SCAN-01..05, PROMPT-01) SATISFIED; 5/5 ROADMAP SCs verified. 135/135 backend tests pass (75 unit + 60 integration: 17 new Phase 4 + 39 Phase 1+2 + 8 Phase 3 + 75 unit including 13 new missed_scan + 11 prompt_guidance + 23 fuzzy_match). Migration 031 applied live to Supabase qedhulpfezucnfadlfiz (orchestrator MCP). 3-phase de_anon pipeline (surrogate→placeholder→fuzzy/LLM-match→real) ships in `redaction_service.py:de_anonymize_text(mode=...)` with backward-compatible `mode=None` default. Missed-PII scan auto-chained inside `_redact_text_with_registry` with single-re-run cap (`_scan_rerun_done`). Centralized prompt-guidance helper (`prompt_guidance.py`) wired into both single-agent (`chat.py`) and 4 sub-agent paths (`agent_service.py`). Admin UI surfaces fuzzy mode + threshold inside the existing PII section. Phase 3 regression introduced by auto-chain RESOLVED via parallel patch on `missed_scan.get_settings` in 2 tests (commit `b9ced3e`). Verification: `.planning/phases/04-fuzzy-de-anonymization-missed-pii-scan-prompt-guidance/04-VERIFICATION.md` (status: passed, 16/16 decisions D-67..D-82 traced). Next: Phase 5 (Chat-Loop Integration).*
+
+*Updated: 2026-04-27 — Phase 5 context gathered ✓: 4 gray areas resolved across 17 questions, 15 implementation decisions (D-83..D-97) in `05-CONTEXT.md`. Areas: redaction-flag source-of-truth (D-83..D-86 — global env-var, hybrid gate, persist real form, registry-once-per-turn); buffering UX & SSE shape (D-87..D-90 — single-batch delta, two redaction_status events, skeleton tool events, graceful degrade); tool-call symmetry (D-91..D-94 — centralized walker module, redact_text_batch primitive, single batched history anon, pre-flight egress on OpenRouter calls); sub-agent / auxiliary scope (D-95..D-97 — chat-loop only, hybrid title_gen-via-LLMProviderClient + classify_intent stays, mirror Phase 4 test pattern). Locks: zero new migrations (Phase 3 D-57 column already shipped for title_gen), zero new env vars, OpenRouterService unchanged (refactor deferred to Phase 6+), document_tool_service deferred to v1.1, document_metadata deferred to v1.1. Ready for /gsd-plan-phase 5.*
