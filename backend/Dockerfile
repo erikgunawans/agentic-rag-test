@@ -8,6 +8,11 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Download Presidio's spaCy NER model at build time. Without this, Presidio
+# tries spacy.cli.download at runtime (lifespan hook) and fails because the
+# non-root `app` user has no write access to site-packages.
+RUN python -m spacy download xx_ent_wiki_sm
+
 # Copy application code
 COPY . .
 
