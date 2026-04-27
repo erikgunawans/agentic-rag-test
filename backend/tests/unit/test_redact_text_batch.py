@@ -22,18 +22,15 @@ Contract (verbatim from PLAN must_haves):
 from __future__ import annotations
 
 import inspect
-from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
 
 pytestmark = pytest.mark.asyncio
 
-
-def _patched_settings(real_settings, **overrides):
-    fields = {f: getattr(real_settings, f) for f in real_settings.model_dump().keys()}
-    fields.update(overrides)
-    return SimpleNamespace(**fields)
+# Plan 05-08: system_settings stubs replace the old config.py settings stubs.
+_SYS_OFF = {"pii_redaction_enabled": False, "llm_provider": "local"}
+_SYS_ON = {"pii_redaction_enabled": True, "llm_provider": "local"}
 
 
 class TestD92Signature:
@@ -72,14 +69,10 @@ class TestD92OffMode:
     list(texts) verbatim with no side effects."""
 
     async def test_off_mode_returns_input_verbatim(self):
-        from app.config import get_settings as real_gs
         from app.services.redaction_service import get_redaction_service
 
         svc = get_redaction_service()
-        with patch("app.services.redaction_service.get_settings") as gs:
-            gs.return_value = _patched_settings(
-                real_gs(), pii_redaction_enabled=False
-            )
+        with patch("app.services.redaction_service.get_system_settings", return_value=_SYS_OFF):
             out = await svc.redact_text_batch(
                 ["Pak Bambang", "Hubungi Rina di rina@example.com"], None
             )
@@ -89,15 +82,11 @@ class TestD92OffMode:
     async def test_off_mode_returns_shallow_copy_not_same_list(self):
         """list(texts) — returned list is a fresh container, defensive
         against caller mutation of the original."""
-        from app.config import get_settings as real_gs
         from app.services.redaction_service import get_redaction_service
 
         svc = get_redaction_service()
         original = ["a", "b", "c"]
-        with patch("app.services.redaction_service.get_settings") as gs:
-            gs.return_value = _patched_settings(
-                real_gs(), pii_redaction_enabled=False
-            )
+        with patch("app.services.redaction_service.get_system_settings", return_value=_SYS_OFF):
             out = await svc.redact_text_batch(original, None)
 
         assert out == original
@@ -105,20 +94,16 @@ class TestD92OffMode:
         assert out is not original
 
     async def test_off_mode_does_not_invoke_detect_entities(self):
-        from app.config import get_settings as real_gs
         from app.services.redaction.registry import ConversationRegistry
         from app.services.redaction_service import get_redaction_service
 
         svc = get_redaction_service()
         reg = ConversationRegistry(thread_id="t-off", rows=[])
         with patch(
-            "app.services.redaction_service.get_settings"
-        ) as gs, patch(
+            "app.services.redaction_service.get_system_settings", return_value=_SYS_OFF
+        ), patch(
             "app.services.redaction_service.detect_entities"
         ) as detect:
-            gs.return_value = _patched_settings(
-                real_gs(), pii_redaction_enabled=False
-            )
             detect.side_effect = AssertionError(
                 "off-mode batch must not invoke NER"
             )
@@ -295,15 +280,11 @@ class TestD92OrderPreservation:
         assert len(out) == 4
 
     async def test_off_mode_preserves_order_and_length(self):
-        from app.config import get_settings as real_gs
         from app.services.redaction_service import get_redaction_service
 
         svc = get_redaction_service()
         inputs = [f"item-{i}" for i in range(10)]
-        with patch("app.services.redaction_service.get_settings") as gs:
-            gs.return_value = _patched_settings(
-                real_gs(), pii_redaction_enabled=False
-            )
+        with patch("app.services.redaction_service.get_system_settings", return_value=_SYS_OFF):
             out = await svc.redact_text_batch(inputs, None)
 
         assert out == inputs  # off-mode is identity, must round-trip in order

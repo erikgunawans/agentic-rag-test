@@ -37,10 +37,12 @@ class TestTask2RegistryLoadAndBatchAnon:
         assert "get_redaction_service()" in src
 
     def test_redaction_on_gating_present(self):
-        # D-83 / D-84: top-level branch on settings.pii_redaction_enabled.
+        # D-83 / D-84: top-level branch. Plan 05-08: toggle sourced from
+        # system_settings DB column (not config.py env var).
         src = _src()
         assert "redaction_on" in src
-        assert "settings.pii_redaction_enabled" in src
+        # Confirm the toggle now reads from sys_settings (DB-backed, Plan 05-08).
+        assert 'sys_settings.get("pii_redaction_enabled"' in src
 
     def test_batch_anon_primitive_used(self):
         # D-93: redact_text_batch is the chokepoint primitive.

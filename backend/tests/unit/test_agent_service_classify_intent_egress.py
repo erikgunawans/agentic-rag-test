@@ -28,12 +28,10 @@ import inspect
 import json
 import logging
 from dataclasses import dataclass
-from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.config import get_settings as _real_get_settings
 from app.models.agents import OrchestratorResult
 from app.services import agent_service
 from app.services.agent_service import classify_intent
@@ -59,17 +57,14 @@ class _StubRegistry:
         return self._mappings
 
 
-def _settings_override(**overrides):
-    """Returns a SimpleNamespace mirroring real Settings with overrides applied.
+def _sys_settings_override(**overrides):
+    """Returns a system_settings dict stub for patching agent_service.get_system_settings.
 
-    Mirrors the pattern used in tests/unit/test_redact_text_batch.py — keeps
-    every existing field intact so any code path that reads sibling settings
-    still works.
+    Plan 05-08: pii_redaction_enabled now sourced from system_settings (DB-backed).
     """
-    real = _real_get_settings()
-    fields = real.model_dump()
-    fields.update(overrides)
-    return SimpleNamespace(**fields)
+    base = {"pii_redaction_enabled": True, "llm_provider": "local"}
+    base.update(overrides)
+    return base
 
 
 # ---------- Test class ----------------------------------------------------
@@ -145,8 +140,8 @@ class TestClassifyIntentOffModeGlobal:
                 "egress_filter must NOT be called when pii_redaction_enabled=False"
             )
         ), patch.object(
-            agent_service, "get_settings",
-            return_value=_settings_override(pii_redaction_enabled=False),
+            agent_service, "get_system_settings",
+            return_value=_sys_settings_override(pii_redaction_enabled=False),
         ):
             result = await classify_intent(
                 "hi",
@@ -177,8 +172,8 @@ class TestClassifyIntentEgressTrip:
         with patch.object(
             agent_service, "egress_filter", return_value=tripped_result,
         ) as mock_egress, patch.object(
-            agent_service, "get_settings",
-            return_value=_settings_override(pii_redaction_enabled=True),
+            agent_service, "get_system_settings",
+            return_value=_sys_settings_override(pii_redaction_enabled=True),
         ):
             result = await classify_intent(
                 "find John Doe",
@@ -218,8 +213,8 @@ class TestClassifyIntentEgressTrip:
         with patch.object(
             agent_service, "egress_filter", return_value=tripped_result,
         ), patch.object(
-            agent_service, "get_settings",
-            return_value=_settings_override(pii_redaction_enabled=True),
+            agent_service, "get_system_settings",
+            return_value=_sys_settings_override(pii_redaction_enabled=True),
         ):
             await classify_intent(
                 "find John Doe",
@@ -262,8 +257,8 @@ class TestClassifyIntentEgressTrip:
         with patch.object(
             agent_service, "egress_filter", return_value=not_tripped,
         ) as mock_egress, patch.object(
-            agent_service, "get_settings",
-            return_value=_settings_override(pii_redaction_enabled=True),
+            agent_service, "get_system_settings",
+            return_value=_sys_settings_override(pii_redaction_enabled=True),
         ):
             result = await classify_intent(
                 "anonymized message",
@@ -292,8 +287,8 @@ class TestClassifyIntentEgressTrip:
         with patch.object(
             agent_service, "egress_filter", return_value=not_tripped,
         ) as mock_egress, patch.object(
-            agent_service, "get_settings",
-            return_value=_settings_override(pii_redaction_enabled=True),
+            agent_service, "get_system_settings",
+            return_value=_sys_settings_override(pii_redaction_enabled=True),
         ):
             await classify_intent(
                 "anon-msg",

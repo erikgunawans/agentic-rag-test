@@ -62,7 +62,7 @@ _FAKE_TOKEN = "test-token-phase5-integration"
 
 def _patched_settings(
     *,
-    pii_redaction_enabled: bool = True,
+    pii_redaction_enabled: bool = True,  # kept for API compat; ignored — see Plan 05-08
     fuzzy_deanon_mode: str = "none",
     agents_enabled: bool = False,
     tools_enabled: bool = True,
@@ -72,10 +72,15 @@ def _patched_settings(
 
     Phase 5 extension of the Phase 4 _patched_settings helper.
     Patches ``app.routers.chat.settings`` directly (module-level binding).
+
+    Plan 05-08: pii_redaction_enabled is NO LONGER sourced from settings.
+    It now comes from get_system_settings() (DB-backed, 60s cache). Tests
+    that need pii_redaction_enabled=False must patch get_system_settings to
+    return _MOCK_SYS_SETTINGS_OFF. The pii_redaction_enabled param is kept
+    for call-site API compatibility but is intentionally not written to the stub.
     """
     real = get_settings()
     overrides = {f: getattr(real, f) for f in real.model_dump().keys()}
-    overrides["pii_redaction_enabled"] = pii_redaction_enabled
     overrides["fuzzy_deanon_mode"] = fuzzy_deanon_mode
     overrides["agents_enabled"] = agents_enabled
     overrides["tools_enabled"] = tools_enabled
@@ -206,10 +211,21 @@ def _auth_override():
     app.dependency_overrides.pop(get_current_user, None)
 
 
+# Plan 05-08: pii_redaction_enabled now comes from system_settings (DB-backed).
+# Tests that need redaction ON use _MOCK_SYS_SETTINGS (default True).
+# Tests that need redaction OFF use _MOCK_SYS_SETTINGS_OFF.
 _MOCK_SYS_SETTINGS = {
     "llm_model": "openai/gpt-4o-mini",
     "embedding_model": "text-embedding-3-small",
     "custom_embedding_model": None,
+    "pii_redaction_enabled": True,
+}
+
+_MOCK_SYS_SETTINGS_OFF = {
+    "llm_model": "openai/gpt-4o-mini",
+    "embedding_model": "text-embedding-3-small",
+    "custom_embedding_model": None,
+    "pii_redaction_enabled": False,
 }
 
 
@@ -805,15 +821,16 @@ class TestSC5_OffMode:
             yield {"delta": "", "done": True}
 
         supabase_stub = _make_supabase_stub(thread_id)
+        # Plan 05-08: pii_redaction_enabled=False now sourced from sys_settings.
         stub_settings = _patched_settings(pii_redaction_enabled=False, tools_enabled=False)
 
         with (
             patch("app.routers.chat.settings", stub_settings),
             patch("app.routers.chat.get_supabase_client", return_value=supabase_stub),
             patch("app.services.system_settings_service.get_system_settings",
-                  return_value=_MOCK_SYS_SETTINGS),
+                  return_value=_MOCK_SYS_SETTINGS_OFF),
             patch("app.routers.chat.get_system_settings",
-                  return_value=_MOCK_SYS_SETTINGS),
+                  return_value=_MOCK_SYS_SETTINGS_OFF),
             patch(
                 "app.services.openrouter_service.OpenRouterService.stream_response",
                 side_effect=_mock_stream_response,
@@ -869,6 +886,7 @@ class TestSC5_OffMode:
             yield {"delta": "", "done": True}
 
         supabase_stub = _make_supabase_stub(thread_id)
+        # Plan 05-08: pii_redaction_enabled=False now sourced from sys_settings.
         stub_settings = _patched_settings(
             pii_redaction_enabled=False, tools_enabled=True, tools_max_iterations=2,
         )
@@ -877,9 +895,9 @@ class TestSC5_OffMode:
             patch("app.routers.chat.settings", stub_settings),
             patch("app.routers.chat.get_supabase_client", return_value=supabase_stub),
             patch("app.services.system_settings_service.get_system_settings",
-                  return_value=_MOCK_SYS_SETTINGS),
+                  return_value=_MOCK_SYS_SETTINGS_OFF),
             patch("app.routers.chat.get_system_settings",
-                  return_value=_MOCK_SYS_SETTINGS),
+                  return_value=_MOCK_SYS_SETTINGS_OFF),
             patch(
                 "app.services.openrouter_service.OpenRouterService.complete_with_tools",
                 side_effect=_mock_complete_with_tools,
