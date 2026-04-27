@@ -339,10 +339,25 @@ async def stream_chat(
                         yield f"data: {json.dumps(data)}\n\n"
 
                 # 6. Stream final text response
+                # Phase 5 D-94 site #2: pre-flight egress filter on branch A stream_response.
+                if redaction_on:
+                    payload = json.dumps(messages, ensure_ascii=False)
+                    egress_result = egress_filter(payload, registry, None)
+                    if egress_result.tripped:
+                        logger.warning(
+                            "egress_blocked event=egress_blocked feature=stream_response_branch_a "
+                            "match_count=%d",
+                            egress_result.match_count,
+                        )
+                        raise EgressBlockedAbort("branch A stream_response egress blocked")
+
+                # Phase 5 D-87: buffer all chunks when redaction is ON;
+                # emit progressive deltas only when OFF (SC#5 byte-identical baseline).
                 async for chunk in openrouter_service.stream_response(messages, model=llm_model):
                     if not chunk["done"]:
                         full_response += chunk["delta"]
-                        yield f"data: {json.dumps({'type': 'delta', 'delta': chunk['delta'], 'done': False})}\n\n"
+                        if not redaction_on:
+                            yield f"data: {json.dumps({'type': 'delta', 'delta': chunk['delta'], 'done': False})}\n\n"
 
             else:
                 # --- Single-agent path (Module 7 behavior) ---
@@ -373,13 +388,32 @@ async def stream_chat(
                         yield f"data: {json.dumps(data)}\n\n"
 
                 # Stream final text response
+                # Phase 5 D-94 site #3: pre-flight egress filter on branch B stream_response.
+                if redaction_on:
+                    payload = json.dumps(messages, ensure_ascii=False)
+                    egress_result = egress_filter(payload, registry, None)
+                    if egress_result.tripped:
+                        logger.warning(
+                            "egress_blocked event=egress_blocked feature=stream_response_branch_b "
+                            "match_count=%d",
+                            egress_result.match_count,
+                        )
+                        raise EgressBlockedAbort("branch B stream_response egress blocked")
+
+                # Phase 5 D-87: buffer all chunks when redaction is ON;
+                # emit progressive deltas only when OFF (SC#5 byte-identical baseline).
                 async for chunk in openrouter_service.stream_response(messages, model=llm_model):
                     if not chunk["done"]:
                         full_response += chunk["delta"]
-                        yield f"data: {json.dumps({'type': 'delta', 'delta': chunk['delta'], 'done': False})}\n\n"
+                        if not redaction_on:
+                            yield f"data: {json.dumps({'type': 'delta', 'delta': chunk['delta'], 'done': False})}\n\n"
+
+        except EgressBlockedAbort:
+            yield f"data: {json.dumps({'type': 'redaction_status', 'stage': 'blocked'})}\n\n"
+            yield f"data: {json.dumps({'type': 'delta', 'delta': '', 'done': True})}\n\n"
+            return
         except Exception as exc:
-            import logging
-            logging.getLogger(__name__).error("event_generator error: %s", exc, exc_info=True)
+            logger.error("event_generator error: %s", exc, exc_info=True)
 
         # SSE: agent_done (always emitted if agent was started)
         if agent_name:
