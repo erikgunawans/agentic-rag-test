@@ -28,9 +28,15 @@ from __future__ import annotations
 
 from app.services.redaction.errors import RedactionError
 from app.services.redaction.registry import ConversationRegistry, EntityMapping
+from app.services.redaction.tool_redaction import (  # Phase 5 D-91
+    anonymize_tool_output,
+    deanonymize_tool_args,
+)
 
 __all__ = [
-    "RedactionError",
     "ConversationRegistry",
     "EntityMapping",
+    "RedactionError",
+    "anonymize_tool_output",  # Phase 5 D-91
+    "deanonymize_tool_args",  # Phase 5 D-91
 ]

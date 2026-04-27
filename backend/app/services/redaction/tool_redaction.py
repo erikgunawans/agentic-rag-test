@@ -49,11 +49,22 @@ See ``.planning/phases/05-chat-loop-integration-buffering-sse-status-tool-sub-ag
 from __future__ import annotations
 
 import re
-from typing import Any, Mapping
+from typing import TYPE_CHECKING, Any, Mapping
 
 from app.services.redaction.registry import ConversationRegistry
-from app.services.redaction_service import RedactionService
 from app.services.tracing_service import traced
+
+if TYPE_CHECKING:
+    # ``RedactionService`` is referenced ONLY in type annotations. The
+    # walker calls ``redaction_service.redact_text_batch(...)`` via the
+    # passed-in instance (duck-typing), so the runtime import would only
+    # introduce a circular import once this module is re-exported by
+    # ``app.services.redaction.__init__`` (the barrel). The chain
+    # ``redaction.__init__ -> tool_redaction -> redaction_service ->
+    # anonymization -> ... -> redaction.__init__`` deadlocks unless we
+    # gate this import under ``TYPE_CHECKING``. The same pattern is used
+    # in ``app.services.tool_service`` for ``ConversationRegistry``.
+    from app.services.redaction_service import RedactionService
 
 # Strict UUID regex: lowercase hex, exact dash positions, fully anchored.
 # Defense-in-depth complement to Phase 1 D-04 ``detect_entities`` UUID filter
