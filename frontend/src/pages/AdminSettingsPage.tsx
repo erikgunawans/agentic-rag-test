@@ -30,6 +30,9 @@ interface SystemSettings {
   metadata_llm_provider?: 'local' | 'cloud' | null
   fuzzy_deanon_llm_provider?: 'local' | 'cloud' | null
   pii_missed_scan_enabled?: boolean
+  // Phase 4: Fuzzy de-anonymization (D-67..D-70)
+  fuzzy_deanon_mode?: 'algorithmic' | 'llm' | 'none'
+  fuzzy_deanon_threshold?: number
 }
 
 interface LlmProviderStatus {
@@ -552,6 +555,42 @@ export function AdminSettingsPage() {
                   <p className="text-sm font-medium">{t('admin.pii.missedScan.label')}</p>
                 </div>
               </label>
+
+              <Separator />
+
+              {/* Phase 4: Fuzzy de-anon mode (D-67) */}
+              <div className="space-y-1">
+                <label className="text-xs font-medium">{t('admin.pii.fuzzy.mode.label')}</label>
+                <select
+                  value={form.fuzzy_deanon_mode ?? 'none'}
+                  onChange={(e) =>
+                    updateField('fuzzy_deanon_mode', e.target.value as 'algorithmic' | 'llm' | 'none')
+                  }
+                  className={inputClass}
+                >
+                  <option value="none">{t('admin.pii.fuzzy.mode.none')}</option>
+                  <option value="algorithmic">{t('admin.pii.fuzzy.mode.algorithmic')}</option>
+                  <option value="llm">{t('admin.pii.fuzzy.mode.llm')}</option>
+                </select>
+              </div>
+
+              {/* Phase 4: Fuzzy threshold slider (D-69) */}
+              <div className="space-y-1">
+                <label className="text-xs font-medium">
+                  {t('admin.pii.fuzzy.threshold.label')}: {(form.fuzzy_deanon_threshold ?? 0.85).toFixed(2)}
+                </label>
+                <input
+                  type="range"
+                  min={0.50}
+                  max={1.00}
+                  step={0.05}
+                  value={form.fuzzy_deanon_threshold ?? 0.85}
+                  onChange={(e) =>
+                    updateField('fuzzy_deanon_threshold', parseFloat(e.target.value))
+                  }
+                  className="w-full"
+                />
+              </div>
 
               <Separator />
 

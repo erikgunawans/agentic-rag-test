@@ -430,6 +430,12 @@ export const translations: Record<Locale, Record<string, string>> = {
     'admin.pii.overrides.titleGen': 'Title generation',
     'admin.pii.overrides.metadata': 'Metadata extraction',
     'admin.pii.overrides.fuzzyDeanon': 'Fuzzy de-anonymization',
+    // Phase 4: Fuzzy de-anonymization (D-67..D-70)
+    'admin.pii.fuzzy.mode.label': 'Mode De-anonymization Fuzzy',
+    'admin.pii.fuzzy.mode.none': 'Nonaktif',
+    'admin.pii.fuzzy.mode.algorithmic': 'Algoritmik (Jaro-Winkler)',
+    'admin.pii.fuzzy.mode.llm': 'LLM',
+    'admin.pii.fuzzy.threshold.label': 'Ambang Kemiripan',
 
     // Obligations
     'nav.obligations': 'Kewajiban',
@@ -1003,6 +1009,12 @@ export const translations: Record<Locale, Record<string, string>> = {
     'admin.pii.overrides.titleGen': 'Title generation',
     'admin.pii.overrides.metadata': 'Metadata extraction',
     'admin.pii.overrides.fuzzyDeanon': 'Fuzzy de-anonymization',
+    // Phase 4: Fuzzy de-anonymization (D-67..D-70)
+    'admin.pii.fuzzy.mode.label': 'Fuzzy De-anonymization Mode',
+    'admin.pii.fuzzy.mode.none': 'Disabled',
+    'admin.pii.fuzzy.mode.algorithmic': 'Algorithmic (Jaro-Winkler)',
+    'admin.pii.fuzzy.mode.llm': 'LLM',
+    'admin.pii.fuzzy.threshold.label': 'Match Threshold',
 
     // Obligations
     'nav.obligations': 'Obligations',
