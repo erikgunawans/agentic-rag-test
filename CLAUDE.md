@@ -130,7 +130,7 @@ cd backend && source venv/bin/activate && python -c "from app.main import app; p
 - **PII Redaction (v0.3.0.0)**: Conversation-scoped detection + anonymization + de-anonymization. Toggle via `pii_redaction_enabled` system setting. When ON: incoming messages anonymized via Presidio + Faker (xx_ent_wiki_sm spaCy model), surrogates persisted in `entity_registry` table per-thread (migration 029), LLM only sees surrogates, response de-anonymized before user sees it. Cloud egress filter (`backend/app/services/redaction/egress.py`) blocks any cloud-LLM call where registry-known PII would leak. Per-feature provider override (entity resolution, missed-scan, fuzzy de-anon, title-gen, metadata) via admin UI, settings cached 60s. Off-mode is byte-identical to pre-v0.3 behavior (SC#5 invariant). Privacy invariant: real PII never reaches cloud-LLM payloads.
 
 ## Automations
-- **Hooks**: PostToolUse auto-lints .ts/.tsx (ESLint + tsc) and .py (py_compile + full import check). PreToolUse blocks .env edits and applied migration edits (001-031).
+- **Hooks**: PostToolUse auto-lints .ts/.tsx (ESLint + tsc) and .py (py_compile + full import check). PreToolUse blocks .env edits and applied migration edits (001-032).
 - **Skills**: `/deploy-lexcore` (full deploy pipeline), `/run-api-tests` (pytest + RAG eval golden set), `/create-migration` (numbered Supabase migration with RLS template)
 - **Agents**: `security-reviewer` (RLS bypass, missing auth, SQL injection, audit gaps), `rag-quality-reviewer` (retrieval pipeline correctness, RPC safety, cache keys)
 - **MCP**: context7 (live docs), Supabase (direct DB), Playwright (browser automation) — configured in `.mcp.json`
@@ -147,7 +147,7 @@ cd backend && source venv/bin/activate && python -c "from app.main import app; p
 - Supabase array containment filter: `.filter("col", "cs", "{value}")` not `.contains()`
 - Search params in PostgREST filters must sanitize commas and parentheses.
 - `get_current_user` makes a `user_profiles` DB call on every request (checks `is_active`, auto-creates for new signups).
-- Migrations are numbered sequentially (`001_` through `031_`). Use `/create-migration` to generate the next one. Never edit applied migrations (hook blocks 001-031).
+- Migrations are numbered sequentially (`001_` through `032_`). Use `/create-migration` to generate the next one. Never edit applied migrations (hook blocks 001-032).
 - Two `024_*.sql` files exist (knowledge_base_explorer + rag_improvements). Both are applied. Don't renumber.
 
 ## Workflow
@@ -167,7 +167,7 @@ cd backend && source venv/bin/activate && python -c "from app.main import app; p
 
 ## Progress
 
-Check PROGRESS.md for current status. Phase 1 (7/7), Phase 2 (5/5), Phase 3 (2/2) complete. BJR module shipped. LLM e2e test passed. RAG pipeline complete (8/8 hooks shipped): structure-aware chunking, vision OCR, custom embeddings, metadata pre-filtering, bilingual query expansion, weighted fusion, cross-encoder reranking (Cohere), graph reindex endpoint. **PII Redaction System v1.0 SHIPPED (v0.3.0.0, 2026-04-28)** — Phases 1-5 complete (detection, anonymization, conversation-scoped registry, entity resolution, fuzzy de-anon, chat-loop integration); Phase 6 (cross-process async-lock upgrade per D-31) remains. 31 migrations, 22 routers, 19 services.
+Check PROGRESS.md for current status. Phase 1 (7/7), Phase 2 (5/5), Phase 3 (2/2) complete. BJR module shipped. LLM e2e test passed. RAG pipeline complete (8/8 hooks shipped): structure-aware chunking, vision OCR, custom embeddings, metadata pre-filtering, bilingual query expansion, weighted fusion, cross-encoder reranking (Cohere), graph reindex endpoint. **PII Redaction System v1.0 SHIPPED (v0.3.0.0, 2026-04-28)** — Phases 1-5 complete (detection, anonymization, conversation-scoped registry, entity resolution, fuzzy de-anon, chat-loop integration); Phase 6 (cross-process async-lock upgrade per D-31) remains. 32 migrations, 22 routers, 19 services.
 
 ## graphify
 
