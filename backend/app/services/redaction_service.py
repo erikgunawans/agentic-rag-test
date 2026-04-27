@@ -384,13 +384,28 @@ class RedactionService:
             RedactionError: if the input contains the literal sentinel
                 substring ``<<UUID_`` (D-11). Surfaced from the UUID
                 pre-mask helper inside ``detect_entities``.
+
+        D-84 (Phase 5): when ``PII_REDACTION_ENABLED=false`` this method
+        returns an identity ``RedactionResult`` (input text unchanged,
+        ``entity_map`` empty, ``hard_redacted_count=0``, ``latency_ms=0.0``)
+        BEFORE any ``_get_thread_lock`` acquisition, NER call, or DB I/O.
+        Defense-in-depth alongside Plan 05-04's top-level branch in
+        ``chat.py``.
         """
-        # TODO(Phase 5): gate `if not get_settings().pii_redaction_enabled:
-        # return RedactionResult(anonymized_text=text, entity_map={},
-        #                        hard_redacted_count=0, latency_ms=0.0)`
-        # Phase 1 ships the flag in Settings (Plan 02) for forward-compat
-        # with Phase 5 SC#5; the gate goes here, not in callers, so every
-        # downstream consumer benefits automatically.
+        # Phase 5 D-84: lock-free off-mode early return.
+        # Defense-in-depth — chat.py top-level branch (Plan 05-04) also gates
+        # at the request boundary, but every other future caller of
+        # redact_text benefits automatically from this service-layer short-
+        # circuit. Runs BEFORE _get_thread_lock and BEFORE any logger /
+        # span attribute set, so off-mode produces zero log spam, zero
+        # contention, and zero observable PII (T-05-01-1 mitigation).
+        if not get_settings().pii_redaction_enabled:
+            return RedactionResult(
+                anonymized_text=text,
+                entity_map={},
+                hard_redacted_count=0,
+                latency_ms=0.0,
+            )
         if registry is None:
             # D-39: stateless legacy path. Phase 1 body unchanged.
             return await self._redact_text_stateless(text)
@@ -415,6 +430,113 @@ class RedactionService:
                 size_after - size_before,
             )
             return result
+
+    @traced(name="redaction.redact_text_batch")
+    async def redact_text_batch(
+        self,
+        texts: list[str],
+        registry: ConversationRegistry,
+    ) -> list[str]:
+        """D-92: single-asyncio.Lock-acquisition batch redaction primitive.
+
+        The Phase 5 chat-loop chokepoint (D-93) calls this ONCE per turn with
+        the full prior history + the new user message. Per-string NER runs
+        inside one held lock so the entire turn's anonymization is one
+        contention window, one batched DB upsert path. Returns anonymized
+        strings in the same order as input — D-93 reassembles history by
+        index, so order MUST be preserved (T-05-01-2).
+
+        Args:
+            texts: ordered list of raw input strings (e.g., history +
+                user_message). Empty list returns [] via the fast path.
+            registry: per-thread ConversationRegistry, already loaded by the
+                caller (Plan 05-04 chat.py event_generator). Required — the
+                batch primitive has no stateless mode (use ``redact_text``
+                with ``registry=None`` for that).
+
+        Returns:
+            anonymized: list of anonymized strings; ``len(anonymized) ==
+                len(texts)``; ``anonymized[i]`` is the surrogate-form of
+                ``texts[i]``.
+
+        Raises:
+            ValueError: if ``registry`` is None.
+
+        Off-mode (Phase 5 D-84): when ``PII_REDACTION_ENABLED=false``,
+        returns ``list(texts)`` — a shallow copy with no transformation.
+        No lock, no NER, no DB I/O.
+
+        Lock-hold semantics (T-05-01-3 — accepted): for N strings the lock
+        is held for the full batch (no release-between-strings). Phase 6
+        PERF-02 may revisit if profiling shows multi-second hold times
+        block concurrent same-thread turns.
+        """
+        # D-84 off-mode identity (defense-in-depth alongside redact_text's
+        # service-layer gate). Returns a shallow copy via list(...) so the
+        # caller cannot accidentally mutate the input through the result.
+        if not get_settings().pii_redaction_enabled:
+            return list(texts)
+
+        # Strict primitive: batch is the chat-loop chokepoint, not the
+        # stateless path. Plan 05-04's event_generator always loads a
+        # registry before calling this — None means a programming error.
+        if registry is None:
+            raise ValueError(
+                "redact_text_batch requires a loaded ConversationRegistry; "
+                "this primitive is the chat-loop chokepoint, not the "
+                "stateless path."
+            )
+
+        # Empty-input fast path — zero NER, zero lock acquisition.
+        if not texts:
+            return []
+
+        started = time.perf_counter()
+        lock = await self._get_thread_lock(registry.thread_id)
+        results: list[str] = []
+        hard_redacted_total = 0
+        # T-05-01-2 mitigation: single in-order for-loop, no asyncio.gather,
+        # no sorting — ``results[i]`` is always the redaction of ``texts[i]``.
+        async with lock:
+            for t in texts:
+                r = await self._redact_text_with_registry(t, registry)
+                results.append(r.anonymized_text)
+                hard_redacted_total += r.hard_redacted_count
+        elapsed_ms = (time.perf_counter() - started) * 1000.0
+
+        # D-41 / B4: counts and timings only — NEVER real values.
+        logger.debug(
+            "redaction.redact_text_batch: thread_id=%s batch_size=%d "
+            "hard_redacted_total=%d ms=%.2f",
+            registry.thread_id,
+            len(texts),
+            hard_redacted_total,
+            elapsed_ms,
+        )
+
+        # B4 + Phase 1 D-18 + Phase 2 D-41 + T-05-01-4: span attributes
+        # are batch_size (int), hard_redacted_total (int), latency_ms
+        # (float) ONLY. NEVER input/output text or surrogate values.
+        # Tracing MUST NEVER affect functional behavior — try/except
+        # mirrors the existing pattern inside _redact_text_with_registry.
+        try:
+            span = None
+            try:
+                from opentelemetry import trace as _otel_trace  # type: ignore[import-not-found]
+
+                span = _otel_trace.get_current_span()
+                if span is None or not getattr(span, "is_recording", lambda: False)():
+                    span = None
+            except Exception:
+                span = None
+            if span is not None:
+                span.set_attribute("batch_size", len(texts))
+                span.set_attribute("hard_redacted_total", hard_redacted_total)
+                span.set_attribute("latency_ms", elapsed_ms)
+        except Exception:
+            pass  # tracing must NEVER affect functional behavior
+
+        return results
 
     async def _redact_text_stateless(self, text: str) -> RedactionResult:
         """Phase 1 stateless redact path — registry=None ⇒ no clustering, no
