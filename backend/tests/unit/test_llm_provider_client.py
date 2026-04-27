@@ -36,6 +36,9 @@ class _StubRegistry:
     def entries(self):
         return self._mappings
 
+    def canonicals(self):
+        return self._mappings
+
 
 @pytest.fixture(autouse=True)
 def _clear_client_cache():
