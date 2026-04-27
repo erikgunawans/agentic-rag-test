@@ -333,6 +333,11 @@ async def stream_chat(
                 agent_tools = agent_service.get_agent_tools(agent_def, all_tools)
 
                 # 5. Sub-agent tool loop
+                # When redaction is ON: buffer tool_start/tool_result events and
+                # only flush after the loop completes without an EgressBlockedAbort.
+                # Prevents corrupt partial-turn UI state when a later iteration's
+                # egress filter trips after earlier tool events were already emitted.
+                tool_loop_buffer = []
                 async for event_type, data in _run_tool_loop(
                     messages, agent_tools, agent_def.max_iterations,
                     user["id"], tool_context,
@@ -342,8 +347,12 @@ async def stream_chat(
                 ):
                     if event_type == "records":
                         tool_records = data
+                    elif redaction_on:
+                        tool_loop_buffer.append(data)
                     else:
                         yield f"data: {json.dumps(data)}\n\n"
+                for buffered in tool_loop_buffer:
+                    yield f"data: {json.dumps(buffered)}\n\n"
 
                 # 6. Stream final text response
                 # Phase 5 D-94 site #2: pre-flight egress filter on branch A stream_response.
@@ -382,6 +391,11 @@ async def stream_chat(
                 tools = tool_service.get_available_tools() if settings.tools_enabled else []
 
                 # Agentic tool-calling loop
+                # When redaction is ON: buffer tool_start/tool_result events and
+                # only flush after the loop completes without an EgressBlockedAbort
+                # (defense-in-depth against PII leak via tool events emitted before
+                # a later iteration trips the egress filter).
+                tool_loop_buffer = []
                 async for event_type, data in _run_tool_loop(
                     messages, tools, settings.tools_max_iterations,
                     user["id"], tool_context,
@@ -391,8 +405,12 @@ async def stream_chat(
                 ):
                     if event_type == "records":
                         tool_records = data
+                    elif redaction_on:
+                        tool_loop_buffer.append(data)
                     else:
                         yield f"data: {json.dumps(data)}\n\n"
+                for buffered in tool_loop_buffer:
+                    yield f"data: {json.dumps(buffered)}\n\n"
 
                 # Stream final text response
                 # Phase 5 D-94 site #3: pre-flight egress filter on branch B stream_response.

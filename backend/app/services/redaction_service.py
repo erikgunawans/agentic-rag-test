@@ -48,6 +48,7 @@ Design invariants:
 from __future__ import annotations
 
 import asyncio
+import weakref
 import json
 import logging
 import re
@@ -89,7 +90,10 @@ logger = logging.getLogger(__name__)
 # asyncio.Lock is correct only while Railway runs a single Uvicorn worker.
 # The composite UNIQUE constraint `(thread_id, real_value_lower)` on the
 # entity_registry table (migration 029) is the cross-process safety net.
-_thread_locks: dict[str, asyncio.Lock] = {}
+#
+# WeakValueDictionary so locks GC when no coroutine holds them — prevents
+# unbounded growth as new thread_ids are seen over a long-running process.
+_thread_locks: weakref.WeakValueDictionary[str, asyncio.Lock] = weakref.WeakValueDictionary()
 _thread_locks_master: asyncio.Lock = asyncio.Lock()
 
 
