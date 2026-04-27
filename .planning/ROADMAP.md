@@ -103,7 +103,13 @@
   3. A `search_documents` call whose query mentions a registered surrogate runs against the index using the **real** value (de-anonymized before search) and returns results that are re-anonymized before the LLM sees them.
   4. A `query_database` (SQL) tool call and a text-search/grep tool call both exhibit the same symmetric pattern (de-anon input → execute → re-anon output) and a sub-agent invocation (document analyzer / KB explorer / nested explorer→sub-agent) shares the parent's redaction-service instance with no double-anonymization.
   5. With redaction disabled (`PII_REDACTION_ENABLED=false`), chat reverts to normal SSE streaming with no buffering, no status events, and no behavioural regression versus the pre-milestone baseline.
-**Plans**: TBD
+**Plans**: 6 plans across 4 waves (drafted 2026-04-27; verified PASS by gsd-plan-checker)
+  - [ ] **Wave 1** — 05-01-PLAN.md — `redaction_service.py` D-84 service-layer early-return gate + D-92 `redact_text_batch(texts, registry)` public method (BUFFER-01, TOOL-01..04)
+  - [ ] **Wave 2** — 05-02-PLAN.md — NEW `redaction/tool_redaction.py` recursive walker (D-91) + `tool_service.execute_tool` keyword-only `registry=None` + `redaction/__init__.py` re-export (TOOL-01..04)
+  - [ ] **Wave 2** — 05-03-PLAN.md — `agent_service.classify_intent` anonymized inputs + pre-flight egress wrapper (D-96 part) + retire stale Phase 4 D-80 per-thread TODOs (TOOL-04, BUFFER-01)
+  - [ ] **Wave 3** — 05-04-PLAN.md — `chat.py` full integration: D-83/84 gate, D-86 registry load, D-87 buffering, D-88 SSE events, D-89 skeleton tool events, D-90 graceful degrade, D-91 walker invocations, D-93 batch history anon, D-94 egress at 3 sites, D-96 title-gen → LLMProviderClient (BUFFER-01..03, TOOL-01..04)
+  - [ ] **Wave 3** — 05-05-PLAN.md — Frontend: `database.types.ts` `RedactionStatusEvent` variant + `useChatState.ts` dispatch case + spinner UI + i18n strings (BUFFER-02)
+  - [ ] **Wave 4** — 05-06-PLAN.md — pytest `test_phase5_integration.py` 7 test classes per D-97 (TestSC1_PrivacyInvariant, TestSC2_BufferingAndStatus, TestSC3_SearchDocumentsTool, TestSC4_SqlGrepAndSubAgent, TestSC5_OffMode, TestB4_LogPrivacy, TestEgressTrip_ChatPath)
 **UI hint**: yes
 
 ### Phase 6: Embedding Provider & Production Hardening
@@ -127,7 +133,7 @@
 | 2. Conversation-Scoped Registry & Round-Trip | 6/6 | Complete | 2026-04-26 |
 | 3. Entity Resolution & LLM Provider Configuration | 0/7 | Plans drafted | — |
 | 4. Fuzzy De-anonymization, Missed-PII Scan & Prompt Guidance | 0/7 | Plans drafted | — |
-| 5. Chat-Loop Integration (Buffering, SSE Status, Tool/Sub-Agent Coverage) | 0/0 | Not started | — |
+| 5. Chat-Loop Integration (Buffering, SSE Status, Tool/Sub-Agent Coverage) | 0/6 | Plans drafted | — |
 | 6. Embedding Provider & Production Hardening | 0/0 | Not started | — |
 
 ## Completed Phases (Pre-GSD)
