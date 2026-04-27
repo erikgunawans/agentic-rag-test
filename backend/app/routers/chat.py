@@ -270,7 +270,10 @@ async def stream_chat(
         # When OFF: identity passthrough — anonymized_history is the loaded
         # `history`, anonymized_message is body.message. No registry load,
         # no SSE redaction events, no buffering. SC#5 byte-identical baseline.
-        redaction_on = settings.pii_redaction_enabled
+        # Plan 05-08: redaction toggle migrated from config.py env var to
+        # system_settings DB column (admin-toggleable, 60s cached). sys_settings
+        # is loaded above at line ~121 — single read per turn; no extra DB hit.
+        redaction_on = bool(sys_settings.get("pii_redaction_enabled", True))
         redaction_service = get_redaction_service()
         if redaction_on:
             # D-86: ConversationRegistry.load called ONCE per turn (chokepoint).
@@ -378,9 +381,10 @@ async def stream_chat(
             else:
                 # --- Single-agent path (Module 7 behavior) ---
                 # Phase 4 D-79/D-80: append PII guidance to SYSTEM_PROMPT when
-                # redaction is enabled. Phase 5 will swap to per-thread flag.
+                # redaction is enabled. Plan 05-08: use the local redaction_on
+                # variable (sourced from sys_settings DB column, not config.py).
                 pii_guidance = get_pii_guidance_block(
-                    redaction_enabled=settings.pii_redaction_enabled,
+                    redaction_enabled=redaction_on,
                 )
                 messages = (
                     [{"role": "system", "content": SYSTEM_PROMPT + pii_guidance}]
