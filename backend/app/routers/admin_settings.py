@@ -43,6 +43,10 @@ class SystemSettingsUpdate(BaseModel):
     # Phase 4 forward-compat (column shipped in Phase 3 to avoid migration churn)
     pii_missed_scan_enabled: bool | None = None
 
+    # Phase 4: Fuzzy de-anonymization (D-67..D-70)
+    fuzzy_deanon_mode: Literal["algorithmic", "llm", "none"] | None = None
+    fuzzy_deanon_threshold: float | None = Field(default=None, ge=0.50, le=1.00)
+
 
 @router.get("/settings")
 async def get_settings(user: dict = Depends(require_admin)):
