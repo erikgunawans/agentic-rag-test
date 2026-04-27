@@ -68,6 +68,7 @@ from app.services.redaction.clustering import Cluster, cluster_persons, variants
 from app.services.redaction.detection import Entity, detect_entities, get_analyzer
 from app.services.redaction.egress import _EgressBlocked
 from app.services.redaction.fuzzy_match import best_match
+from app.services.redaction.missed_scan import scan_for_missed_pii
 from app.services.redaction.registry import ConversationRegistry, EntityMapping
 
 # W10: the UUID pre-mask helper is intentionally NOT imported here. It is
@@ -467,6 +468,7 @@ class RedactionService:
         self,
         text: str,
         registry: ConversationRegistry,
+        _scan_rerun_done: bool = False,  # NEW (D-76 single-re-run cap)
     ) -> RedactionResult:
         """Registry-aware redact path. Caller holds the per-thread lock.
 
@@ -528,6 +530,28 @@ class RedactionService:
             registry=registry,
         )
         anonymized_text = restore_uuids(anonymized_masked, sentinels)
+
+        # ==============================================================
+        # Phase 4 D-75: auto-chain missed-PII scan unless this is the re-run
+        # pass. Runs INSIDE the per-thread asyncio.Lock the caller holds
+        # (lock is acquired in `redact_text` outside this method, so the
+        # re-entrant call below does NOT re-acquire — no deadlock).
+        # D-76: single-re-run cap — after one re-run, do NOT scan again.
+        # ==============================================================
+        scan_replacements = 0
+        if not _scan_rerun_done:
+            scanned_text, scan_replacements = await scan_for_missed_pii(
+                anonymized_text, registry
+            )
+            if scan_replacements > 0 and scanned_text != anonymized_text:
+                # D-76 / FR-8.5: full re-run of redact_text on the modified
+                # text. Re-entrant call computes a fresh delta + upsert
+                # against the new surrogate positions. The
+                # `_scan_rerun_done=True` kwarg prevents unbounded recursion
+                # (single re-run cap; second pass cannot trigger a third).
+                return await self._redact_text_with_registry(
+                    scanned_text, registry, _scan_rerun_done=True
+                )
 
         # ==============================================================
         # Step 6: delta computation (D-32 / D-48).
@@ -620,6 +644,32 @@ class RedactionService:
             fallback_reason or "-",
             latency_ms,
         )
+
+        # Phase 4 D-63 / B4: span attributes — counts/flags ONLY, never
+        # real values. Tracing MUST NEVER affect functional behavior; any
+        # exception (no active span, provider not configured, OTel/langfuse
+        # not installed) is swallowed.
+        try:
+            span = None
+            try:
+                from opentelemetry import trace as _otel_trace  # type: ignore[import-not-found]
+                span = _otel_trace.get_current_span()
+                if span is None or not getattr(span, "is_recording", lambda: False)():
+                    span = None
+            except Exception:
+                span = None
+            if span is not None:
+                span.set_attribute(
+                    "missed_scan_enabled",
+                    bool(get_settings().pii_missed_scan_enabled),
+                )
+                span.set_attribute(
+                    "missed_scan_replacements",
+                    int(scan_replacements) if not _scan_rerun_done else 0,
+                )
+                span.set_attribute("scan_rerun_pass", bool(_scan_rerun_done))
+        except Exception:
+            pass  # tracing must NEVER affect functional behavior
 
         return RedactionResult(
             anonymized_text=anonymized_text,
