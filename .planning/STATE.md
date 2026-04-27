@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-last_updated: "2026-04-27T04:33:40.398Z"
+last_updated: "2026-04-27T04:46:55.013Z"
 last_activity: 2026-04-27
 progress:
   total_phases: 6
-  completed_phases: 3
-  total_plans: 27
-  completed_plans: 20
-  percent: 74
+  completed_phases: 2
+  total_plans: 20
+  completed_plans: 21
+  percent: 100
 ---
 
 # State: LexCore
@@ -59,7 +59,7 @@ Verification: passed (5/5 SCs, 11/11 REQ-IDs)
 
 ## Blockers
 
-(None.)
+()
 
 ---
 *Initialized: 2026-04-25 after `/gsd-new-project` brownfield bootstrap*
@@ -81,3 +81,7 @@ Verification: passed (5/5 SCs, 11/11 REQ-IDs)
 *Updated: 2026-04-27 — Phase 4 context gathered ✓: 4 gray areas resolved across 16 questions, 16 implementation decisions (D-67..D-82) in `04-CONTEXT.md`. Areas: fuzzy algorithm/library/threshold/normalization (D-67..D-70), 3-phase pipeline integration (D-71..D-74), missed-PII scan placement (D-75..D-78), system-prompt guidance (D-79..D-82). Locks: rapidfuzz library (transitive Presidio dep), per-cluster variant scoping, FUZZY_DEANON_THRESHOLD=0.85 default + DB column, in-place upgrade of de_anonymize_text with mode param, placeholder-tokenized text in / JSON `[{span,token}]` out for LLM mode, hard-redact survival inherited from Phase 2 D-24/REG-05, auto-chain missed-scan inside redact_text, full re-run on replacement (single re-run cap), `[{type,text}]` server-substring-match schema, soft-fail with warn-log + span tag + counter metric, centralized prompt-guidance helper appended in chat.py + agent_service.py, conditional on per-thread redaction-enabled flag, English-only phrasing, imperative + type list + [TYPE] warning + examples. New migration 031 plans `fuzzy_deanon_mode` + `fuzzy_deanon_threshold` columns. Ready for /gsd-plan-phase 4.*
 
 **Next Phase:** 4 — Fuzzy De-anonymization, Missed-PII Scan & Prompt Guidance — context gathered, ready to plan
+
+- Phase 4 plan 04-01 Task 3 (live Supabase DB apply of migration 031) pending orchestrator MCP apply — executor agent does not have mcp__claude_ai_Supabase__apply_migration in tool registry. Migration file ready at supabase/migrations/031_pii_fuzzy_settings.sql.
+
+*Updated: 2026-04-27 — Phase 4 plan 04-01 PARTIAL ✦: Tasks 1+2 SHIPPED (commits `53bdb9d` config.py +Field import +2 Settings fields with Pydantic Literal+Field(ge,le) validation, `4f0d724` supabase/migrations/031_pii_fuzzy_settings.sql with mode CHECK + threshold range CHECK + comments). Task 3 (live Supabase apply via MCP) PENDING — executor agent has no mcp__claude_ai_Supabase__apply_migration in registry (same gap as Phase 3 plan 03-02). Live REST probe confirms columns absent (PG 42703); apply queries pre-staged in `04-01-SUMMARY.md`. SUMMARY at `.planning/phases/04-fuzzy-de-anonymization-missed-pii-scan-prompt-guidance/04-01-SUMMARY.md`.*
