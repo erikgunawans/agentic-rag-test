@@ -700,7 +700,7 @@ class RedactionService:
                 if vlow in seen_lower:
                     continue
                 seen_lower.add(vlow)
-                if vlow in registry._by_lower:
+                if registry.contains_lower(vlow):
                     continue  # already persisted (cross-turn or earlier in this call)
                 deltas.append(
                     EntityMapping(
@@ -725,7 +725,7 @@ class RedactionService:
             if elow in seen_lower:
                 continue
             seen_lower.add(elow)
-            if elow in registry._by_lower:
+            if registry.contains_lower(elow):
                 continue  # already persisted
             deltas.append(
                 EntityMapping(

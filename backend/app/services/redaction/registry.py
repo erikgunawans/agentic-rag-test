@@ -79,6 +79,7 @@ class ConversationRegistry:
         self._by_lower: dict[str, EntityMapping] = {
             m.real_value_lower: m for m in self._rows
         }
+        self._forbidden_tokens_cache: set[str] | None = None
 
     @classmethod
     async def load(cls, thread_id: str) -> "ConversationRegistry":
@@ -123,6 +124,10 @@ class ConversationRegistry:
         """Read-only thread_id this registry is bound to."""
         return self._thread_id
 
+    def contains_lower(self, real_value_lower: str) -> bool:
+        """O(1) check: is a casefold'd real value already in the registry?"""
+        return real_value_lower in self._by_lower
+
     def lookup(self, real_value: str) -> str | None:
         """Case-insensitive lookup of an existing surrogate.
 
@@ -156,12 +161,12 @@ class ConversationRegistry:
         and the cost of building a thread-wide forbidden set across all
         types is wasted.
         """
+        if self._forbidden_tokens_cache is not None:
+            return self._forbidden_tokens_cache
         person_reals = [m.real_value for m in self._rows if m.entity_type == "PERSON"]
-        # Strip honorifics first — same as Phase 1 anonymization.py (L47 honorifics
-        # import + the call site near L262) so e.g. "Pak" doesn't accidentally
-        # land in the forbidden set.
         bare_names = [strip_honorific(name)[1] for name in person_reals]
-        return extract_name_tokens(bare_names)
+        self._forbidden_tokens_cache = extract_name_tokens(bare_names)
+        return self._forbidden_tokens_cache
 
     async def upsert_delta(self, deltas: list[EntityMapping]) -> None:
         """Persist newly-introduced mappings to the entity_registry table (D-32).
@@ -223,10 +228,15 @@ class ConversationRegistry:
         # overwrite existing in-memory entries even if the caller passed a
         # delta whose real_value_lower somehow already exists (shouldn't
         # happen — the caller diffs against registry first — but be safe).
+        added_person = False
         for m in deltas:
             if m.real_value_lower not in self._by_lower:
                 self._rows.append(m)
                 self._by_lower[m.real_value_lower] = m
+                if m.entity_type == "PERSON":
+                    added_person = True
+        if added_person:
+            self._forbidden_tokens_cache = None
 
         logger.debug(
             "registry.upsert_delta: thread_id=%s wrote=%d size_after=%d",

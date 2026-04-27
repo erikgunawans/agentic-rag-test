@@ -70,8 +70,8 @@ def best_match(
     """
     if not variants:
         return None
-    best_var = max(variants, key=lambda v: fuzzy_score(candidate, v))
-    best_score = fuzzy_score(candidate, best_var)
+    scored = [(fuzzy_score(candidate, v), v) for v in variants]
+    best_score, best_var = max(scored)
     if best_score >= threshold:
         return best_var, best_score
     return None
