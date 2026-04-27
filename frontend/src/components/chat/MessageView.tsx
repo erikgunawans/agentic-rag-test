@@ -147,7 +147,7 @@ export function MessageView({
               <ToolCallCard
                 key={`active-${i}`}
                 tool={at.tool}
-                input={at.input}
+                input={at.input ?? {}}
                 isLoading={true}
               />
             ))}
