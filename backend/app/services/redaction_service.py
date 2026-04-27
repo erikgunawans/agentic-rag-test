@@ -53,8 +53,9 @@ import logging
 import re
 import time
 from functools import lru_cache
+from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from app.config import get_settings
 from app.services.llm_provider import LLMProviderClient
@@ -66,6 +67,7 @@ from app.services.redaction.anonymization import (
 from app.services.redaction.clustering import Cluster, cluster_persons, variants_for
 from app.services.redaction.detection import Entity, detect_entities, get_analyzer
 from app.services.redaction.egress import _EgressBlocked
+from app.services.redaction.fuzzy_match import best_match
 from app.services.redaction.registry import ConversationRegistry, EntityMapping
 
 # W10: the UUID pre-mask helper is intentionally NOT imported here. It is
@@ -117,6 +119,31 @@ class RedactionResult(BaseModel):
     entity_map: dict[str, str]
     hard_redacted_count: int
     latency_ms: float
+
+
+# Phase 4 D-73: LLM fuzzy-match response schema. Server validates membership
+# of `token` against Pass-1 placeholders dict (extra defense beyond Pydantic).
+# `extra="forbid"` rejects spurious fields the LLM might invent; `pattern` on
+# `token` shape-checks that returned tokens look like Pass 1 placeholders.
+class _FuzzyMatch(BaseModel):
+    """One LLM-fuzzy-match candidate (D-73)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    span: str = Field(..., min_length=1, max_length=500)
+    token: str = Field(..., pattern=r"^<<PH_[0-9a-f]+>>$")
+
+
+class _FuzzyMatchResponse(BaseModel):
+    """LLM fuzzy-match response — Pydantic-validated payload (D-73).
+
+    Cap of 50 matches per call is generous for normal chat turns and limits
+    blast radius from a misbehaving / adversarial provider response.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    matches: list[_FuzzyMatch] = Field(default_factory=list, max_length=50)
 
 
 def _split_person_non_person(
@@ -606,28 +633,52 @@ class RedactionService:
         self,
         text: str,
         registry: ConversationRegistry,
+        mode: Literal["algorithmic", "llm", "none"] | None = None,  # NEW (D-71)
     ) -> str:
-        """D-34: 1-phase placeholder-tokenized round-trip (DEANON-01 / DEANON-02).
+        """3-phase placeholder-tokenized de-anonymization pipeline (D-71..D-74).
 
-        Forward-compat with Phase 4's 3-phase fuzzy upgrade (FR-5.4) — Phase 4
-        will insert its placeholder-tokenized fuzzy-match pass BETWEEN the
-        existing two passes (surrogate→placeholder, placeholder→real) without
-        rewriting this call site.
+        Pass 1: replace each known surrogate with an opaque <<PH_xxxx>> token
+                (existing Phase 2 behavior).
+        Pass 2: when mode='algorithmic' or 'llm', match remaining text against
+                this thread's cluster variants and replace mangled forms with
+                the corresponding placeholder (NEW in Phase 4 D-72).
+        Pass 3: replace each <<PH_xxxx>> with its real value (existing Phase 2
+                behavior).
 
-        Algorithm:
-          1. Sort registry entries by ``len(surrogate_value)`` DESC — guarantees
-             longest match wins, prevents partial-overlap corruption when
-             surrogates share token prefixes (e.g. "Bambang Sutrisno" must be
-             replaced before "Bambang").
-          2. Pass 1: surrogate → placeholder token (case-insensitive per
-             DEANON-02 via ``re.IGNORECASE``).
-          3. Pass 2: placeholder → real_value (original casing preserved per
-             D-36).
+        When mode='none' (default per Settings.fuzzy_deanon_mode), Pass 2 is
+        skipped — behavior is identical to Phase 2 (DEANON-01 / DEANON-02 hold).
 
-        D-35: hard-redact placeholders (``[CREDIT_CARD]``, ``[US_SSN]``, etc.)
-        pass through unchanged because they are NEVER in the registry (D-24 /
-        REG-05). They are simply not matched by Pass 1.
+        Pass 1 sorts registry entries by ``len(surrogate_value)`` DESC then by
+        ``len(real_value)`` DESC so the longest surrogate match wins, which
+        prevents partial-overlap corruption when surrogates share token prefixes
+        and ensures D-48 sub-surrogate variants don't shadow canonical real
+        values during placeholder→real mapping.
+
+        D-35 / D-74: hard-redact placeholders (``[CREDIT_CARD]``, ``[US_SSN]``,
+        etc.) pass through unchanged in all 3 modes because they are NEVER in
+        the registry (Phase 2 D-24 / REG-05) — Pass 1 cannot mint a placeholder
+        for them; Pass 2 variants come from the registry and cannot include
+        them; Pass 3 only resolves <<PH_xxxx>> tokens.
+
+        Args:
+            text: surrogate-bearing text from the LLM.
+            registry: per-thread ConversationRegistry (already loaded; no DB
+                I/O happens in this method).
+            mode: optional explicit override per D-71 — None resolves to
+                Settings.fuzzy_deanon_mode (default 'none').
+
+        Returns:
+            Same text with surrogates resolved to real values; hard-redact
+            ``[ENTITY_TYPE]`` placeholders survive unchanged in all modes
+            (D-74 — structural per Phase 2 D-24).
         """
+        # Phase 4 D-71: resolve effective mode (param wins; falls back to
+        # Settings.fuzzy_deanon_mode, which 60s-TTL cached per Phase 2 D-21).
+        settings = get_settings()
+        if mode is None:
+            mode = settings.fuzzy_deanon_mode  # 'algorithmic' | 'llm' | 'none'
+        threshold = settings.fuzzy_deanon_threshold
+
         t0 = time.perf_counter()
         entries = registry.entries()
         # Sort by len(surrogate_value) DESC — longest surrogate match wins
