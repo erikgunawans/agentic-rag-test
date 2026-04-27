@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: ready_to_plan
-last_updated: "2026-04-26T07:55:00.000Z"
-last_activity: 2026-04-26
+last_updated: "2026-04-27T03:43:00.000Z"
+last_activity: 2026-04-27
 progress:
   total_phases: 6
   completed_phases: 3
@@ -28,8 +28,8 @@ Phase: 3 — COMPLETE ✅ (Entity Resolution & LLM Provider Configuration)
 Verification: passed (5/5 SCs, 11/11 REQ-IDs)
 
 - **Next phase:** 4 — Fuzzy De-anonymization, Missed-PII Scan & Prompt Guidance
-- **Status:** Ready to plan (Phase 4)
-- **Last activity:** 2026-04-26
+- **Status:** Ready to plan (Phase 4) — context gathered, 16 decisions captured
+- **Last activity:** 2026-04-27
 
 ## Accumulated Context
 
@@ -78,4 +78,6 @@ Verification: passed (5/5 SCs, 11/11 REQ-IDs)
 
 *Updated: 2026-04-26 — Phase 3 EXECUTION COMPLETE ✅: 7 plans across 6 waves; all 11 REQ-IDs (RESOLVE-01..04, PROVIDER-01..07) SATISFIED; 5/5 ROADMAP SCs verified. 79/79 tests pass (Phase 1+2 regression 39 + Phase 3 unit 32 + Phase 3 API 8). Migration 030_pii_provider_settings applied to live Supabase qedhulpfezucnfadlfiz (9 columns + 7 CHECK constraints). Egress filter blocks raw PII pre-cloud-SDK; algorithmic fallback on provider failure (D-52/D-54). Admin UI surfaces all 9 PII settings + 2 status badges. Verification: `.planning/phases/03-entity-resolution-llm-provider-configuration/03-VERIFICATION.md` (status: passed). Next: Phase 4 (FUZZY-01..03, MISSED-01..03, PROMPT-01..03).*
 
-**Next Phase:** 4 — Fuzzy De-anonymization, Missed-PII Scan & Prompt Guidance — ready to discuss/plan
+*Updated: 2026-04-27 — Phase 4 context gathered ✓: 4 gray areas resolved across 16 questions, 16 implementation decisions (D-67..D-82) in `04-CONTEXT.md`. Areas: fuzzy algorithm/library/threshold/normalization (D-67..D-70), 3-phase pipeline integration (D-71..D-74), missed-PII scan placement (D-75..D-78), system-prompt guidance (D-79..D-82). Locks: rapidfuzz library (transitive Presidio dep), per-cluster variant scoping, FUZZY_DEANON_THRESHOLD=0.85 default + DB column, in-place upgrade of de_anonymize_text with mode param, placeholder-tokenized text in / JSON `[{span,token}]` out for LLM mode, hard-redact survival inherited from Phase 2 D-24/REG-05, auto-chain missed-scan inside redact_text, full re-run on replacement (single re-run cap), `[{type,text}]` server-substring-match schema, soft-fail with warn-log + span tag + counter metric, centralized prompt-guidance helper appended in chat.py + agent_service.py, conditional on per-thread redaction-enabled flag, English-only phrasing, imperative + type list + [TYPE] warning + examples. New migration 031 plans `fuzzy_deanon_mode` + `fuzzy_deanon_threshold` columns. Ready for /gsd-plan-phase 4.*
+
+**Next Phase:** 4 — Fuzzy De-anonymization, Missed-PII Scan & Prompt Guidance — context gathered, ready to plan
