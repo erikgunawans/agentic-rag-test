@@ -2,13 +2,13 @@
 
 The evolution of Knowledge Hub, from a RAG learning project to a legal document intelligence platform.
 
-## Current Product: Knowledge Hub v1.0
+## Current Product: LexCore v2.1 (codename Knowledge Hub)
 
-**What it is:** An AI-powered legal document workspace for Indonesian professionals. Chat with your documents, generate contracts, compare versions, check compliance, and analyze risks.
+**What it is:** An AI-powered legal document workspace for Indonesian professionals. Chat with your documents, generate contracts, compare versions, check compliance, analyze risks, all with privacy-first PII handling that keeps real names, emails, and phone numbers out of cloud-LLM payloads.
 
-**Target market:** Indonesian legal professionals, compliance officers, and business teams who work with contracts, NDAs, and regulatory documents daily.
+**Target market:** Indonesian legal professionals, compliance officers, and business teams who work with contracts, NDAs, and regulatory documents daily, especially those subject to UU PDP and OJK data-residency requirements.
 
-**Status:** Feature-complete (v2.0), deployed (Vercel + Railway), RAG pipeline 8/8 shipped, BJR governance module live, UU PDP toolkit live, 27 migrations, 22 routers.
+**Status:** Feature-complete (v2.1, semver 0.3.0.0), deployed (Vercel + Railway). RAG pipeline 8/8 shipped, BJR governance live, UU PDP toolkit live, **PII Redaction System v1.0 live (Phases 1-5 of 6 complete; Phase 6 cross-process async-lock upgrade remaining)**. 31 migrations, 22 routers, 19 services. Backend Railway deploy is manual via `railway up`; frontend Vercel deploys from `main` branch.
 
 ---
 
@@ -99,6 +99,31 @@ F13: compliance snapshots with timeline view + diff comparison. F14: UU PDP tool
 
 8 RAG hooks: structure-aware chunking, vision OCR for scanned PDFs, custom embedding models, metadata pre-filtering (tags/folder/date), bilingual query expansion, weighted RRF fusion, Cohere Rerank v2, graph re-indexing. Plus: RAG evaluation golden set, Claude Code automations (.mcp.json, hooks, skills, agents).
 
+### Phase 10: PII Redaction System v1.0
+**Period:** 2026-04-26 to 2026-04-28 (semver v0.3.0.0; GSD milestone v1.0)
+**Focus:** Privacy-first PII handling for cloud-LLM calls
+
+Shipped the privacy invariant: real PII (names, emails, phones, locations, dates, URLs, IPs) never reaches cloud-LLM payloads. Indonesian-aware detection via Presidio + spaCy `xx_ent_wiki_sm` with honorifics (Pak/Bu/Bpk/Ibu/Sdr/Sdri) and gender-matched Faker surrogates. Phases 1-5 complete (detection, conversation-scoped registry, entity resolution, fuzzy de-anonymization, chat-loop integration). Phase 6 (cross-process async-lock upgrade per D-31, `pg_advisory_xact_lock`) deferred. 256/256 tests pass at ship.
+
+**Key decisions:**
+- Conversation-scoped registry (`entity_registry` table, migration 029) instead of session-scoped or global, so the same real value always maps to the same surrogate within a thread (REG-04 / FR-3.4)
+- Pre-flight egress filter is the security primitive: any cloud-LLM call passes through `egress_filter()` before bytes leave the process; a registry-known PII match in the payload aborts the call
+- Per-feature LLM provider overrides (entity resolution, missed-scan, fuzzy de-anon, title-gen, metadata) over a single global provider, so an admin can route privacy-sensitive auxiliary calls to the local LM Studio endpoint while keeping cheap/non-sensitive calls cloud-bound
+- Off-mode (`pii_redaction_enabled=false`) is byte-identical to pre-v0.3 behavior (SC#5 invariant) — zero cost when disabled
+- 3-phase de-anonymization (Pass 1 longest-surrogate-first registry lookup, Pass 2 optional Jaro-Winkler fuzzy match, Pass 3 substitution) handles slightly-mangled LLM output ("M. Smyth" → "Marcus Smith")
+- Buffered SSE delivery when redaction is on (batch de-anon at end of turn) over progressive delta streaming
+- Tool I/O symmetry walker (`anonymize_tool_output` / `deanonymize_tool_args`) so tool calls round-trip surrogates correctly across the LLM ↔ tool ↔ LLM boundary
+- Hard-redact entity types (CREDIT_CARD, US_SSN, etc.) emit `[ENTITY_TYPE]` placeholders, never registered, never round-trippable — intentionally one-way
+
+**Infrastructure additions:**
+- 3 migrations: 029 `entity_registry` table (RLS service-role-only), 030 9 PII provider columns on `system_settings`, 031 fuzzy de-anon mode + threshold
+- New service modules: `redaction/{registry, anonymization, clustering, egress, fuzzy_match, missed_scan, nicknames_id, prompt_guidance, tool_redaction, detection, name_extraction, honorifics, gender_id, uuid_filter, errors}.py`
+- `LLMProviderClient` with provider-aware branching (`local` / `cloud`) and egress wrapping
+- Admin UI: 14 new settings in PII section at `/admin/settings`
+- `chat.py` grew 291 → 517 LOC with full privacy wiring: per-turn registry lifecycle, batched history anon, tool walker wrap, 3 egress guard sites, redaction_status SSE events
+
+**Production deploy gotcha:** spaCy model must be downloaded at Docker build time (Dockerfile `RUN python -m spacy download xx_ent_wiki_sm` before USER switch); runtime download fails as non-root user. Procfile release hooks are ignored when Dockerfile is present. Backend deploys are manual via `railway up`, not git-push-triggered.
+
 ---
 
 ## Feature Matrix
@@ -147,6 +172,17 @@ F13: compliance snapshots with timeline view + diff comparison. F14: UU PDP tool
 | Graph re-indexing | Shipped | Phase 9 | POST endpoint for backfilling graph data |
 | RAG evaluation | Shipped | Phase 9 | 20-query golden set with MRR + hit rate |
 | LLM e2e pipeline | Validated | Phase 5 | Upload → embed → RAG chat → tool-calling → streaming verified |
+| PII detection (Presidio) | Shipped | Phase 10 | Indonesian-aware: PERSON/EMAIL/PHONE/LOCATION/DATE/URL/IP, honorifics-stripped, UUID-pre-masked |
+| PII anonymization (Faker surrogates) | Shipped | Phase 10 | Gender-matched surrogates, no-collision guard, hard-redact bucket for sensitive types |
+| Conversation-scoped registry | Shipped | Phase 10 | Per-thread real↔surrogate mapping, persisted in `entity_registry` (migration 029), survives restart |
+| Entity resolution (Union-Find) | Shipped | Phase 10 | Three modes: algorithmic / llm / none. Indonesian nickname dictionary, partial-name + title-stripped coreference |
+| Cloud egress filter | Shipped | Phase 10 | Pre-flight regex match against registry; aborts cloud-LLM call on PII match (B4 invariant: counts/hashes only in logs) |
+| Per-feature LLM provider overrides | Shipped | Phase 10 | Admin routes entity resolution / missed-scan / fuzzy de-anon / title-gen / metadata to local or cloud independently |
+| Fuzzy de-anonymization | Shipped | Phase 10 | Jaro-Winkler match for slightly-mangled LLM output (e.g. "M. Smyth" → "Marcus Smith") |
+| Missed-PII scan (auto-chain) | Shipped | Phase 10 | Optional secondary LLM scan re-redacts entities Presidio missed |
+| Tool I/O symmetry walker | Shipped | Phase 10 | Tool args de-anonymized before execute, output anonymized after; recursive dict/list walk |
+| Buffered SSE redaction status | Shipped | Phase 10 | `redaction_status:anonymizing` / `:deanonymizing` events; batched delta on turn complete |
+| Cross-process async-lock | Pending | Phase 11 | D-31 upgrade: `pg_advisory_xact_lock(hashtext(thread_id))` for multi-worker correctness |
 
 ---
 
@@ -197,6 +233,7 @@ F13: compliance snapshots with timeline view + diff comparison. F14: UU PDP tool
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| v2.1 | 2026-04-28 | PII Redaction System v1.0 (Phases 1-5 of 6 complete). Privacy invariant: real PII never reaches cloud-LLM payloads. Conversation-scoped registry, pre-flight egress filter, fuzzy de-anonymization, chat-loop integration. Semver `0.3.0.0`. |
 | v2.0 | 2026-04-20 | RAG pipeline 8/8, Claude Code automations, CLAUDE.md 100/100, pre-ship pipeline |
 | v1.3 | 2026-04-18 | Embedding fine-tuning infra, GraphRAG, vision OCR, knowledge base explorer |
 | v1.2 | 2026-04-17 | Phase 3 complete (PIT compliance + UU PDP), BJR governance shipped + hardened |

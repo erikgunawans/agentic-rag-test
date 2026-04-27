@@ -1,6 +1,25 @@
 # Progress
 
-PJAA CLM Platform (LexCore) v0.2.0.0. PII Redaction milestone v1.0 Phase 5 COMPLETE. All 5 phases done (Phases 1-5 of 6). 256/256 tests pass. chat.py has full privacy integration (517 LOC). 22 routers, 18 services. 28 migrations applied. Railway + Vercel deployed.
+PJAA CLM Platform (LexCore) **v0.3.0.0 SHIPPED 2026-04-28**. PII Redaction milestone v1.0 (Phases 1-5) live in production. 246/246 tests pass. chat.py: 517 LOC full privacy integration. 22 routers, 18 services, 31 migrations. HEAD `a2ec1f0`. Backend (Railway) + Frontend (Vercel) both healthy. 1-week health check scheduled (`trig_01A1ZRy1m5TaCcvwiPZdXHx9`, fires 2026-05-05T02:00Z).
+
+## Checkpoint 2026-04-28 (v0.3.0.0 SHIPPED — PII Redaction milestone v1.0 in production)
+
+- **Session:** /pre-ship pipeline (simplify + review) → /ship → deploy fix → schedule follow-up agent
+- **Branch:** master (`a2ec1f0`), pushed to origin/master + origin/main
+- **Done:**
+  - **/simplify** (`c20931b`): 3 fixes — `best_match` double-score, `registry._by_lower` private access → `contains_lower()`, `forbidden_tokens()` cache + invalidation on PERSON upserts
+  - **/review auto-fix** (`2962be7`): 4 items — `entity_resolution_mode` else→explicit elif+raise, migrations 030/031 `public.` schema qualifier, 6 new unit tests (contains_lower, forbidden_tokens cache, upsert_delta error propagation, empty-registry edge cases)
+  - **/review ASK fix** (`38731fa`): 3 items — SSE tool-loop buffering when redaction_on (prevents partial-turn UI corruption when egress trips mid-tool-call), `_thread_locks` → WeakValueDictionary (memory leak fix), 4 admin 403 HTTP-level tests
+  - **/ship** (`f65abd5`): VERSION 0.2.0.0 → 0.3.0.0, CHANGELOG entry, 18 milestone docs (Phase 1 PLANs, 02-VERIFICATION, 05-UAT, 3 PRDs, AGENTS.md), pushed to master + main
+  - **Deploy fix** (`a2ec1f0`): `RUN python -m spacy download xx_ent_wiki_sm` added to backend/Dockerfile (build time, before USER switch). Production was 502-looping on missing model — runtime download fails as non-root `app`. Procfile release hook ignored when Dockerfile present.
+  - **Backend deploy:** `cd backend && railway up` (manual; this project does NOT auto-deploy on push). Build 8 steps, 55s, deploy complete, /health → `{"status":"ok"}`.
+  - **Frontend deploy:** Vercel auto-deployed from main push. HTTP 200 confirmed.
+  - **Follow-up agent scheduled:** `trig_01A1ZRy1m5TaCcvwiPZdXHx9` fires Tue 2026-05-05 09:00 WIB. 5-check health audit with Supabase MCP for entity_registry verification. Opens P0 `pii-regression` issue if any check fails.
+- **Files changed:** `VERSION`, `CHANGELOG.md`, `PROGRESS.md`, `backend/Dockerfile`, `backend/app/routers/chat.py`, `backend/app/services/redaction_service.py`, `backend/app/services/redaction/{egress,fuzzy_match,registry}.py`, `supabase/migrations/{030,031}_*.sql`, `backend/tests/unit/{test_admin_settings_auth,test_conversation_registry}.py` + 16 milestone docs
+- **Tests:** 246/246 pass (10 new unit tests in this session)
+- **Deploy:** Railway + Vercel both live at v0.3.0.0. spaCy `xx_ent_wiki_sm` now bundled in image.
+- **Memory persisted:** `project_state.md` (v0.3.0.0 SHIPPED), `project_railway_deploy.md` (manual deploy gotcha), `project_presidio_spacy_model.md` (Dockerfile build-time install)
+- **Next:** Phase 6 (final PII milestone phase — `pg_advisory_xact_lock` cross-process upgrade per D-31), OR live UAT tests #2/#5/#6 (require driving the UI), OR deferred review items (cluster_id field, FK index on entity_registry.source_message_id, sync→async DB calls in admin endpoints, 8-char→16-char egress hash)
 
 ## Checkpoint 2026-04-28 (Phase 5 — Chat-Loop PII Integration complete)
 
