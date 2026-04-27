@@ -1,11 +1,21 @@
 import json
 import logging
 import re
+from typing import TYPE_CHECKING
+
 import httpx
+
 from app.services.tracing_service import traced
 from app.config import get_settings
 from app.database import get_supabase_client
 from app.services.hybrid_retrieval_service import HybridRetrievalService
+
+if TYPE_CHECKING:
+    # Phase 5 D-86 / D-91: ConversationRegistry is referenced ONLY in the
+    # `execute_tool` keyword-only annotation as a string forward-ref. The
+    # runtime import is gated under TYPE_CHECKING to avoid the circular
+    # import chain `tool_service -> redaction -> ... -> tool_service`.
+    from app.services.redaction.registry import ConversationRegistry
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -250,8 +260,19 @@ class ToolService:
         arguments: dict,
         user_id: str,
         context: dict | None = None,
+        *,
+        registry: "ConversationRegistry | None" = None,  # Phase 5 D-86 / D-91
     ) -> dict:
-        """Dispatch tool execution by name."""
+        """Dispatch tool execution by name.
+
+        Phase 5 D-86: Accepts an optional ``registry: ConversationRegistry``
+        keyword arg from the chat router for symmetry with the centralized
+        walker in ``app.services.redaction.tool_redaction`` (D-91). The
+        walker invokes ``deanonymize_tool_args`` BEFORE / ``anonymize_tool_output``
+        AFTER this method; this method itself is redaction-unaware and the
+        dispatch switch body is byte-identical to Phase 4 (the parameter is
+        received but NOT used here — that's the whole point of D-91).
+        """
         if name == "search_documents":
             return await self._execute_search_documents(
                 query=arguments.get("query", ""),
