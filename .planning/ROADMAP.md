@@ -18,7 +18,7 @@
 - [x] **Phase 2: Conversation-Scoped Registry & Round-Trip** ✅ 2026-04-26 — Per-thread registry persists; surrogate→real de-anonymization round-trip works (6 plans across 5 waves; 39/39 tests pass; all 5 SCs verified against live Supabase DB)
 - [x] **Phase 3: Entity Resolution & LLM Provider Configuration** ✅ 2026-04-26 — `algorithmic`/`llm`/`none` resolution modes; global + per-feature `LLM_PROVIDER` plumbing with egress filter and admin UI (7 plans across 6 waves; migration 030 applied to live Supabase; 79/79 tests pass; 5/5 SCs verified)
 - [x] **Phase 4: Fuzzy De-anonymization, Missed-PII Scan & Prompt Guidance** ✅ 2026-04-27 — 3-phase placeholder-tokenized de-anon pipeline; optional secondary LLM scan; system-prompt formatting guidance (7 plans across 6 waves; migration 031 applied to live Supabase; 135/135 tests pass; 9/9 REQ-IDs satisfied; 5/5 SCs verified)
-- [ ] **Phase 5: Chat-Loop Integration (Buffering, SSE Status, Tool/Sub-Agent Coverage)** — Full end-to-end privacy invariant: buffered responses, status events, symmetric tool/sub-agent anonymization
+- [x] **Phase 5: Chat-Loop Integration (Buffering, SSE Status, Tool/Sub-Agent Coverage)** ✅ 2026-04-28 — Full end-to-end privacy invariant: buffered responses, status events, symmetric tool/sub-agent anonymization (6 plans across 4 waves; 256/256 tests pass; 7/7 REQ-IDs satisfied; 5/5 SCs verified)
 - [ ] **Phase 6: Embedding Provider & Production Hardening** — `EMBEDDING_PROVIDER=local|cloud`; latency target met; graceful provider-failure degradation; full audit logging
 
 ## Phase Details
@@ -83,14 +83,14 @@
   3. Hard-redacted `[ENTITY_TYPE]` placeholders survive de-anonymization unchanged in every mode.
   4. With `PII_MISSED_SCAN_ENABLED=true`, the secondary LLM scan runs across all three resolution modes; any entities it returns are validated against the configured hard-redact set (invalid types discarded), and when it does replace text the primary NER engine re-runs to recompute surrogate positions.
   5. The main-agent system prompt instructs the LLM to reproduce names, emails, phones, locations, dates, and URLs verbatim; an end-to-end test shows the LLM emits surrogates in their exact source format (no abbreviation, no reformatting) on a representative legal-Q&A turn.
-**Plans**: 7 plans across 6 waves
-  - [ ] **Wave 1** — 04-01-PLAN.md — config.py + migration 031 SQL + [BLOCKING] supabase apply (DEANON-03)
-  - [ ] **Wave 2** — 04-02-PLAN.md — fuzzy_match.py algorithmic Jaro-Winkler + unit tests (DEANON-03)
-  - [ ] **Wave 2** — 04-05-PLAN.md — prompt_guidance.py helper + chat.py + agent_service.py wiring + unit tests (PROMPT-01)
-  - [ ] **Wave 3** — 04-03-PLAN.md — de_anonymize_text 3-phase upgrade including LLM mode (DEANON-03/04/05)
-  - [ ] **Wave 4** — 04-04-PLAN.md — missed_scan.py + redact_text auto-chain + re-NER + unit tests (SCAN-01..05) [shares redaction_service.py with 04-03 → wave 4]
-  - [ ] **Wave 5** — 04-06-PLAN.md — admin_settings.py SystemSettingsUpdate + AdminSettingsPage 'pii' section (DEANON-03)
-  - [ ] **Wave 6** — 04-07-PLAN.md — pytest coverage all 5 SCs + B4 caplog + soft-fail (DEANON-03..05, SCAN-01..05, PROMPT-01)
+**Plans**: 7 plans across 6 waves ✅ executed 2026-04-27 — 9/9 REQ-IDs SATISFIED, 5/5 SCs verified, 135/135 tests pass
+  - [x] **Wave 1** — 04-01-PLAN.md — config.py + migration 031 SQL + [BLOCKING] supabase apply (DEANON-03)
+  - [x] **Wave 2** — 04-02-PLAN.md — fuzzy_match.py algorithmic Jaro-Winkler + unit tests (DEANON-03)
+  - [x] **Wave 2** — 04-05-PLAN.md — prompt_guidance.py helper + chat.py + agent_service.py wiring + unit tests (PROMPT-01)
+  - [x] **Wave 3** — 04-03-PLAN.md — de_anonymize_text 3-phase upgrade including LLM mode (DEANON-03/04/05)
+  - [x] **Wave 4** — 04-04-PLAN.md — missed_scan.py + redact_text auto-chain + re-NER + unit tests (SCAN-01..05) [shares redaction_service.py with 04-03 → wave 4]
+  - [x] **Wave 5** — 04-06-PLAN.md — admin_settings.py SystemSettingsUpdate + AdminSettingsPage 'pii' section (DEANON-03)
+  - [x] **Wave 6** — 04-07-PLAN.md — pytest coverage all 5 SCs + B4 caplog + soft-fail (DEANON-03..05, SCAN-01..05, PROMPT-01)
 **UI hint**: yes
 
 ### Phase 5: Chat-Loop Integration (Buffering, SSE Status, Tool/Sub-Agent Coverage)
@@ -103,13 +103,13 @@
   3. A `search_documents` call whose query mentions a registered surrogate runs against the index using the **real** value (de-anonymized before search) and returns results that are re-anonymized before the LLM sees them.
   4. A `query_database` (SQL) tool call and a text-search/grep tool call both exhibit the same symmetric pattern (de-anon input → execute → re-anon output) and a sub-agent invocation (document analyzer / KB explorer / nested explorer→sub-agent) shares the parent's redaction-service instance with no double-anonymization.
   5. With redaction disabled (`PII_REDACTION_ENABLED=false`), chat reverts to normal SSE streaming with no buffering, no status events, and no behavioural regression versus the pre-milestone baseline.
-**Plans**: 6 plans across 4 waves (drafted 2026-04-27; verified PASS by gsd-plan-checker)
-  - [ ] **Wave 1** — 05-01-PLAN.md — `redaction_service.py` D-84 service-layer early-return gate + D-92 `redact_text_batch(texts, registry)` public method (BUFFER-01, TOOL-01..04)
-  - [ ] **Wave 2** — 05-02-PLAN.md — NEW `redaction/tool_redaction.py` recursive walker (D-91) + `tool_service.execute_tool` keyword-only `registry=None` + `redaction/__init__.py` re-export (TOOL-01..04)
-  - [ ] **Wave 2** — 05-03-PLAN.md — `agent_service.classify_intent` anonymized inputs + pre-flight egress wrapper (D-96 part) + retire stale Phase 4 D-80 per-thread TODOs (TOOL-04, BUFFER-01)
-  - [ ] **Wave 3** — 05-04-PLAN.md — `chat.py` full integration: D-83/84 gate, D-86 registry load, D-87 buffering, D-88 SSE events, D-89 skeleton tool events, D-90 graceful degrade, D-91 walker invocations, D-93 batch history anon, D-94 egress at 3 sites, D-96 title-gen → LLMProviderClient (BUFFER-01..03, TOOL-01..04)
-  - [ ] **Wave 3** — 05-05-PLAN.md — Frontend: `database.types.ts` `RedactionStatusEvent` variant + `useChatState.ts` dispatch case + spinner UI + i18n strings (BUFFER-02)
-  - [ ] **Wave 4** — 05-06-PLAN.md — pytest `test_phase5_integration.py` 7 test classes per D-97 (TestSC1_PrivacyInvariant, TestSC2_BufferingAndStatus, TestSC3_SearchDocumentsTool, TestSC4_SqlGrepAndSubAgent, TestSC5_OffMode, TestB4_LogPrivacy, TestEgressTrip_ChatPath)
+**Plans**: 6 plans across 4 waves ✅ executed 2026-04-28 — 7/7 REQ-IDs SATISFIED, 5/5 SCs verified, 256/256 tests pass
+  - [x] **Wave 1** — 05-01-PLAN.md — `redaction_service.py` D-84 service-layer early-return gate + D-92 `redact_text_batch(texts, registry)` public method (BUFFER-01, TOOL-01..04) ✓ commits `867165e` + `02d8d91` + `3ad058c` + `0f2ce3b`
+  - [x] **Wave 2** — 05-02-PLAN.md — NEW `redaction/tool_redaction.py` recursive walker (D-91) + `tool_service.execute_tool` keyword-only `registry=None` + `redaction/__init__.py` re-export (TOOL-01..04) ✓ commits `3963e19` + `1bf794a` + `4a3cd37` + `cdd3470` + `7c3a1d5` + `d560a63`
+  - [x] **Wave 2** — 05-03-PLAN.md — `agent_service.classify_intent` anonymized inputs + pre-flight egress wrapper + retire stale Phase 4 D-80 per-thread TODOs (TOOL-04, BUFFER-01) ✓ commits `3f146dd` + `806c652`
+  - [x] **Wave 3** — 05-04-PLAN.md — `chat.py` full integration: D-83/84 gate, D-86 registry load, D-87 buffering, D-88 SSE events, D-89 skeleton tool events, D-90 graceful degrade, D-91 walker invocations, D-93 batch history anon, D-94 egress at 3 sites, D-96 title-gen → LLMProviderClient (BUFFER-01..03, TOOL-01..04) ✓ commits `6b4fc01` + `ea3a665` + `78f66e0` + `95718f2` + `23aaf44`
+  - [x] **Wave 3** — 05-05-PLAN.md — Frontend: `database.types.ts` `RedactionStatusEvent` variant + `useChatState.ts` dispatch case + spinner UI + i18n strings (BUFFER-02) ✓ commits `2120b04` + `42b0d1f` + `a4b0e13`
+  - [x] **Wave 4** — 05-06-PLAN.md — pytest `test_phase5_integration.py` 7 test classes (TestSC1_PrivacyInvariant, TestSC2_BufferingAndStatus, TestSC3_SearchDocumentsTool, TestSC4_SqlGrepAndSubAgent, TestSC5_OffMode, TestB4_LogPrivacy, TestEgressTrip_ChatPath) ✓ commit `8d14786`
 **UI hint**: yes
 
 ### Phase 6: Embedding Provider & Production Hardening
@@ -129,11 +129,11 @@
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Detection & Anonymization Foundation | 0/0 | Not started | — |
+| 1. Detection & Anonymization Foundation | 7/7 | Complete | 2026-04-26 |
 | 2. Conversation-Scoped Registry & Round-Trip | 6/6 | Complete | 2026-04-26 |
-| 3. Entity Resolution & LLM Provider Configuration | 0/7 | Plans drafted | — |
-| 4. Fuzzy De-anonymization, Missed-PII Scan & Prompt Guidance | 0/7 | Plans drafted | — |
-| 5. Chat-Loop Integration (Buffering, SSE Status, Tool/Sub-Agent Coverage) | 0/6 | Plans drafted | — |
+| 3. Entity Resolution & LLM Provider Configuration | 7/7 | Complete | 2026-04-26 |
+| 4. Fuzzy De-anonymization, Missed-PII Scan & Prompt Guidance | 7/7 | Complete | 2026-04-27 |
+| 5. Chat-Loop Integration (Buffering, SSE Status, Tool/Sub-Agent Coverage) | 6/6 | Complete | 2026-04-28 |
 | 6. Embedding Provider & Production Hardening | 0/0 | Not started | — |
 
 ## Completed Phases (Pre-GSD)
@@ -178,5 +178,5 @@ Milestone v1.0 phase numbering starts at **Phase 1** (workflow flag `--reset-pha
 *Last updated: 2026-04-26 — Phase 2 plan 02-02 SHIPPED ✓ (commit `26cf393`); ConversationRegistry + EntityMapping skeleton (127 lines, no DB methods); Wave 1 complete; ready for Wave 2 (02-03 supabase db push)*
 *Last updated: 2026-04-26 — Phase 2 plan 02-04 SHIPPED ✓ (commits `abe7c55` + `865cec2`); ConversationRegistry.load + upsert_delta wired to live entity_registry table; ConversationRegistry + EntityMapping re-exported from `app.services.redaction` (de_anonymize_text deliberately NOT re-exported per D-39 option b); 20/20 Phase 1 regression pass; live load() smoke succeeded; Wave 3 complete; ready for Wave 4 (02-05 redaction_service wiring)*
 *Last updated: 2026-04-26 — Phase 2 EXECUTION COMPLETE ✅: plan 02-06 SHIPPED (commits `b2d690e` + `d9639d1` + `11412fe`); 19 new tests added (15 integration + 4 unit); combined regression 39/39 pass (20 Phase 1 + 15 Phase 2 integration + 4 Phase 2 unit) in ~15s; all 5 Phase 2 ROADMAP SCs verified against live Supabase DB; SC#5 race verified via asyncio.gather + composite UNIQUE serialisation. Phase 2 ready for verification → Phase 3.*
-</content>
 *Last updated: 2026-04-26 — Phase 3 PLANNING COMPLETE: 7 plans across 6 waves drafted (03-01..03-07); all 11 REQ-IDs covered (RESOLVE-01..04, PROVIDER-01..07). Wave 2 plan 03-02 is the [BLOCKING] migration apply task.*
+*Last updated: 2026-04-28 — Phase 5 EXECUTION COMPLETE ✅: 6 plans across 4 waves; all 7 REQ-IDs (BUFFER-01..03, TOOL-01..04) SATISFIED; 5/5 ROADMAP SCs verified; 256/256 tests pass. Privacy invariant enforced end-to-end: batch history anon, egress filter at 3 sites + classify_intent, walker-wrapped tool I/O, SSE redaction_status events, single-batch buffered delta, graceful degrade, off-mode SC#5 regression-free. Verification: `.planning/phases/05-chat-loop-integration-buffering-sse-status-tool-sub-agent-co/05-VERIFICATION.md` (status: passed, 5/5 SCs). Next: Phase 6 (Embedding Provider & Production Hardening).*
