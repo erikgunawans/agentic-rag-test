@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: ready_to_plan
-last_updated: "2026-04-27T03:43:00.000Z"
+status: planning
+last_updated: "2026-04-27T04:33:40.398Z"
 last_activity: 2026-04-27
 progress:
   total_phases: 6
   completed_phases: 3
-  total_plans: 20
+  total_plans: 27
   completed_plans: 20
-  percent: 50
+  percent: 74
 ---
 
 # State: LexCore
@@ -74,7 +74,7 @@ Verification: passed (5/5 SCs, 11/11 REQ-IDs)
 *Updated: 2026-04-26 — Phase 2 Wave 3 COMPLETE: plan 02-04 SHIPPED (commits `abe7c55` + `865cec2`). `ConversationRegistry.load(thread_id)` (one SELECT) + `async upsert_delta(deltas)` (INSERT…ON CONFLICT DO NOTHING; empty list = zero DB hops; raises on DB error per REG-04) added to `backend/app/services/redaction/registry.py` (final 241 lines). Both methods wrap the sync supabase-py call in `asyncio.to_thread(_closure)` because Plan 05's `redact_text` will hold an asyncio.Lock across the upsert. Service-role client only (D-25). `redaction/__init__.py` re-exports `ConversationRegistry` + `EntityMapping`; `de_anonymize_text` deliberately NOT re-exported per D-39 option b + Phase 1 B2-option-B circular-import posture (verbatim docstring preserved). Phase 1 regression: 20/20 still pass; backend imports cleanly; live load() smoke against real Supabase project `qedhulpfezucnfadlfiz` succeeded. Wave 4 (Plan 02-05 redaction_service wiring) is now unblocked.*
 *Updated: 2026-04-26 — Phase 2 Wave 5 COMPLETE → Phase 2 EXECUTION COMPLETE ✅: plan 02-06 SHIPPED (commits `b2d690e` + `d9639d1` + `11412fe`). 19 new tests added (15 integration + 4 unit); combined regression `pytest tests/` → 39/39 pass in ~15s (20 Phase 1 + 15 Phase 2 integration + 4 Phase 2 unit). All 5 Phase 2 ROADMAP SCs covered against live Supabase DB; SC#5 (asyncio.gather race) verified via `len(rows) == 1` assertion against entity_registry table. Cross-turn surname collision (D-37 / PRD §7.5) verified. Hard-redact survival (D-35) verified against both real CardRecognizer and synthetic placeholders. B4 / D-18 / D-41 caplog log-privacy invariant enforced for new methods. W-3 (defensive try/except for stale-schema column additions), W-4 (`_thread_locks_master` rebind to current event loop), B-4 (canonical `client.auth.admin.list_users()` pattern) all in place in conftest.py fixtures. Three Rule-1 deviations during Task 2 (calibration to live xx-multilingual Presidio model behaviour). SUMMARY at `02-06-pytest-coverage-SUMMARY.md`. Phase 2 verification is the orchestrator's next step.*
 
-**Planned Phase:** 3 (Entity Resolution & LLM Provider Configuration) — 7 plans — 2026-04-26T07:10:07.889Z
+**Planned Phase:** 04 (Fuzzy De-anonymization, Missed-PII Scan & Prompt Guidance) — 7 plans — 2026-04-27T04:33:40.392Z
 
 *Updated: 2026-04-26 — Phase 3 EXECUTION COMPLETE ✅: 7 plans across 6 waves; all 11 REQ-IDs (RESOLVE-01..04, PROVIDER-01..07) SATISFIED; 5/5 ROADMAP SCs verified. 79/79 tests pass (Phase 1+2 regression 39 + Phase 3 unit 32 + Phase 3 API 8). Migration 030_pii_provider_settings applied to live Supabase qedhulpfezucnfadlfiz (9 columns + 7 CHECK constraints). Egress filter blocks raw PII pre-cloud-SDK; algorithmic fallback on provider failure (D-52/D-54). Admin UI surfaces all 9 PII settings + 2 status badges. Verification: `.planning/phases/03-entity-resolution-llm-provider-configuration/03-VERIFICATION.md` (status: passed). Next: Phase 4 (FUZZY-01..03, MISSED-01..03, PROMPT-01..03).*
 

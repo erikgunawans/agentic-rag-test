@@ -83,7 +83,15 @@
   3. Hard-redacted `[ENTITY_TYPE]` placeholders survive de-anonymization unchanged in every mode.
   4. With `PII_MISSED_SCAN_ENABLED=true`, the secondary LLM scan runs across all three resolution modes; any entities it returns are validated against the configured hard-redact set (invalid types discarded), and when it does replace text the primary NER engine re-runs to recompute surrogate positions.
   5. The main-agent system prompt instructs the LLM to reproduce names, emails, phones, locations, dates, and URLs verbatim; an end-to-end test shows the LLM emits surrogates in their exact source format (no abbreviation, no reformatting) on a representative legal-Q&A turn.
-**Plans**: TBD
+**Plans**: 7 plans across 6 waves
+  - [ ] **Wave 1** — 04-01-PLAN.md — config.py + migration 031 SQL + [BLOCKING] supabase apply (DEANON-03)
+  - [ ] **Wave 2** — 04-02-PLAN.md — fuzzy_match.py algorithmic Jaro-Winkler + unit tests (DEANON-03)
+  - [ ] **Wave 2** — 04-05-PLAN.md — prompt_guidance.py helper + chat.py + agent_service.py wiring + unit tests (PROMPT-01)
+  - [ ] **Wave 3** — 04-03-PLAN.md — de_anonymize_text 3-phase upgrade including LLM mode (DEANON-03/04/05)
+  - [ ] **Wave 4** — 04-04-PLAN.md — missed_scan.py + redact_text auto-chain + re-NER + unit tests (SCAN-01..05) [shares redaction_service.py with 04-03 → wave 4]
+  - [ ] **Wave 5** — 04-06-PLAN.md — admin_settings.py SystemSettingsUpdate + AdminSettingsPage 'pii' section (DEANON-03)
+  - [ ] **Wave 6** — 04-07-PLAN.md — pytest coverage all 5 SCs + B4 caplog + soft-fail (DEANON-03..05, SCAN-01..05, PROMPT-01)
+**UI hint**: yes
 
 ### Phase 5: Chat-Loop Integration (Buffering, SSE Status, Tool/Sub-Agent Coverage)
 **Goal:** Ship the end-to-end chat-loop wiring so a real chat round-trip preserves the privacy invariant — full response buffering when redaction is active, `redaction_status` SSE events for UX, and symmetric anonymize-input / de-anonymize-output coverage across every tool and sub-agent.
@@ -118,7 +126,7 @@
 | 1. Detection & Anonymization Foundation | 0/0 | Not started | — |
 | 2. Conversation-Scoped Registry & Round-Trip | 6/6 | Complete | 2026-04-26 |
 | 3. Entity Resolution & LLM Provider Configuration | 0/7 | Plans drafted | — |
-| 4. Fuzzy De-anonymization, Missed-PII Scan & Prompt Guidance | 0/0 | Not started | — |
+| 4. Fuzzy De-anonymization, Missed-PII Scan & Prompt Guidance | 0/7 | Plans drafted | — |
 | 5. Chat-Loop Integration (Buffering, SSE Status, Tool/Sub-Agent Coverage) | 0/0 | Not started | — |
 | 6. Embedding Provider & Production Hardening | 0/0 | Not started | — |
 
