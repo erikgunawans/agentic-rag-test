@@ -149,6 +149,7 @@ async def classify_intent(
     model: str,
     *,
     registry: "ConversationRegistry | None" = None,  # Phase 5 D-94 (egress filter context)
+    available_tool_names: list[str] | None = None,   # ADR-0008 (web search toggle awareness)
 ) -> OrchestratorResult:
     """Classify user intent via a single LLM call.
 
@@ -168,11 +169,43 @@ async def classify_intent(
     - Return contract is UNCHANGED: ``OrchestratorResult`` carries a PII-free
       agent enum string; ``reasoning`` is internal-only (not externalized
       via SSE per Phase 4 baseline).
+
+    ADR-0008 (web search toggle):
+    - When ``available_tool_names`` is supplied, the classifier prompt is
+      augmented with an AVAILABLE TOOLS / ELIGIBLE AGENTS constraint block
+      so the LLM picks an agent whose ``tool_names`` intersect with the
+      available set. Defense-in-depth: if the LLM ignores the constraint,
+      the result is overridden to the first eligible agent.
+    - When ``available_tool_names is None``: behavior is unchanged
+      (backward-compatible — no prompt mutation, no override).
     """
+    # ADR-0008: tell the classifier which tools are actually available so it
+    # picks an agent whose tool_names intersect with availability. Agents
+    # with empty tool_names (none today, but future-proof) are always
+    # eligible.
+    available_set: set[str] | None = (
+        set(available_tool_names) if available_tool_names is not None else None
+    )
+    eligible_agents: list[str] = []
+    constraint_block = ""
+    if available_set is not None:
+        eligible_agents = [
+            name
+            for name, defn in AGENT_REGISTRY.items()
+            if not defn.tool_names or any(t in available_set for t in defn.tool_names)
+        ]
+        constraint_block = (
+            "\n\nAVAILABLE TOOLS for this request: "
+            f"{sorted(available_set)}\n"
+            f"ELIGIBLE AGENTS (others have no tools available): {eligible_agents}\n"
+            "Pick from eligible_agents only. Do not pick an agent whose tools "
+            "are not in the available list."
+        )
+
     # Keep classification prompt small — only last 3 history messages
     recent_history = history[-3:] if len(history) > 3 else history
     messages = [
-        {"role": "system", "content": CLASSIFICATION_PROMPT},
+        {"role": "system", "content": CLASSIFICATION_PROMPT + constraint_block},
         *[{"role": m["role"], "content": m["content"]} for m in recent_history if m.get("content")],
         {"role": "user", "content": message},
     ]
@@ -214,10 +247,28 @@ async def classify_intent(
         )
         content = result.get("content", "")
         parsed = json.loads(content)
-        return OrchestratorResult(
+        orch = OrchestratorResult(
             agent=parsed.get("agent", "general"),
             reasoning=parsed.get("reasoning", ""),
         )
+
+        # ADR-0008 defense-in-depth: if the LLM ignored the constraint and
+        # picked an ineligible agent, override to the first eligible agent.
+        # OrchestratorResult is a Pydantic model with mutable fields, but we
+        # use ``model_copy`` defensively so this works even if it ever
+        # becomes frozen.
+        if available_set is not None and eligible_agents and orch.agent not in eligible_agents:
+            original_agent = orch.agent
+            orch = orch.model_copy(
+                update={
+                    "agent": eligible_agents[0],
+                    "reasoning": (
+                        f"[constraint-override] {orch.reasoning} "
+                        f"(forced from {original_agent} because tools unavailable)"
+                    ),
+                }
+            )
+        return orch
     except Exception as e:
         logger.warning("Intent classification failed: %s — falling back to general", e)
         return OrchestratorResult(agent="general", reasoning="fallback")
