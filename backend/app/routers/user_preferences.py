@@ -9,6 +9,7 @@ router = APIRouter(tags=["preferences"])
 class PreferencesUpdate(BaseModel):
     theme: str | None = None
     notifications_enabled: bool | None = None
+    web_search_default: bool | None = None
 
 
 def _get_or_create_preferences(user_id: str) -> dict:
@@ -26,6 +27,7 @@ def _get_or_create_preferences(user_id: str) -> dict:
         "user_id": user_id,
         "theme": "system",
         "notifications_enabled": True,
+        "web_search_default": False,
     }
     client.table("user_preferences").insert(defaults).execute()
     return defaults
