@@ -222,7 +222,9 @@ export function useChatState() {
       setActiveTools([])
       setToolResults([])
       setActiveAgent(null)
-      setRedactionStage(null)
+      // D-94: keep `redactionStage === 'blocked'` visible after the stream ends so
+      // the user sees the explanation card. It is reset on the next handleSendMessage.
+      setRedactionStage((prev) => (prev === 'blocked' ? 'blocked' : null))
     }
   }
 

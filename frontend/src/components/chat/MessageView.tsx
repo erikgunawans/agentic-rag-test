@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef } from 'react'
-import { GitFork, ChevronLeft, ChevronRight } from 'lucide-react'
+import { GitFork, ChevronLeft, ChevronRight, ShieldAlert } from 'lucide-react'
 import { StreamingMessage } from './StreamingMessage'
 import { ThinkingIndicator } from './ThinkingIndicator'
 import { ToolCallCard, ToolCallList } from './ToolCallCard'
 import { AgentBadge } from './AgentBadge'
 import { buildChildrenMap } from '@/lib/messageTree'
+import { useI18n } from '@/i18n/I18nContext'
 import type { Message, ToolStartEvent, ToolResultEvent } from '@/lib/database.types'
 
 interface BranchIndicatorProps {
@@ -46,6 +47,7 @@ interface MessageViewProps {
   activeTools?: ToolStartEvent[]
   toolResults?: ToolResultEvent[]
   activeAgent?: { agent: string; display_name: string } | null
+  redactionStage?: 'anonymizing' | 'deanonymizing' | 'blocked' | null
   onFork?: (messageId: string) => void
   onSwitchBranch?: (forkPointId: string, childId: string) => void
 }
@@ -58,15 +60,18 @@ export function MessageView({
   activeTools = [],
   toolResults = [],
   activeAgent = null,
+  redactionStage = null,
   onFork,
   onSwitchBranch,
 }: MessageViewProps) {
   const bottomRef = useRef<HTMLDivElement>(null)
   const childrenMap = useMemo(() => buildChildrenMap(allMessages), [allMessages])
+  const { t } = useI18n()
+  const isBlocked = redactionStage === 'blocked'
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, streamingContent, activeTools, toolResults, activeAgent])
+  }, [messages, streamingContent, activeTools, toolResults, activeAgent, redactionStage])
 
   if (messages.length === 0 && !isStreaming) {
     return (
@@ -127,7 +132,7 @@ export function MessageView({
         )
       })}
 
-      {isStreaming && (
+      {isStreaming && !isBlocked && (
         <div className="flex justify-start">
           <div className="max-w-[75%] space-y-1">
             {activeAgent && (
@@ -163,6 +168,24 @@ export function MessageView({
                 <ThinkingIndicator />
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {isBlocked && (
+        <div className="flex justify-start" role="alert" aria-live="polite">
+          <div className="max-w-[75%] rounded-lg border border-amber-500/40 bg-amber-500/10 dark:bg-amber-500/15 p-4">
+            <div className="flex items-start gap-3">
+              <ShieldAlert className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-amber-900 dark:text-amber-100">
+                  {t('redactionBlockedTitle')}
+                </p>
+                <p className="text-xs text-amber-800 dark:text-amber-200/90 mt-1 leading-relaxed">
+                  {t('redactionBlockedBody')}
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       )}

@@ -595,6 +595,9 @@ export const translations: Record<Locale, Record<string, string>> = {
     redactionAnonymizing: 'Mengantonimkan…',
     redactionDeanonymizing: 'Memulihkan nama…',
     redactionBlocked: 'Pengiriman diblokir',
+    redactionBlockedTitle: 'Pesan diblokir oleh redaksi PII',
+    redactionBlockedBody:
+      'Permintaan ini berisi data sensitif yang tidak boleh dikirim ke layanan eksternal. Coba ulangi tanpa nama atau lokasi spesifik, matikan toggle Web, atau nonaktifkan PII redaction di Pengaturan Admin.',
   },
   en: {
     // Welcome screen
@@ -1190,5 +1193,8 @@ export const translations: Record<Locale, Record<string, string>> = {
     redactionAnonymizing: 'Anonymizing…',
     redactionDeanonymizing: 'Restoring names…',
     redactionBlocked: 'Egress blocked',
+    redactionBlockedTitle: 'Message blocked by PII redaction',
+    redactionBlockedBody:
+      'This request contains sensitive data that cannot be sent to an external service. Try rephrasing without specific names or locations, turn off the Web toggle, or disable PII redaction in Admin Settings.',
   },
 }
