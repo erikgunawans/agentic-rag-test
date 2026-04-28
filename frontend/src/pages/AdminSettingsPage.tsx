@@ -35,6 +35,8 @@ interface SystemSettings {
   fuzzy_deanon_threshold?: number
   // Phase 5: Master PII redaction toggle (D-83-toggle / Plan 05-08)
   pii_redaction_enabled?: boolean
+  // ADR-0008 L1: Web search master toggle
+  web_search_enabled?: boolean
 }
 
 interface LlmProviderStatus {
@@ -430,6 +432,21 @@ export function AdminSettingsPage() {
                 <div>
                   <p className="text-sm font-medium">{t('admin.tools.agents')}</p>
                   <p className="text-xs text-muted-foreground">{t('admin.tools.agentsDesc')}</p>
+                </div>
+              </label>
+
+              <Separator />
+
+              {/* ADR-0008 L1: Web search master toggle */}
+              <label className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  checked={form.web_search_enabled ?? true}
+                  onChange={(e) => updateField('web_search_enabled', e.target.checked)}
+                />
+                <div>
+                  <p className="text-sm font-medium">{t('admin.tools.webSearchEnabled')}</p>
+                  <p className="text-xs text-muted-foreground">{t('admin.tools.webSearchDesc')}</p>
                 </div>
               </label>
             </section>
