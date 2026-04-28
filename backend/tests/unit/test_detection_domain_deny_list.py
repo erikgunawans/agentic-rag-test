@@ -1,15 +1,7 @@
-"""ADR-0008 Fix B: domain-term deny list at the detection layer.
+"""Domain-term deny list at the detection layer.
 
-Country adjectives, language names, and government regulatory acronyms
-identify GROUPS, not individuals. Treating them as PII pollutes the
-ConversationRegistry and trips the egress filter on legitimate platform
-content (e.g., the LexCore system prompt mentions "Indonesian"). The
-deny list is applied AFTER Presidio analysis but BEFORE the entity is
-appended to the result list, so denied terms never enter the registry.
-
-Cities (Jakarta, Surabaya, Bandung, ...) are deliberately EXCLUDED from
-the deny list — they can appear in real personal addresses, where a
-false negative is worse than a false positive on the bare city name.
+Verifies that domain-common terms are denied while real PII still passes
+through the bucket filter unchanged.
 """
 from __future__ import annotations
 
@@ -144,7 +136,7 @@ class TestDetectEntitiesAppliesDenyList:
         assert "OJK" not in kept_text
         assert "Pak Budi" in kept_text
 
-    def test_jakarta_NOT_on_deny_list(self):
+    def test_jakarta_not_on_deny_list(self):
         """Cities are deliberately excluded — they can appear in real addresses."""
         text = "Pak Budi tinggal di Jakarta"
         results = [

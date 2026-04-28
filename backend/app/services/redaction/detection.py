@@ -55,23 +55,12 @@ _REDACT_BUCKET: set[str] = _split_csv(_SETTINGS.pii_redact_entities)
 _ALL_BUCKET: set[str] = _SURROGATE_BUCKET | _REDACT_BUCKET
 
 
-# ADR-0008 Fix B: domain-term deny list (entries pre-casefolded).
-#
 # Country adjectives, language names, and government regulatory acronyms
-# identify GROUPS of people, not individuals. Treating them as PII pollutes
-# the per-thread ConversationRegistry and trips the egress filter on
-# legitimate platform content (e.g., the LexCore system prompt mentions
-# "Indonesian"). This filter runs AFTER Presidio analysis but BEFORE the
-# entity is appended to the result list, so denied terms never enter the
-# registry and never gate cloud-LLM calls.
-#
-# Cities are DELIBERATELY excluded — "Jakarta" can appear in real personal
-# addresses ("Jl. Sudirman 10, Jakarta Selatan"), where a false negative on
-# the address is worse than a false positive on the bare city name. The PII
-# in such an address is the FULL address, not the city alone.
-#
-# To extend: add lowercase entries only. Verify with the
-# `test_recognized_domain_terms_are_denied` parametrized test.
+# identify groups, not individuals — they pollute the registry and trip
+# egress on legitimate platform content (the system prompt itself mentions
+# "Indonesian"). Cities are DELIBERATELY excluded: "Jakarta" can appear in
+# real personal addresses, where a false negative on the address is worse
+# than a false positive on the bare city name.
 _DENY_LIST_CASEFOLD: frozenset[str] = frozenset({
     # Country (noun + adjective + plural)
     "indonesia",
@@ -98,11 +87,6 @@ _DENY_LIST_CASEFOLD: frozenset[str] = frozenset({
 
 
 def _is_domain_term(span_text: str) -> bool:
-    """ADR-0008 Fix B: True if `span_text` is a known domain-common term.
-
-    Casefold + exact match against `_DENY_LIST_CASEFOLD`. Empty strings
-    return False (no entry in the deny list is empty).
-    """
     return span_text.casefold() in _DENY_LIST_CASEFOLD
 
 
@@ -273,9 +257,6 @@ def detect_entities(text: str) -> tuple[str, list[Entity], dict[str, str]]:
         et = r.entity_type.upper()
         span_text = masked_text[r.start:r.end]
 
-        # ADR-0008 Fix B: domain-term deny list. Country adjectives, language
-        # names, and government regulatory acronyms identify groups, not
-        # individuals — they must never enter the registry or gate LLM calls.
         # Counts + types only in telemetry (B4 invariant — no raw values).
         if _is_domain_term(span_text):
             denied_count += 1

@@ -273,22 +273,13 @@ async def stream_chat(
                         # (LLM-emitted) so persistence and downstream
                         # consumers see the LLM's actual emission.
                         if func_name == "web_search":
-                            # ADR-0008 Fix C: web_search output is PUBLIC data
-                            # from the open internet — public figures speaking
-                            # in their public capacity. Per UU PDP that is not
-                            # personal data. Anonymizing it pollutes the per-
-                            # thread registry with public names (Prabowo
-                            # Subianto, OJK officials, etc.), which then trip
-                            # the egress filter on the synthesis call because
-                            # those same names appear in subsequent payloads.
-                            # Pass through unchanged. User-PII protection is
-                            # still enforced at the input boundary
-                            # (anonymize_message) and at outbound search
-                            # queries (real_args=func_args above keeps
-                            # surrogates flowing to Tavily).
+                            # web_search results are public web data;
+                            # anonymizing pollutes the registry with public
+                            # names that then trip egress on the synthesis
+                            # call. User PII is still protected at the input
+                            # boundary and on outbound queries.
                             pass
                         else:
-                            # The output is anonymized for the LLM's next turn.
                             tool_output = await anonymize_tool_output(
                                 tool_output, registry, redaction_service,
                             )
