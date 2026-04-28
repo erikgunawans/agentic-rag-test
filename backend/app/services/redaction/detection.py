@@ -55,6 +55,57 @@ _REDACT_BUCKET: set[str] = _split_csv(_SETTINGS.pii_redact_entities)
 _ALL_BUCKET: set[str] = _SURROGATE_BUCKET | _REDACT_BUCKET
 
 
+# ADR-0008 Fix B: domain-term deny list (entries pre-casefolded).
+#
+# Country adjectives, language names, and government regulatory acronyms
+# identify GROUPS of people, not individuals. Treating them as PII pollutes
+# the per-thread ConversationRegistry and trips the egress filter on
+# legitimate platform content (e.g., the LexCore system prompt mentions
+# "Indonesian"). This filter runs AFTER Presidio analysis but BEFORE the
+# entity is appended to the result list, so denied terms never enter the
+# registry and never gate cloud-LLM calls.
+#
+# Cities are DELIBERATELY excluded — "Jakarta" can appear in real personal
+# addresses ("Jl. Sudirman 10, Jakarta Selatan"), where a false negative on
+# the address is worse than a false positive on the bare city name. The PII
+# in such an address is the FULL address, not the city alone.
+#
+# To extend: add lowercase entries only. Verify with the
+# `test_recognized_domain_terms_are_denied` parametrized test.
+_DENY_LIST_CASEFOLD: frozenset[str] = frozenset({
+    # Country (noun + adjective + plural)
+    "indonesia",
+    "indonesian",
+    "indonesians",
+    # Language names
+    "bahasa",
+    "bahasa indonesia",
+    "english",
+    # Government / regulatory entities
+    "ojk",
+    "bi",
+    "kpk",
+    "bpk",
+    "mahkamah agung",
+    # Legal codes / regulatory acronyms
+    "uu pdp",
+    "bjr",
+    "kuhp",
+    "kuhap",
+    "uu ite",
+    "uupk",
+})
+
+
+def _is_domain_term(span_text: str) -> bool:
+    """ADR-0008 Fix B: True if `span_text` is a known domain-common term.
+
+    Casefold + exact match against `_DENY_LIST_CASEFOLD`. Empty strings
+    return False (no entry in the deny list is empty).
+    """
+    return span_text.casefold() in _DENY_LIST_CASEFOLD
+
+
 class Entity(BaseModel):
     """A detected PII span after threshold filtering."""
 
@@ -216,8 +267,21 @@ def detect_entities(text: str) -> tuple[str, list[Entity], dict[str, str]]:
     )
 
     entities: list[Entity] = []
+    denied_count = 0
+    denied_types: set[str] = set()
     for r in raw_results:
         et = r.entity_type.upper()
+        span_text = masked_text[r.start:r.end]
+
+        # ADR-0008 Fix B: domain-term deny list. Country adjectives, language
+        # names, and government regulatory acronyms identify groups, not
+        # individuals — they must never enter the registry or gate LLM calls.
+        # Counts + types only in telemetry (B4 invariant — no raw values).
+        if _is_domain_term(span_text):
+            denied_count += 1
+            denied_types.add(et)
+            continue
+
         if et in _SURROGATE_BUCKET:
             if r.score < high_threshold:
                 continue
@@ -236,7 +300,7 @@ def detect_entities(text: str) -> tuple[str, list[Entity], dict[str, str]]:
                 start=r.start,
                 end=r.end,
                 score=float(r.score),
-                text=masked_text[r.start:r.end],
+                text=span_text,
                 bucket=bucket,
             )
         )
@@ -245,12 +309,15 @@ def detect_entities(text: str) -> tuple[str, list[Entity], dict[str, str]]:
 
     elapsed_ms = (time.perf_counter() - t0) * 1000
     logger.debug(
-        "redaction.detect: input_chars=%d uuid_drops=%d entities=%d surrogate=%d redact=%d elapsed_ms=%.2f",
+        "redaction.detect: input_chars=%d uuid_drops=%d entities=%d surrogate=%d redact=%d "
+        "denied=%d denied_types=%s elapsed_ms=%.2f",
         len(text),
         len(sentinels),
         len(entities),
         sum(1 for e in entities if e.bucket == "surrogate"),
         sum(1 for e in entities if e.bucket == "redact"),
+        denied_count,
+        sorted(denied_types),
         elapsed_ms,
     )
 
