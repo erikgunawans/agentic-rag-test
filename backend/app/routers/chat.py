@@ -11,6 +11,7 @@ from app.services import agent_service
 from app.config import get_settings
 from app.services.system_settings_service import get_system_settings
 from app.services.redaction.prompt_guidance import get_pii_guidance_block
+from app.services.audit_service import log_action
 from app.models.tools import ToolCallRecord, ToolCallSummary
 
 # Phase 5 — chat-loop redaction integration (D-83..D-97)
@@ -81,6 +82,7 @@ class SendMessageRequest(BaseModel):
     thread_id: str
     message: str
     parent_message_id: str | None = None
+    web_search: bool | None = None  # ADR-0008 L3: per-message override
 
 
 @router.post("/stream")
@@ -137,6 +139,24 @@ async def stream_chat(
     sys_settings = get_system_settings()
     llm_model = sys_settings["llm_model"]
 
+    # ADR-0008: compute effective web_search toggle for this request.
+    # L1 (system) AND (L3 message override if provided else L2 user default).
+    user_prefs_resp = (
+        client.table("user_preferences")
+        .select("web_search_default")
+        .eq("user_id", user["id"])
+        .maybe_single()
+        .execute()
+    )
+    user_prefs = (
+        getattr(user_prefs_resp, "data", None) or {}
+    ) if user_prefs_resp is not None else {}
+    web_search_effective = compute_web_search_effective(
+        system_enabled=bool(sys_settings.get("web_search_enabled", True)),
+        user_default=bool(user_prefs.get("web_search_default", False)),
+        message_override=body.web_search,
+    )
+
     # Persist user message before streaming (with parent link for branching)
     user_msg_result = client.table("messages").insert({
         "thread_id": body.thread_id,
@@ -158,6 +178,7 @@ async def stream_chat(
     async def _run_tool_loop(
         messages, tools, max_iterations, user_id, tool_context,
         *, registry=None, redaction_service=None, redaction_on=False,
+        available_tool_names=None,
     ):
         """Shared tool-calling loop used by both agent and non-agent paths.
 
@@ -219,11 +240,31 @@ async def stream_chat(
                     }
 
                 try:
+                    # ADR-0008 defense-in-depth: agent attempted a tool not in
+                    # the effective catalog. Skip dispatch and synthesize a
+                    # polite refusal as tool output.
+                    if (
+                        available_tool_names is not None
+                        and func_name not in available_tool_names
+                    ):
+                        tool_output = {
+                            "blocked": True,
+                            "reason": f"Tool '{func_name}' is not available for this request.",
+                        }
                     # Phase 5 D-91: walker wrap when redaction is ON.
-                    if redaction_on and registry is not None:
-                        real_args = await deanonymize_tool_args(
-                            func_args, registry, redaction_service,
-                        )
+                    elif redaction_on and registry is not None:
+                        if func_name == "web_search":
+                            # ADR-0008 + ADR-0004: keep surrogate form for
+                            # external API. Tavily must NEVER receive
+                            # registry-known real PII. Search quality may
+                            # degrade for PII-laden queries; users disable PII
+                            # redaction explicitly if they need exact-name web
+                            # search.
+                            real_args = func_args  # surrogates flow to Tavily
+                        else:
+                            real_args = await deanonymize_tool_args(
+                                func_args, registry, redaction_service,
+                            )
                         tool_output = await tool_service.execute_tool(
                             func_name, real_args, user_id, tool_context,
                             registry=registry,
@@ -239,6 +280,32 @@ async def stream_chat(
                         tool_output = await tool_service.execute_tool(
                             func_name, func_args, user_id, tool_context,
                         )
+                    # ADR-0008 audit: record toggle state for every web_search
+                    # dispatch (only when actually dispatched, not blocked).
+                    if (
+                        func_name == "web_search"
+                        and not (
+                            isinstance(tool_output, dict)
+                            and tool_output.get("blocked")
+                        )
+                    ):
+                        try:
+                            log_action(
+                                user_id=user_id,
+                                user_email=user.get("email") if isinstance(user, dict) else None,
+                                action="web_search_dispatch",
+                                resource_type="chat_message",
+                                resource_id=body.thread_id,
+                                details={
+                                    "system_enabled": bool(sys_settings.get("web_search_enabled", True)),
+                                    "user_default": bool(user_prefs.get("web_search_default", False)),
+                                    "message_override": body.web_search,
+                                    "effective": web_search_effective,
+                                    "redaction_on": redaction_on,
+                                },
+                            )
+                        except Exception:
+                            pass  # audit is fire-and-forget per existing pattern
                     tool_records.append(ToolCallRecord(
                         tool=func_name, input=func_args, output=tool_output
                     ))
@@ -319,6 +386,14 @@ async def stream_chat(
             if redaction_on:
                 yield f"data: {json.dumps({'type': 'redaction_status', 'stage': 'anonymizing'})}\n\n"
 
+            # ADR-0008: compute available tool catalog up front so it can be
+            # fed to the orchestrator classifier and the tool loop.
+            all_tools = (
+                tool_service.get_available_tools(web_search_enabled=web_search_effective)
+                if settings.tools_enabled else []
+            )
+            available_tool_names = [t["function"]["name"] for t in all_tools]
+
             if settings.agents_enabled:
                 # --- Multi-agent path ---
                 # 1. Orchestrator classification
@@ -330,6 +405,7 @@ async def stream_chat(
                         openrouter_service,
                         orch_model,
                         registry=registry,
+                        available_tool_names=available_tool_names,
                     )
                     agent_name = classification.agent
                 except Exception:
@@ -347,8 +423,7 @@ async def stream_chat(
                     + [{"role": "user", "content": anonymized_message}]
                 )
 
-                # 4. Get agent's tool subset
-                all_tools = tool_service.get_available_tools() if settings.tools_enabled else []
+                # 4. Get agent's tool subset (filtered from the effective catalog)
                 agent_tools = agent_service.get_agent_tools(agent_def, all_tools)
 
                 # 5. Sub-agent tool loop
@@ -363,6 +438,7 @@ async def stream_chat(
                     registry=registry,
                     redaction_service=redaction_service,
                     redaction_on=redaction_on,
+                    available_tool_names=available_tool_names,
                 ):
                     if event_type == "records":
                         tool_records = data
@@ -408,7 +484,8 @@ async def stream_chat(
                     + [{"role": "user", "content": anonymized_message}]
                 )
 
-                tools = tool_service.get_available_tools() if settings.tools_enabled else []
+                # ADR-0008: reuse the effective catalog computed above.
+                tools = all_tools
 
                 # Agentic tool-calling loop
                 # When redaction is ON: buffer tool_start/tool_result events and
@@ -422,6 +499,7 @@ async def stream_chat(
                     registry=registry,
                     redaction_service=redaction_service,
                     redaction_on=redaction_on,
+                    available_tool_names=available_tool_names,
                 ):
                     if event_type == "records":
                         tool_records = data
