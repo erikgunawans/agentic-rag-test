@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.0.0] — 2026-04-28
+
+### Added
+- **Web search toggle (ADR-0008)** — 3-layer toggle (admin / per-user / per-message) for the `web_search` tool. LexCore now defaults to internal-first retrieval; users explicitly opt in via the 🌐 Globe icon in the chat composer. Migration `033_web_search_toggle.sql` adds `system_settings.web_search_enabled` (default true) and `user_preferences.web_search_default` (default false).
+- **Citation source badges** — visual provenance: globe icon for web-sourced tool calls, document icon for internal-source tool calls, rendered inline on `ToolCallCard`.
+- **Admin tools toggle** — admins can disable web search platform-wide via `/admin/settings` Tools section.
+- **Per-user web search default** — users set their preferred starting state in `/settings`.
+
+### Changed
+- `tool_service.get_available_tools()` now accepts a keyword-only `web_search_enabled: bool = True` parameter. Existing callers default to `True` for backward compatibility.
+- `agent_service.classify_intent()` now accepts an `available_tool_names: list[str] | None = None` parameter. When provided, the classifier prompt is augmented with eligibility constraints, and a defense-in-depth override forces an eligible agent if the LLM ignores the constraint.
+- Chat router (`POST /chat/stream`) accepts a new optional `web_search` field on the request body for per-message override.
+- When PII redaction is on, `web_search` arguments remain in surrogate form (queries to Tavily never receive registry-known real PII). Per-feature trade-off: search recall may degrade for PII-laden queries; users disable PII redaction explicitly to send real names externally.
+
+### Audited
+- Every `web_search` dispatch is recorded in `audit_logs` with full toggle state (`system_enabled`, `user_default`, `message_override`, `effective`, `redaction_on`) under `action = 'web_search_dispatch'`.
+
 ## [0.3.0.1] - 2026-04-28
 
 Post-ship gap-closures for the PII Redaction System v1.0 milestone. Three patches verified live in production:
