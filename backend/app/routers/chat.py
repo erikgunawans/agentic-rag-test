@@ -278,6 +278,16 @@ async def stream_chat(
                             # names that then trip egress on the synthesis
                             # call. User PII is still protected at the input
                             # boundary and on outbound queries.
+                            #
+                            # Known limitation (Fix D candidate): if a Faker-
+                            # generated surrogate happens to collide with a
+                            # real name in Tavily results, de_anonymize_text
+                            # on the synthesis response will map those
+                            # mentions back to the user's real value,
+                            # producing wrong attribution. Proper fix needs
+                            # a filter-only-by-existing-registry primitive
+                            # that anonymizes user-real values found in
+                            # Tavily output without registering new entities.
                             pass
                         else:
                             tool_output = await anonymize_tool_output(
