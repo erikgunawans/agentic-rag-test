@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { X, GitFork } from 'lucide-react'
 import { useI18n } from '@/i18n/I18nContext'
+import { useChatContext } from '@/contexts/ChatContext'
 import { InputActionBar } from './InputActionBar'
 
 interface MessageInputProps {
@@ -13,6 +14,7 @@ interface MessageInputProps {
 export function MessageInput({ onSend, disabled, forkParentId, onCancelFork }: MessageInputProps) {
   const [value, setValue] = useState('')
   const { t } = useI18n()
+  const { webSearchEnabled, setWebSearchEnabled } = useChatContext()
 
   function handleSend() {
     const trimmed = value.trim()
@@ -52,7 +54,12 @@ export function MessageInput({ onSend, disabled, forkParentId, onCancelFork }: M
           disabled={disabled}
           rows={1}
         />
-        <InputActionBar onSend={handleSend} disabled={disabled || !value.trim()} />
+        <InputActionBar
+          onSend={handleSend}
+          disabled={disabled || !value.trim()}
+          webSearchEnabled={webSearchEnabled}
+          onToggleWebSearch={() => setWebSearchEnabled((v) => !v)}
+        />
       </div>
     </div>
   )

@@ -24,6 +24,8 @@ export function useChatState() {
     'anonymizing' | 'deanonymizing' | 'blocked' | null
   >(null)
   const [loadingThreads, setLoadingThreads] = useState(false)
+  // ADR-0008: per-thread sticky web-search toggle; resets on thread switch
+  const [webSearchEnabled, setWebSearchEnabled] = useState(false)
 
   const loadThreads = useCallback(async () => {
     setLoadingThreads(true)
@@ -39,6 +41,10 @@ export function useChatState() {
   useEffect(() => {
     loadThreads()
   }, [loadThreads])
+
+  useEffect(() => {
+    setWebSearchEnabled(false) // ADR-0008: per-thread sticky; reset on thread switch
+  }, [activeThreadId])
 
   function rebuildVisibleMessages(all: Message[], selections: Map<string, string>) {
     const childrenMap = buildChildrenMap(all)
@@ -135,6 +141,7 @@ export function useChatState() {
           thread_id: threadId,
           message: content,
           parent_message_id: parentId,
+          web_search: webSearchEnabled, // ADR-0008
         }),
       })
 
@@ -253,6 +260,8 @@ export function useChatState() {
     activeAgent,
     redactionStage,
     loadingThreads,
+    webSearchEnabled,
+    setWebSearchEnabled,
     handleSelectThread,
     handleCreateThread,
     handleDeleteThread,

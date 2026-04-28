@@ -1,13 +1,21 @@
-import { Send, Plus, FileText, Mic } from 'lucide-react'
+import { Send, Plus, FileText, Mic, Globe } from 'lucide-react'
 import { useI18n } from '@/i18n/I18nContext'
 
 interface InputActionBarProps {
   onSend: () => void
   disabled: boolean
   showVersion?: boolean
+  webSearchEnabled: boolean
+  onToggleWebSearch: () => void
 }
 
-export function InputActionBar({ onSend, disabled, showVersion }: InputActionBarProps) {
+export function InputActionBar({
+  onSend,
+  disabled,
+  showVersion,
+  webSearchEnabled,
+  onToggleWebSearch,
+}: InputActionBarProps) {
   const { t } = useI18n()
 
   return (
@@ -17,6 +25,20 @@ export function InputActionBar({ onSend, disabled, showVersion }: InputActionBar
       </button>
       <button className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
         <FileText className="h-4 w-4" />
+      </button>
+      <button
+        type="button"
+        onClick={onToggleWebSearch}
+        className={`h-8 px-2 rounded-lg flex items-center gap-1 text-xs transition-colors ${
+          webSearchEnabled
+            ? 'bg-primary/10 text-primary hover:bg-primary/15'
+            : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+        }`}
+        aria-pressed={webSearchEnabled}
+        title={t('chat.webSearchTooltip')}
+      >
+        <Globe className="h-4 w-4" />
+        <span>{t('chat.webSearchToggle')}</span>
       </button>
       <div className="flex-1" />
       {showVersion && (
