@@ -33,6 +33,8 @@ interface SystemSettings {
   // Phase 4: Fuzzy de-anonymization (D-67..D-70)
   fuzzy_deanon_mode?: 'algorithmic' | 'llm' | 'none'
   fuzzy_deanon_threshold?: number
+  // Phase 5: Master PII redaction toggle (D-83-toggle / Plan 05-08)
+  pii_redaction_enabled?: boolean
 }
 
 interface LlmProviderStatus {
@@ -472,6 +474,21 @@ export function AdminSettingsPage() {
                 <h2 className="text-sm font-semibold">{t('admin.pii.title')}</h2>
                 <p className="text-xs text-muted-foreground mt-0.5">{t('admin.pii.description')}</p>
               </div>
+
+              {/* Master PII redaction toggle — DB-backed via system_settings (Plan 05-08) */}
+              <label className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  checked={form.pii_redaction_enabled ?? true}
+                  onChange={(e) => updateField('pii_redaction_enabled', e.target.checked)}
+                />
+                <div>
+                  <p className="text-sm font-medium">{t('admin.pii.redactionEnabled.label')}</p>
+                  <p className="text-xs text-muted-foreground">{t('admin.pii.redactionEnabled.desc')}</p>
+                </div>
+              </label>
+
+              <Separator />
 
               {/* Status badges (D-58) — sourced from GET /admin/settings/llm-provider-status */}
               <div className="flex flex-wrap gap-2">
