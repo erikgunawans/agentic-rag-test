@@ -271,11 +271,27 @@ async def stream_chat(
                         )
                         # tool_records keep the surrogate-form func_args
                         # (LLM-emitted) so persistence and downstream
-                        # consumers see the LLM's actual emission. The
-                        # output is anonymized for the LLM's next turn.
-                        tool_output = await anonymize_tool_output(
-                            tool_output, registry, redaction_service,
-                        )
+                        # consumers see the LLM's actual emission.
+                        if func_name == "web_search":
+                            # ADR-0008 Fix C: web_search output is PUBLIC data
+                            # from the open internet — public figures speaking
+                            # in their public capacity. Per UU PDP that is not
+                            # personal data. Anonymizing it pollutes the per-
+                            # thread registry with public names (Prabowo
+                            # Subianto, OJK officials, etc.), which then trip
+                            # the egress filter on the synthesis call because
+                            # those same names appear in subsequent payloads.
+                            # Pass through unchanged. User-PII protection is
+                            # still enforced at the input boundary
+                            # (anonymize_message) and at outbound search
+                            # queries (real_args=func_args above keeps
+                            # surrogates flowing to Tavily).
+                            pass
+                        else:
+                            # The output is anonymized for the LLM's next turn.
+                            tool_output = await anonymize_tool_output(
+                                tool_output, registry, redaction_service,
+                            )
                     else:
                         tool_output = await tool_service.execute_tool(
                             func_name, func_args, user_id, tool_context,
