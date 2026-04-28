@@ -43,6 +43,7 @@ class SystemSettingsUpdate(BaseModel):
     # Phase 4 forward-compat (column shipped in Phase 3 to avoid migration churn)
     pii_missed_scan_enabled: bool | None = None
     pii_redaction_enabled: bool | None = None  # Plan 05-08: master toggle, DB-backed (replaces config.py env var)
+    web_search_enabled: bool | None = None  # ADR-0008 L1: master kill switch for web_search tool
 
     # Phase 4: Fuzzy de-anonymization (D-67..D-70)
     fuzzy_deanon_mode: Literal["algorithmic", "llm", "none"] | None = None
