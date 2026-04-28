@@ -1,11 +1,31 @@
 import { useState } from 'react'
-import { Database, Search, Globe, ChevronDown, ChevronRight, Loader2 } from 'lucide-react'
+import { Database, Search, Globe, FileText, ChevronDown, ChevronRight, Loader2 } from 'lucide-react'
 import type { ToolCallRecord } from '@/lib/database.types'
+import { useI18n } from '@/i18n/I18nContext'
 
 const TOOL_CONFIG: Record<string, { icon: typeof Database; label: string }> = {
   search_documents: { icon: Search, label: 'Document Search' },
   query_database: { icon: Database, label: 'Database Query' },
   web_search: { icon: Globe, label: 'Web Search' },
+}
+
+function SourceBadge({ tool }: { tool: string }) {
+  const { t } = useI18n()
+  const isWeb = tool === 'web_search'
+  const Icon = isWeb ? Globe : FileText
+  const label = isWeb ? t('chat.source.web') : t('chat.source.internal')
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] shrink-0 ${
+        isWeb
+          ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400'
+          : 'bg-zinc-500/10 text-zinc-600 dark:text-zinc-400'
+      }`}
+    >
+      <Icon className="h-3 w-3" />
+      {label}
+    </span>
+  )
 }
 
 function getToolSummary(tool: string, input: Record<string, unknown>): string {
@@ -39,6 +59,7 @@ export function ToolCallCard({ tool, input, output, isLoading }: ToolCallCardPro
         ) : (
           <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
         )}
+        <SourceBadge tool={tool} />
         <span className="text-muted-foreground truncate flex-1">
           {isLoading ? `${config.label}...` : getToolSummary(tool, input)}
         </span>
