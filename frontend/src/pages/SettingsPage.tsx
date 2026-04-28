@@ -12,6 +12,7 @@ import type { Locale } from '@/i18n/translations'
 interface UserPreferences {
   theme: string
   notifications_enabled: boolean
+  web_search_default?: boolean
 }
 
 type SettingsSection = 'appearance' | 'language' | 'notifications' | 'security'
@@ -41,6 +42,7 @@ export function SettingsPage() {
   const { theme, setTheme } = useTheme()
   const [prefs, setPrefs] = useState<UserPreferences | null>(null)
   const [notifications, setNotifications] = useState(true)
+  const [webSearchDefault, setWebSearchDefault] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -53,6 +55,7 @@ export function SettingsPage() {
     const data: UserPreferences = await res.json()
     setPrefs(data)
     setNotifications(data.notifications_enabled)
+    setWebSearchDefault(data.web_search_default ?? false)
   }, [])
 
   useEffect(() => {
@@ -69,6 +72,7 @@ export function SettingsPage() {
         body: JSON.stringify({
           theme,
           notifications_enabled: notifications,
+          web_search_default: webSearchDefault,
         }),
       })
       setSaved(true)
@@ -81,7 +85,10 @@ export function SettingsPage() {
     }
   }
 
-  const isDirty = prefs !== null && notifications !== prefs.notifications_enabled
+  const isDirty =
+    prefs !== null &&
+    (notifications !== prefs.notifications_enabled ||
+      webSearchDefault !== (prefs.web_search_default ?? false))
 
   return (
     <div className="flex h-full">
@@ -332,6 +339,19 @@ export function SettingsPage() {
                 <div>
                   <p className="text-sm font-medium">{t('settings.enableNotifications')}</p>
                   <p className="text-xs text-muted-foreground">{t('settings.enableNotificationsDesc')}</p>
+                </div>
+              </label>
+
+              {/* ADR-0008 L2: Web search default per-user pref */}
+              <label className="flex items-center gap-3 rounded-lg border p-3 cursor-pointer hover:bg-muted/50">
+                <input
+                  type="checkbox"
+                  checked={webSearchDefault}
+                  onChange={(e) => setWebSearchDefault(e.target.checked)}
+                />
+                <div>
+                  <p className="text-sm font-medium">{t('settings.webSearchDefault')}</p>
+                  <p className="text-xs text-muted-foreground">{t('settings.webSearchDefaultDesc')}</p>
                 </div>
               </label>
 
