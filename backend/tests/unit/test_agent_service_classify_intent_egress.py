@@ -56,6 +56,9 @@ class _StubRegistry:
     def entries(self):
         return self._mappings
 
+    def canonicals(self):
+        return self._mappings
+
 
 def _sys_settings_override(**overrides):
     """Returns a system_settings dict stub for patching agent_service.get_system_settings.
