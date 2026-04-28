@@ -2,14 +2,11 @@
 status: complete
 phase: 05-chat-loop-integration-buffering-sse-status-tool-sub-agent-co
 source:
-  - 05-01-SUMMARY.md
-  - 05-02-SUMMARY.md
-  - 05-03-SUMMARY.md
-  - 05-04-SUMMARY.md
-  - 05-05-SUMMARY.md
-  - 05-06-SUMMARY.md
-started: "2026-04-28T00:00:00+07:00"
-updated: "2026-04-28T06:05:00+07:00"
+  - 05-07-SUMMARY.md
+  - 05-08-SUMMARY.md
+started: "2026-04-28T07:09:00+07:00"
+updated: "2026-04-28T07:25:00+07:00"
+note: "Re-verification pass — gap-closure plans 05-07 (D-48 egress fix) and 05-08 (pii_redaction_enabled DB toggle) have been executed. This UAT verifies those fixes are working."
 ---
 
 ## Current Test
@@ -18,174 +15,75 @@ updated: "2026-04-28T06:05:00+07:00"
 
 ## Tests
 
-### 1. Backend Cold-Start Smoke Test
+### 1. pii_redaction_enabled Toggle Visible in Admin Settings
 expected: |
-  Kill any running backend server. Start it fresh:
-    cd backend && source venv/bin/activate && uvicorn app.main:app --reload --port 8000
-  The server should boot without any import errors or exceptions.
-  Look for: "Application startup complete." (or similar uvicorn ready message).
-  If the server errors on startup, Phase 5 imports broke something.
-result: pass
-
-### 2. Off-Mode Chat Works Unchanged (PII_REDACTION_ENABLED=false)
-expected: |
-  With the backend running and PII_REDACTION_ENABLED=false (the default if not set in .env):
-  Open the chat UI, send a message like "Hello, what can you help me with?"
-  The response should stream progressively (words appear one by one as before).
-  No new events, no delay waiting for buffer, no status spinner visible.
-  This is the SC#5 regression test — Phase 5 must be invisible when redaction is off.
+  In the admin UI at /admin/settings, there should now be a PII Redaction toggle.
+  The toggle should reflect the current DB value (default: ON).
+  Flipping it OFF and saving should immediately affect chat behavior (within 60s cache TTL).
+  The admin API GET /admin/settings response should include "pii_redaction_enabled": true.
 result: issue
-reported: "pii_redaction_enabled is a pydantic-settings env var defaulting to True in config.py
-  (line 77). It is NOT in the system_settings DB table — the admin API returns 44 keys,
-  none of which is pii_redaction_enabled. Production always runs with redaction ON unless
-  PII_REDACTION_ENABLED=false is explicitly set in Railway env vars. SC#5 off-mode cannot
-  be verified in production without a Railway env change. Admin UI has no toggle for this."
+reported: "Backend API correctly returns pii_redaction_enabled=true (confirmed via fetch to /admin/settings). However, the frontend AdminSettingsPage.tsx has NO mention of pii_redaction_enabled — no toggle is rendered in the UI. Plan 05-08 wired the backend only; the frontend UI was never built. Admin has no way to toggle PII redaction from the browser."
 severity: major
 
-### 3. Frontend TypeScript Builds Without Errors
+### 2. Off-Mode Chat Works Unchanged (Admin Toggle OFF)
 expected: |
-  Run: cd frontend && npx tsc --noEmit
-  Should exit 0 with no errors.
-  The new RedactionStatusEvent type in database.types.ts and the
-  useChatState.redactionStage state variable must not break existing type checks.
+  In admin settings, set pii_redaction_enabled = OFF and save.
+  Wait ~60 seconds (cache TTL), then open chat and send: "Hello, what can you help me with?"
+  Expected: response streams normally, no redaction_status SSE events in the stream,
+  no anonymizing/deanonymizing stages. Behavior identical to pre-PII-redaction.
+  This verifies SC#5 off-mode is now properly admin-toggleable without a Railway redeploy.
+result: blocked
+blocked_by: prior-phase
+reason: "Blocked by Test 1 — frontend toggle doesn't exist, can't set pii_redaction_enabled=OFF via UI."
+
+### 3. Multi-Turn Chat No Longer Blocked After Turn 1 (D-48 Fix)
+expected: |
+  With PII redaction ON (default), send Turn 1: "Can you help me draft a contract for Ahmad Suryadi?"
+  Turn 1 should work: response received, name de-anonymized in reply.
+  Then send Turn 2: "What is a non-disclosure agreement?"
+  Turn 2 should also return a full response (NOT blocked/empty).
+  Then send Turn 3: "What governing law should I use?"
+  Turn 3 should also return a full response.
+  All turns in the same thread should work — no more EgressBlockedAbort cascade.
 result: pass
+notes: "Playwright confirmed all 3 turns received full responses. Turn 2 (NDA explanation) and Turn 3 (governing law guidance) both returned content. No EgressBlockedAbort. D-48 variant cascade fix verified in production."
 
-### 4. Integration Test Suite Passes (pytest)
+### 4. SSE Sequence Correct on Turn 2+ (D-48 Fix)
 expected: |
-  Run: cd backend && source venv/bin/activate && python -m pytest tests/api/test_phase5_integration.py -v --tb=short
-  All 14 tests across 7 classes should pass:
-    - TestSC1_PrivacyInvariant (2 tests) — no real PII in any LLM payload
-    - TestSC2_BufferingAndStatus (2 tests) — correct SSE event order
-    - TestSC3_SearchDocumentsTool (2 tests) — walker symmetry
-    - TestSC4_SqlGrepAndSubAgent (2 tests) — query_database + kb_grep
-    - TestSC5_OffMode (2 tests) — zero redaction_status events when disabled
-    - TestB4_LogPrivacy_ChatLoop (2 tests) — no real PII in logs
-    - TestEgressTrip_ChatPath (2 tests) — egress blocked, clean abort
+  With PII redaction ON, Turn 2+ should have the correct SSE sequence:
+    1. redaction_status: anonymizing
+    2. agent_start
+    3. redaction_status: deanonymizing
+    4. delta(content, done=false)
+    5. agent_done
+    6. delta(done=true)
+  The delta event should contain real response content (not empty).
 result: pass
-
-### 5. PII Redaction Active Mode (requires PII_REDACTION_ENABLED=true)
-expected: |
-  Send a chat message containing a real name, e.g.:
-    "Can you help me draft a contract for Ahmad Suryadi?"
-  Expected behavior:
-  - The final response appears with real name de-anonymized (Ahmad Suryadi visible)
-  - In SSE stream: anonymizing → agent_start → deanonymizing → delta(content) → agent_done
-  - All subsequent messages in the thread also receive normal responses
-result: issue
-reported: "Turn 1 works correctly — 'Ahmad Suryadi' is anonymized, LLM response received,
-  de-anonymized and shown. SSE sequence correct: anonymizing → agent_start → deanonymizing
-  → delta(content) → agent_done.
-
-  BUT: every subsequent turn in the same thread is BLOCKED. Playwright confirmed:
-  Turn 2 ('What is a non-disclosure agreement?') and Turn 3 ('What governing law should I
-  use?') both return: anonymizing → agent_start → blocked → delta(empty).
-
-  Supabase entity_registry query on the test thread revealed the root cause:
-  spaCy xx_ent_wiki_sm falsely detects legal terms in the LLM's response as PERSON entities:
-    'Recitals' → PERSON, 'Confidentiality Clause' → PERSON, 'Governing Law' → PERSON,
-    'Signatures' → PERSON, 'Specify' → PERSON.
-
-  D-48 variant generation then stores first/last word variants as separate registry entries:
-    'Confidentiality', 'Clause', 'Governing', 'Law' — all stored as real PERSON values.
-
-  On subsequent turns, the anonymized text still contains these common words outside of
-  replaced entity spans (e.g., 'include terms regarding confidentiality' — the word
-  'confidentiality' is NOT inside the 'Confidentiality Clause' span that was replaced).
-  The egress filter matches these common legal words → EgressBlockedAbort → empty response.
-
-  Cascade: spaCy false positive → D-48 variant pollution → egress false block → chat
-  permanently unusable after Turn 1 in any thread involving legal domain language."
-severity: blocker
-
-### 6. SSE Redaction Status Events (frontend spinner, requires PII on + browser devtools)
-expected: |
-  With PII_REDACTION_ENABLED=true and a PII-containing chat message:
-  In the SSE events, you should see this sequence:
-    1. data: {"type":"redaction_status","stage":"anonymizing"}
-    2. data: {"type":"agent_start",...}
-    3. data: {"type":"redaction_status","stage":"deanonymizing"}
-    4. data: {"type":"delta","delta":"<full response text>","done":false}
-    5. data: {"type":"agent_done",...}
-    6. data: {"type":"delta","done":true}
-  The "anonymizing" and "deanonymizing" events bracket the LLM call window.
-  All subsequent turns in the thread also receive complete responses.
-result: issue
-reported: "Turn 1 SSE sequence is correct: anonymizing → agent_start → deanonymizing →
-  delta(content) → agent_done. De-anonymization works (real name restored in response).
-
-  Turn 2+ SSE sequence is broken: anonymizing → agent_start → blocked → delta(empty,done:true).
-  No response content is delivered. This is caused by the same D-48 variant cascade
-  bug documented in Test 5 — the egress filter trips on common legal words stored as
-  false-positive PERSON variants in the entity_registry."
-severity: blocker
+notes: "SSE interceptor confirmed identical 6-event sequence for all 3 turns. No blocked events. Sequence: anonymizing → agent_start → deanonymizing → delta(done=false) → agent_done → delta(done=true). Verified via window._sseEvents capture."
 
 ## Summary
 
-total: 6
+total: 4
 passed: 2
-issues: 3
+issues: 1
 pending: 0
 skipped: 0
-blocked: 0
-(note: test 1 and 4 pass; tests 2, 5, 6 have issues; test 3 pass — 3 pass total including test 3)
+blocked: 1
 
 ## Gaps
 
-- truth: "pii_redaction_enabled must be toggleable via admin settings (system_settings table)"
+- truth: "Admin settings UI must expose a pii_redaction_enabled toggle connected to the DB-backed system_settings value"
   status: failed
-  reason: "User reported: pii_redaction_enabled is a config.py env var (default True), absent
-    from admin API response and DB system_settings table. Admin UI cannot toggle it. SC#5
-    off-mode untestable in production without Railway env var change."
+  reason: "Backend API returns pii_redaction_enabled correctly. AdminSettingsPage.tsx has no toggle UI. Plan 05-08 wired backend only; frontend was not updated."
   severity: major
-  test: 2
-  root_cause: "pii_redaction_enabled lives in pydantic-settings config.py (line 77) as a
-    static env var, never migrated into system_settings table. admin_settings.py
-    SystemSettingsUpdate model has no pii_redaction_enabled field."
+  test: 1
+  root_cause: "Plan 05-08 scope covered backend migration + API + service layer only. No frontend file was listed in key_files.modified for 05-08. AdminSettingsPage.tsx needs a boolean toggle wired to PATCH /admin/settings."
   artifacts:
-    - path: "backend/app/config.py"
-      issue: "pii_redaction_enabled: bool = True hardcoded default, not in DB"
+    - path: "frontend/src/pages/AdminSettingsPage.tsx"
+      issue: "No pii_redaction_enabled field rendered — needs toggle UI wired to PATCH /admin/settings"
     - path: "backend/app/routers/admin_settings.py"
-      issue: "SystemSettingsUpdate model missing pii_redaction_enabled field"
+      issue: "Backend already accepts pii_redaction_enabled in SystemSettingsUpdate (verified via API response)"
   missing:
-    - "Add pii_redaction_enabled column to system_settings table (new migration)"
-    - "Add pii_redaction_enabled to SystemSettingsUpdate and GET response in admin_settings.py"
-    - "Update chat.py to read from system_settings instead of config.py"
-
-- truth: "Multi-turn chat works correctly after Turn 1 when PII redaction is active"
-  status: failed
-  reason: "User reported: spaCy xx_ent_wiki_sm falsely detects legal terms (Recitals,
-    Confidentiality Clause, Governing Law, Signatures, Specify) as PERSON entities in LLM
-    responses. D-48 variant generation stores first/last word variants (Confidentiality,
-    Clause, Governing, Law) as real PERSON values in entity_registry. These common words
-    appear in subsequent anonymized text outside of replaced spans, tripping the egress
-    filter on every turn after Turn 1. Thread is permanently unusable after any response
-    containing legal domain vocabulary."
-  severity: blocker
-  test: 5
-  root_cause: "D-48 variant generation (anonymization.py) is designed for real person name
-    variants (Ahmad Suryadi → Ahmad, Suryadi). When spaCy produces false-positive PERSON
-    detections for legal compound nouns (Governing Law, Confidentiality Clause), D-48
-    stores common legal words as PERSON real values. The egress filter (egress.py) checks
-    ALL registry entries including these false-positive variants against the anonymized
-    payload. The anonymized payload still contains these words outside of replaced spans.
-    The fix requires either: (a) suppressing D-48 variants for false-positive clusters, or
-    (b) filtering common non-name words from D-48 variant generation, or (c) adding a
-    minimum token length / name-shape check before storing variants."
-  artifacts:
-    - path: "backend/app/services/redaction/anonymization.py"
-      issue: "D-48 variant generation stores first/last word of any PERSON cluster as
-        real values — including false-positive legal terms detected by spaCy"
-    - path: "backend/app/services/redaction/detection.py"
-      issue: "spaCy xx_ent_wiki_sm produces false-positive PERSON detections for legal
-        compound nouns: Recitals, Confidentiality Clause, Governing Law, Signatures, Specify"
-    - path: "backend/app/services/redaction/egress.py"
-      issue: "egress_filter checks ALL registry.entries() including single-word variants
-        of false-positive clusters; word-boundary regex matches common legal vocabulary"
-  missing:
-    - "Add name-shape gate in D-48 variant generation: only store variants for clusters
-      where canonical looks like a human name (e.g., 2+ words, title-case, not in
-      legal/domain stopword list)"
-    - "OR: add domain stopwords to detection.py to block spaCy false positives for
-      common legal terms before they enter the redaction pipeline"
-    - "OR: in egress.py, skip single-word variants when checking (only check canonical
-      real values, not D-48 sub-surrogates)"
+    - "Add pii_redaction_enabled boolean toggle to AdminSettingsPage.tsx, matching existing toggle pattern"
+    - "Wire save handler to include pii_redaction_enabled in PATCH /admin/settings payload"
+    - "After toggle is live, re-test SC#5 off-mode (Test 2)"
