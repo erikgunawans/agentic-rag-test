@@ -1,6 +1,24 @@
 # Progress
 
-PJAA CLM Platform (LexCore) **v0.3.0.0 SHIPPED 2026-04-28**. PII Redaction milestone v1.0 (Phases 1-5) live in production. 246/246 tests pass. chat.py: 517 LOC full privacy integration. 22 routers, 18 services, 31 migrations. HEAD `a2ec1f0`. Backend (Railway) + Frontend (Vercel) both healthy. 1-week health check scheduled (`trig_01A1ZRy1m5TaCcvwiPZdXHx9`, fires 2026-05-05T02:00Z).
+PJAA CLM Platform (LexCore) **v0.3.0.1 — gap-closure patch on top of v0.3.0.0 ship (2026-04-28)**. PII Redaction milestone v1.0 (Phases 1-5) live in production with 3 post-ship gap-closures (Plans 05-07/05-08/05-09) verified. Phase 5 UAT: 3 PASS / 1 SKIPPED / 0 ISSUES. chat.py: 517 LOC full privacy integration. 22 routers, 19 services, 32 migrations. Backend (Railway) + Frontend (Vercel) both healthy. 1-week health check scheduled (`trig_01A1ZRy1m5TaCcvwiPZdXHx9`, fires 2026-05-05T02:00Z).
+
+## Checkpoint 2026-04-28 (Phase 5 gap-closure 05-09 — frontend PII toggle)
+
+- **Session:** Re-ran `/gsd-verify-work 5` with Playwright; UAT surfaced 1 new gap (frontend admin PII toggle missing — Plan 05-08 wired backend only). Created Plan 05-09 inline, deployed, verified live.
+- **Branch:** master (`b358ea0`), pushed to origin/master + origin/main
+- **Done:**
+  - **UAT re-verification (Playwright):** Tests 3+4 (D-48 multi-turn chat fix) → PASS in production. Sent 3 turns starting with "Ahmad Suryadi" PII → all returned full responses, no `EgressBlockedAbort`. SSE interceptor confirmed perfect 6-event sequence (`anonymizing → agent_start → deanonymizing → delta → agent_done → delta(done)`) for every turn.
+  - **Gap surfaced:** API returned `pii_redaction_enabled: true` correctly, but `AdminSettingsPage.tsx` had zero references — frontend toggle never built (Plan 05-08 scope was backend-only).
+  - **Plan 05-09 (`bb467ef`):** 21-line frontend fix — added `pii_redaction_enabled?: boolean` to `SystemSettings` interface, master toggle at top of PII section (before status badges), bilingual i18n strings (`admin.pii.redactionEnabled.{label,desc}` in both ID + EN). Used existing controlled-checkbox pattern from `pii_missed_scan_enabled`.
+  - **Vercel deploy:** `npx vercel --prod --yes` → `dpl_CdaFyv525bQ3gbo56vvq2MH4Vb8F` promoted (gotcha: `git push origin master:main` does NOT trigger Vercel for this project — manual deploy required).
+  - **Live verification:** Playwright opened `/admin/settings`, navigated to PII section, confirmed toggle visible+checked. Toggled off via `getByRole('checkbox').click()`, save button enabled, PATCH 200, then direct API PATCH set `pii_redaction_enabled: true` to restore production state.
+  - **Plan 05-09 docs (`b358ea0`):** PLAN.md + SUMMARY.md (with `gap_closure: true` frontmatter), `05-UAT.md` updated to `status: resolved`, gap marked `status: resolved` with `resolved_by: Plan 05-09`.
+- **Files changed:** `frontend/src/pages/AdminSettingsPage.tsx`, `frontend/src/i18n/translations.ts`, `.planning/phases/05-*/{05-09-PLAN.md,05-09-SUMMARY.md,05-UAT.md}`
+- **Tests:** TS clean, backend import OK. Existing 246/246 pytest unaffected (frontend-only change, integration test SC#5 already covers off-mode behavior). Pre-existing lint errors in unrelated files (`DocumentsPage`, `ThemeContext`) — not introduced by this change.
+- **UAT score:** 3 PASS / 1 SKIPPED / 0 ISSUES. Test 2 (off-mode chat via UI) skipped because end-to-end behavior is already covered by `TestSC5_OffMode` integration tests; manual UI re-test would only exercise the 60s `get_system_settings()` cache expiry timing.
+- **Cache observation:** `get_system_settings()` 60s TTL means the immediate post-save `loadSettings()` reads the stale value, making the toggle appear to snap back. Cosmetic UI quirk, not a defect — direct API verification confirmed the DB writes through correctly. Worth a future "settings will apply within 60s" hint, but it's polish.
+- **Phase 5 final state:** 9 plans (05-01..05-09), all SUMMARYs present, ROADMAP/STATE already showed phase complete from earlier session, this gap-closure is purely additive admin UX polish.
+- **Next:** Phase 6 (final PII milestone phase — `pg_advisory_xact_lock` cross-process upgrade per D-31), OR deferred /review items, OR `/document-release` for README/CLAUDE.md PII section.
 
 ## Checkpoint 2026-04-28 (v0.3.0.0 SHIPPED — PII Redaction milestone v1.0 in production)
 

@@ -8,7 +8,7 @@ The evolution of Knowledge Hub, from a RAG learning project to a legal document 
 
 **Target market:** Indonesian legal professionals, compliance officers, and business teams who work with contracts, NDAs, and regulatory documents daily, especially those subject to UU PDP and OJK data-residency requirements.
 
-**Status:** Feature-complete (v2.1, semver 0.3.0.0), deployed (Vercel + Railway). RAG pipeline 8/8 shipped, BJR governance live, UU PDP toolkit live, **PII Redaction System v1.0 live (Phases 1-5 of 6 complete; Phase 6 cross-process async-lock upgrade remaining)**. 31 migrations, 22 routers, 19 services. Backend Railway deploy is manual via `railway up`; frontend Vercel deploys from `main` branch.
+**Status:** Feature-complete (v2.1, semver 0.3.0.1), deployed (Vercel + Railway). RAG pipeline 8/8 shipped, BJR governance live, UU PDP toolkit live, **PII Redaction System v1.0 live (Phases 1-5 of 6 complete; Phase 6 cross-process async-lock upgrade remaining)**, plus 3 post-ship gap-closures verified in production (semver `0.3.0.1`): Plan 05-07 (D-48 canonical-only egress fix unblocking multi-turn chat), Plan 05-08 (DB-backed `pii_redaction_enabled` admin toggle, migration 032), Plan 05-09 (frontend admin toggle UI). 32 migrations, 22 routers, 19 services. Backend Railway deploy is manual via `railway up`; frontend Vercel deploys from `main` branch via `npx vercel --prod`.
 
 ---
 
@@ -116,11 +116,17 @@ Shipped the privacy invariant: real PII (names, emails, phones, locations, dates
 - Hard-redact entity types (CREDIT_CARD, US_SSN, etc.) emit `[ENTITY_TYPE]` placeholders, never registered, never round-trippable — intentionally one-way
 
 **Infrastructure additions:**
-- 3 migrations: 029 `entity_registry` table (RLS service-role-only), 030 9 PII provider columns on `system_settings`, 031 fuzzy de-anon mode + threshold
+- 4 migrations: 029 `entity_registry` table (RLS service-role-only), 030 9 PII provider columns on `system_settings`, 031 fuzzy de-anon mode + threshold, 032 `pii_redaction_enabled` admin toggle column (post-ship, Plan 05-08)
 - New service modules: `redaction/{registry, anonymization, clustering, egress, fuzzy_match, missed_scan, nicknames_id, prompt_guidance, tool_redaction, detection, name_extraction, honorifics, gender_id, uuid_filter, errors}.py`
 - `LLMProviderClient` with provider-aware branching (`local` / `cloud`) and egress wrapping
-- Admin UI: 14 new settings in PII section at `/admin/settings`
+- Admin UI: PII section with master `pii_redaction_enabled` toggle + 11 downstream PII/provider settings at `/admin/settings`
 - `chat.py` grew 291 → 517 LOC with full privacy wiring: per-turn registry lifecycle, batched history anon, tool walker wrap, 3 egress guard sites, redaction_status SSE events
+- `ConversationRegistry.canonicals()` (Plan 05-07): O(n) longest-real-value-per-surrogate aggregation; egress filter scans canonicals only, excluding D-48 sub-variants that previously caused false-positive cascades on legal vocabulary
+
+**Post-ship gap-closures (2026-04-28, between v0.3.0.0 ship and `b358ea0`):**
+- **Plan 05-07** — Multi-turn chat blocker fix. spaCy `xx_ent_wiki_sm` was producing false-positive PERSON detections for legal compound nouns (`Confidentiality Clause`, `Governing Law`); D-48 variant generation stored their first/last words as registry entries that subsequent turns tripped against the egress filter. Fix: egress now scans `registry.canonicals()` (longest real_value per surrogate) instead of `registry.entries()`, so D-48 sub-variants never appear in the egress candidate set. 18/18 unit tests pass including new `TestD48VariantCascade` regression suite.
+- **Plan 05-08** — `pii_redaction_enabled` migrated from a hardcoded env var (`config.py`) to a DB-backed `system_settings` column (migration 032). Both D-84 service-layer gates and the chat-router gate read from `get_system_settings()` (60s TTL cache). Admin can now toggle PII redaction without a Railway redeploy. 14/14 phase 5 integration tests still pass.
+- **Plan 05-09** — Frontend toggle UI completion. `AdminSettingsPage.tsx` now renders a master `Aktifkan redaksi PII` checkbox at the top of the PII section with bilingual i18n (`admin.pii.redactionEnabled.{label,desc}` in ID + EN). Backend half (Plan 05-08) was complete at v0.3.0.0 ship; this plan wired the UI surface so admins can flip the toggle from the browser. Playwright-verified end-to-end (UI → PATCH → DB) in production.
 
 **Production deploy gotcha:** spaCy model must be downloaded at Docker build time (Dockerfile `RUN python -m spacy download xx_ent_wiki_sm` before USER switch); runtime download fails as non-root user. Procfile release hooks are ignored when Dockerfile is present. Backend deploys are manual via `railway up`, not git-push-triggered.
 
@@ -182,6 +188,9 @@ Shipped the privacy invariant: real PII (names, emails, phones, locations, dates
 | Missed-PII scan (auto-chain) | Shipped | Phase 10 | Optional secondary LLM scan re-redacts entities Presidio missed |
 | Tool I/O symmetry walker | Shipped | Phase 10 | Tool args de-anonymized before execute, output anonymized after; recursive dict/list walk |
 | Buffered SSE redaction status | Shipped | Phase 10 | `redaction_status:anonymizing` / `:deanonymizing` events; batched delta on turn complete |
+| Multi-turn PII chat (D-48 canonical egress) | Shipped | Phase 10 (post-ship 05-07) | `egress_filter` scans canonical real_value per surrogate; D-48 sub-variants excluded so legal vocabulary cannot trip false-positives |
+| DB-backed PII redaction toggle | Shipped | Phase 10 (post-ship 05-08) | `pii_redaction_enabled` column on `system_settings` (migration 032); admin-toggleable without Railway redeploy, 60s cache TTL |
+| PII redaction admin toggle UI | Shipped | Phase 10 (post-ship 05-09) | Master `Aktifkan redaksi PII` checkbox at top of PII section in `/admin/settings`, bilingual i18n |
 | Cross-process async-lock | Pending | Phase 11 | D-31 upgrade: `pg_advisory_xact_lock(hashtext(thread_id))` for multi-worker correctness |
 
 ---
@@ -233,6 +242,7 @@ Shipped the privacy invariant: real PII (names, emails, phones, locations, dates
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| v2.1.1 | 2026-04-28 | Post-ship gap-closures: D-48 canonical-only egress fix (Plan 05-07) unblocks multi-turn PII chat; `pii_redaction_enabled` migrates from env var to DB-backed admin toggle (Plan 05-08, migration 032); frontend admin toggle UI added (Plan 05-09). Semver `0.3.0.1`. |
 | v2.1 | 2026-04-28 | PII Redaction System v1.0 (Phases 1-5 of 6 complete). Privacy invariant: real PII never reaches cloud-LLM payloads. Conversation-scoped registry, pre-flight egress filter, fuzzy de-anonymization, chat-loop integration. Semver `0.3.0.0`. |
 | v2.0 | 2026-04-20 | RAG pipeline 8/8, Claude Code automations, CLAUDE.md 100/100, pre-ship pipeline |
 | v1.3 | 2026-04-18 | Embedding fine-tuning infra, GraphRAG, vision OCR, knowledge base explorer |

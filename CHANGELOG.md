@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.0.1] - 2026-04-28
+
+Post-ship gap-closures for the PII Redaction System v1.0 milestone. Three patches verified live in production:
+
+### Fixed
+- **Multi-turn PII chat blocker (Plan 05-07)** — spaCy `xx_ent_wiki_sm` produces false-positive PERSON detections for legal compound nouns (`Confidentiality Clause`, `Governing Law`, `Recitals`). D-48 variant generation stored their first/last words as registry entries that subsequent turns then tripped against the egress filter, leaving every conversation usable for exactly one turn before all replies came back blocked. Egress filter now scans `registry.canonicals()` (longest real_value per surrogate, O(n) one-pass) instead of `registry.entries()`, so D-48 sub-variants stay available for fuzzy de-anonymization but never enter the egress candidate set. Adds `ConversationRegistry.canonicals()` and a `TestD48VariantCascade` regression suite (3 tests).
+
+### Changed
+- **`pii_redaction_enabled` storage (Plan 05-08)** — the master PII toggle moved from a hardcoded `config.py` env-var default (`True`) to a DB-backed `system_settings.pii_redaction_enabled` column (migration 032). Both D-84 service-layer gates and the chat-router gate now read from `get_system_settings()` (60s TTL cache). Admins can toggle PII redaction without a Railway redeploy. `agent_service.py` `_PII_GUIDANCE` binding and `classify_intent` gate also moved to `get_system_settings()` to avoid `AttributeError` after the env var was removed.
+- **Admin API contract** — `SystemSettingsUpdate` now accepts `pii_redaction_enabled: bool | None`. `GET /admin/settings` returns the field; `PATCH /admin/settings` writes it through to the DB.
+
+### Added
+- **PII redaction admin toggle UI (Plan 05-09)** — `AdminSettingsPage.tsx` renders a master `Aktifkan redaksi PII` checkbox at the top of the PII section, ahead of the cloud/local status badges, so admins flipping PII redaction off see the change at a glance. Bilingual i18n strings: `admin.pii.redactionEnabled.{label,desc}` in Indonesian (default) and English. Wired through the existing controlled-form / `handleSave` → `PATCH /admin/settings` flow with no save-handler changes.
+
+### Notes
+- Phase 5 re-verification UAT (`05-UAT.md`) is now `status: resolved`. Tests 1, 3, and 4 PASS; Test 2 (off-mode chat) is SKIPPED because `TestSC5_OffMode` integration tests already cover the SC#5 invariant end-to-end.
+- Plan 05-08 introduced a transient post-save UI quirk: the immediate `loadSettings()` reload after a PATCH reads the 60s `get_system_settings()` cache, making the admin toggle appear to revert to its previous value for ~60 seconds. The DB write itself is correct (verified via direct API round-trip). Cosmetic only; would benefit from a "settings will apply within 60s" hint in a future polish.
+- Operational reminder: production frontend deploy required `npx vercel --prod --yes` then `vercel promote`. `git push origin master:main` alone does not trigger Vercel builds for this project.
+
 ## [0.3.0.0] - 2026-04-28
 
 ### Added
