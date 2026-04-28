@@ -244,12 +244,21 @@ class ToolService:
     def __init__(self):
         self.hybrid_service = HybridRetrievalService()
 
-    def get_available_tools(self) -> list[dict]:
-        """Return tool definitions, filtering out web_search if no Tavily key."""
+    def get_available_tools(self, *, web_search_enabled: bool = True) -> list[dict]:
+        """Return tool definitions visible to the LLM for this request.
+
+        ADR-0008: when web_search_enabled=False, the web_search tool is
+        excluded from the catalog so the agent classifier and dispatcher
+        never see it. The existing tavily_api_key check is preserved.
+        """
         tools = []
         for tool in TOOL_DEFINITIONS:
-            if tool["function"]["name"] == "web_search" and not settings.tavily_api_key:
-                continue
+            name = tool["function"]["name"]
+            if name == "web_search":
+                if not web_search_enabled:
+                    continue
+                if not settings.tavily_api_key:
+                    continue
             tools.append(tool)
         return tools
 
