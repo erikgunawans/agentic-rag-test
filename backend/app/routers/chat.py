@@ -39,6 +39,22 @@ class EgressBlockedAbort(Exception):
     """
 
 
+def compute_web_search_effective(
+    system_enabled: bool,
+    user_default: bool,
+    message_override: bool | None,
+) -> bool:
+    """ADR-0008: compute effective web_search toggle for one request.
+
+    L1 (system) AND (L3 message override if provided else L2 user default).
+    """
+    if not system_enabled:
+        return False
+    if message_override is not None:
+        return bool(message_override)
+    return bool(user_default)
+
+
 router = APIRouter(prefix="/chat", tags=["chat"])
 openrouter_service = OpenRouterService()
 tool_service = ToolService()
