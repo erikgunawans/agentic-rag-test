@@ -12,6 +12,10 @@ export const translations: Record<Locale, Record<string, string>> = {
     'chat.newChat': 'Chat Baru',
     'chat.send': 'Kirim pesan',
     'chat.startConversation': 'Kirim pesan untuk memulai percakapan',
+    'chat.webSearchToggle': 'Web',
+    'chat.webSearchTooltip': 'Aktifkan pencarian web untuk pesan ini',
+    'chat.source.web': 'Sumber Web',
+    'chat.source.internal': 'Dokumen Internal',
 
     // Navigation
     'nav.documents': 'Dokumen',
@@ -53,6 +57,8 @@ export const translations: Record<Locale, Record<string, string>> = {
     'settings.enableNotifications': 'Aktifkan Notifikasi',
     'settings.enableNotificationsDesc':
       'Terima notifikasi tentang pemrosesan dokumen dan pembaruan sistem.',
+    'settings.webSearchDefault': 'Web Search Bawaan',
+    'settings.webSearchDefaultDesc': 'Aktifkan pencarian web secara default untuk percakapan baru.',
     'settings.save': 'Simpan Preferensi',
     'settings.saving': 'Menyimpan...',
     'settings.saved': 'Tersimpan!',
@@ -359,6 +365,8 @@ export const translations: Record<Locale, Record<string, string>> = {
     'admin.tools.maxIterations': 'Maks Iterasi Alat',
     'admin.tools.agents': 'Aktifkan Sub-Agen',
     'admin.tools.agentsDesc': 'Rutekan kueri ke agen spesialis melalui orkestrator',
+    'admin.tools.webSearchEnabled': 'Aktifkan Web Search',
+    'admin.tools.webSearchDesc': 'Izinkan LLM mencari informasi web real-time via Tavily.',
     'admin.error.load': 'Gagal memuat pengaturan. Apakah Anda seorang admin?',
     'admin.error.save': 'Gagal menyimpan',
     'admin.save.saving': 'Menyimpan...',
@@ -599,6 +607,10 @@ export const translations: Record<Locale, Record<string, string>> = {
     'chat.newChat': 'New Chat',
     'chat.send': 'Send message',
     'chat.startConversation': 'Send a message to start the conversation',
+    'chat.webSearchToggle': 'Web',
+    'chat.webSearchTooltip': 'Enable web search for this message',
+    'chat.source.web': 'Web Source',
+    'chat.source.internal': 'Internal Documents',
 
     // Navigation
     'nav.documents': 'Documents',
@@ -640,6 +652,8 @@ export const translations: Record<Locale, Record<string, string>> = {
     'settings.enableNotifications': 'Enable Notifications',
     'settings.enableNotificationsDesc':
       'Receive notifications about document processing and system updates.',
+    'settings.webSearchDefault': 'Web Search Default',
+    'settings.webSearchDefaultDesc': 'Enable web search by default for new conversations.',
     'settings.save': 'Save Preferences',
     'settings.saving': 'Saving...',
     'settings.saved': 'Saved!',
@@ -946,6 +960,8 @@ export const translations: Record<Locale, Record<string, string>> = {
     'admin.tools.maxIterations': 'Max Tool Iterations',
     'admin.tools.agents': 'Enable Sub-Agents',
     'admin.tools.agentsDesc': 'Route queries to specialized agents via orchestrator',
+    'admin.tools.webSearchEnabled': 'Enable Web Search',
+    'admin.tools.webSearchDesc': 'Allow the LLM to search real-time web information via Tavily.',
     'admin.error.load': 'Failed to load settings. Are you an admin?',
     'admin.error.save': 'Failed to save',
     'admin.save.saving': 'Saving...',
