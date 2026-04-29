@@ -288,11 +288,14 @@ async def list_skills(
 
     if search:
         # Sanitize search — matches clause_library.py:53 pattern
+        # Also strip LIKE wildcards % and _ to prevent wildcard abuse
         safe_search = (
             search.replace(",", "")
             .replace("(", "")
             .replace(")", "")
             .replace(".", " ")
+            .replace("%", "")
+            .replace("_", "")
         )
         query = query.or_(
             f"name.ilike.%{safe_search}%,description.ilike.%{safe_search}%"
