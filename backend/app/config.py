@@ -52,6 +52,14 @@ class Settings(BaseSettings):
     # Fine-tuned embeddings (Phase 3 — infrastructure ready, model TBD)
     custom_embedding_model: str = ""
 
+    # Phase 6: Embedding provider switch (EMBED-01, EMBED-02; D-P6-01..D-P6-03)
+    # `cloud` (default) preserves the existing OpenAI-embeddings flow (RAG-02 unchanged).
+    # `local` uses an OpenAI-API-compatible local endpoint (Ollama bge-m3, nomic-embed-text, LM Studio).
+    # NOTE: Switching providers does NOT trigger automatic re-embedding of existing documents
+    # (D-P6-04 / EMBED-02 — deployer-managed migration; document only, no code).
+    embedding_provider: Literal["local", "cloud"] = "cloud"
+    local_embedding_base_url: str = ""  # e.g. "http://localhost:11434/v1" for Ollama
+
     # Tool calling (Module 7)
     tavily_api_key: str = ""
     tools_enabled: bool = True
