@@ -22,6 +22,9 @@ nameparser>=1.1.3
 rapidfuzz>=3.10.0
 langfuse>=2.50.0,<5
 
+# Skill ZIP service (Plan 07-03 — ZIP export/import with SKILL.md frontmatter)
+PyYAML>=6.0,<7
+
 # Test tooling (Plan 07 async pytest suite)
 pytest>=8.0.0
 pytest-asyncio>=0.24.0
