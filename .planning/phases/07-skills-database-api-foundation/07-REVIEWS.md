@@ -125,3 +125,50 @@ CYCLE_SUMMARY: current_high=3
 ### Convergence Trend
 
 prev_high=6 → current_high=3 (decreasing, no stall). Cycle 2 of 3 (max=3). One more replan cycle remaining before escalation.
+
+---
+
+## Codex Review (cycle 3, FINAL)
+
+Reviewed at: 2026-04-29T17:36:00+07:00
+Plans rev: post replan-cycle-2 (commit 583e5f1)
+
+### Cycle-2 HIGH Status Table
+
+| ID | Status | Evidence | Notes |
+|---|---|---|---|
+| H6 carry-forward | **PARTIALLY RESOLVED** | 07-04 lines 31, 34–77, 157, 198; 07-05 lines 52, 75, 108 | Plan now adds middleware before route handling and has a concrete `Content-Length` fast-path 413. However, the chunked/no-length path mutates private `request._receive`, returns `http.disconnect` instead of a 413 response, and the test plan makes chunked coverage optional. Line 198 still calls the pre-read defense "best-effort" and defers a hard streaming parser to Phase 8+. This closes the common header-present case, but not the original resource-exhaustion concern completely. |
+| NEW-H1 storage write policy | **FULLY RESOLVED** | 07-02 lines 83–95; 07-05 line 69 | Storage INSERT/DELETE now require `s.created_by = auth.uid() AND s.user_id = auth.uid()`. Once shared, `user_id IS NULL`, so direct creator mutation through Storage is denied. Regression test 21 verifies delete + replacement upload denied while global, then allowed after unshare. |
+| NEW-H2 ParsedSkill model | **FULLY RESOLVED** | 07-03 lines 52–63, 89–98; 07-05 line 70 | `ParsedSkill` can now represent error-only parse results because `frontmatter` is optional, `instructions_md` defaults to empty, and file lists default empty. The parser explicitly maps malformed YAML/missing fields/bad names to `ParsedSkill.error`; test 22 verifies the import endpoint returns per-skill error instead of 500. |
+
+### New HIGH Concerns (cycle 3)
+
+- None beyond H6 remaining partially resolved.
+
+### Risk Assessment
+
+HIGH: NEW-H1 and NEW-H2 are fixed, but H6 still leaves an upload-body exhaustion path insufficiently specified and insufficiently verified for chunked/no-`Content-Length` requests; reviewer suggests a pure ASGI middleware that wraps `receive` and emits 413 directly, or raw request streaming, before execution.
+
+RISK_LEVEL: HIGH
+
+---
+
+## Cycle 3 Tally
+
+CYCLE_SUMMARY: current_high=1
+
+### Current HIGH Concerns (cycle 3)
+
+1. **H6 (carry-forward, still partial after 2 replan cycles)**: Pre-body 50 MB cap closes the Content-Length fast path but the chunked/no-Content-Length path uses `request._receive` mutation returning `http.disconnect`, which is brittle. Chunked test coverage is marked optional. Reviewer-suggested fix: replace the receive-wrapping approach with a true ASGI middleware that emits an explicit 413 ASGI response when the streaming byte-count exceeds the cap.
+
+### Convergence Trend (FINAL)
+
+prev_high=3 → current_high=1 (decreasing, no stall).
+Cycle 3 of 3 (max=3). **Escalation gate triggered** — workflow requires user decision: proceed with H6 partial, or stop here for manual review.
+
+### Known Mitigation If Proceeding
+
+If the user proceeds anyway, the practical risk of H6 partial is bounded:
+- Common case (browser uploads, curl) sends Content-Length and is short-circuited by the fast path → 413 before any body read.
+- Chunked uploads without Content-Length are rare at the API edge (most clients buffer and set CL). Even if they slip through, the post-read `parse_skill_zip` ValueError catches them at < 100 ms after read completes — a DoS amplification, not a leak or correctness bug.
+- Phase 8+ can ship the proper streaming-aware ASGI middleware as part of code-execution sandbox hardening (similar concern there).
