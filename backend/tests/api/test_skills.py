@@ -1067,19 +1067,15 @@ class TestGlobalSkillCreatorCannotMutateStorage:
             # Try to DELETE the storage file while skill is global
             # Storage RLS: DELETE requires skill.user_id = auth.uid()
             # When global, user_id is NULL, so this should fail
+            deleted = []
             try:
                 a_storage = get_supabase_authed_client(a_token)
-                delete_result = a_storage.storage.from_("skills-files").remove([file_path])
-                # If we get here without error, check if it actually deleted anything
-                # Some storage implementations return empty on RLS-denied (not exception)
-                # We accept either: exception OR empty result as evidence of denial
-                if delete_result and len(delete_result) > 0:
-                    # Some clients return deleted files list; empty means denied
-                    # In postgrest-py / supabase-py this may succeed if RLS isn't strict enough
-                    # Document as observed behavior — see plan risk note
-                    pass
+                deleted = a_storage.storage.from_("skills-files").remove([file_path])
             except Exception:
-                pass  # Expected — RLS denied the delete
+                pass  # RLS raised — correct
+            assert not deleted, (
+                f"Storage RLS failed: creator deleted from global skill. deleted={deleted}"
+            )
 
             # Try to UPLOAD a replacement while skill is global
             try:
