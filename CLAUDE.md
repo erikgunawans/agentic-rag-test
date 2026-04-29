@@ -149,6 +149,7 @@ cd backend && source venv/bin/activate && python -c "from app.main import app; p
 - `get_current_user` makes a `user_profiles` DB call on every request (checks `is_active`, auto-creates for new signups).
 - Migrations are numbered sequentially (`001_` through `032_`). Use `/create-migration` to generate the next one. Never edit applied migrations (hook blocks 001-032).
 - Two `024_*.sql` files exist (knowledge_base_explorer + rag_improvements). Both are applied. Don't renumber.
+- **`EMBEDDING_PROVIDER` switch does NOT trigger re-embedding (Phase 6 / EMBED-02).** Setting `EMBEDDING_PROVIDER=local` and `LOCAL_EMBEDDING_BASE_URL=http://localhost:11434/v1` redirects FUTURE ingestions to the local endpoint (e.g., Ollama bge-m3 / nomic-embed-text). Existing document vectors stay in their original embedding space until manually re-ingested. RAG retrieval quality may degrade for queries that span both old and new chunks. Deployer-managed migration: re-ingest documents (drop + re-upload) when consolidating to a single provider.
 
 ## Workflow
 - When working in git worktrees, immediately confirm the current working directory and branch before starting. Do not explore the codebase if the goal is implementation — start writing code.
