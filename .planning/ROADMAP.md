@@ -125,9 +125,9 @@
 **Plans**: 8 plans across 4 waves
   - [x] **Wave 1** — 06-01-PLAN.md — config.py: add EMBEDDING_PROVIDER + LOCAL_EMBEDDING_BASE_URL settings; flip llm_provider_fallback_enabled default to True (EMBED-01, EMBED-02, PERF-04 / D-P6-01..03, D-P6-09) ✓ commits `e7a9e31`+`eab3923` (2026-04-29)
   - [x] **Wave 1** — 06-02-PLAN.md — Establish @pytest.mark.slow marker via backend/pyproject.toml (PERF-02 / D-P6-07) ✓ commit `98fc89c` (2026-04-29)
-  - [ ] **Wave 2** — 06-03-PLAN.md — EmbeddingService provider branch (cloud / local) + 3 unit tests (EMBED-01, EMBED-02 / D-P6-02)
-  - [ ] **Wave 2** — 06-04-PLAN.md — Add thread_id correlation field to redaction-pipeline debug logs (detection / redaction_service / egress / llm_provider) (OBS-02, OBS-03 / D-P6-14..17)
-  - [ ] **Wave 2** — 06-05-PLAN.md — Replace title-gen except-pass with 6-word anonymized-message template fallback (PERF-04 / D-P6-12)
+  - [x] **Wave 2** — 06-03-PLAN.md — EmbeddingService provider branch (cloud / local) + 3 unit tests (EMBED-01, EMBED-02 / D-P6-02) ✓ commits `66d3f7d`+`573c47c` (2026-04-29)
+  - [x] **Wave 2** — 06-04-PLAN.md — Add thread_id correlation field to redaction-pipeline debug logs (detection / redaction_service / egress / llm_provider) (OBS-02, OBS-03 / D-P6-14..17) ✓ commits `31a5bbb`..`0e46282` (2026-04-29)
+  - [x] **Wave 2** — 06-05-PLAN.md — Replace title-gen except-pass with 6-word anonymized-message template fallback (PERF-04 / D-P6-12) ✓ commit `5e7d435` (2026-04-29)
   - [ ] **Wave 3** — 06-06-PLAN.md — PERF-02 latency-budget regression test (real Presidio, @pytest.mark.slow, <500ms) (PERF-02 / D-P6-05..08)
   - [ ] **Wave 3** — 06-07-PLAN.md — PERF-04 graceful-degradation tests (entity-resolution / missed-scan / title-gen) (PERF-04 / D-P6-09..13)
   - [ ] **Wave 4** — 06-08-PLAN.md — OBS-02/03 thread_id + resolved-provider caplog tests + CLAUDE.md gotcha note + final regression checkpoint (OBS-02, OBS-03, EMBED-02, PERF-04 / D-P6-04, D-P6-14..17)
@@ -142,7 +142,7 @@
 | 3. Entity Resolution & LLM Provider Configuration | 7/7 | Complete | 2026-04-26 |
 | 4. Fuzzy De-anonymization, Missed-PII Scan & Prompt Guidance | 7/7 | Complete | 2026-04-27 |
 | 5. Chat-Loop Integration (Buffering, SSE Status, Tool/Sub-Agent Coverage) | 6/6 | Complete | 2026-04-28 |
-| 6. Embedding Provider & Production Hardening | 2/8 | Executing (Wave 1 done) | — |
+| 6. Embedding Provider & Production Hardening | 5/8 | Executing (Wave 2 done) | — |
 
 ## Completed Phases (Pre-GSD)
 
