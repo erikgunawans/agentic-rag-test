@@ -118,10 +118,10 @@ Establish the skills data model, Supabase RLS policies, Supabase Storage bucket 
 - Response format: `{"data": [...], "count": N}` for list endpoints
 - File upload: `UploadFile` + `FormData` pattern from `documents.py` — `apiFetch` skips `Content-Type` for FormData
 - Error handling: `HTTPException(403, "detail")` for auth failures; `HTTPException(404, "Skill not found")` for missing resources; `HTTPException(409, "Skill name already exists")` for uniqueness violations on single-create
-- Migration template: `backend/supabase/migrations/033_web_search_toggle.sql` as most recent reference for format; always include `CREATE POLICY` blocks and `ALTER TABLE ... ENABLE ROW LEVEL SECURITY`
+- Migration template: `supabase/migrations/033_web_search_toggle.sql` (at repo root) as most recent reference for format; always include `CREATE POLICY` blocks and `ALTER TABLE ... ENABLE ROW LEVEL SECURITY`
 
 ### Integration Points
-- `backend/app/main.py` — register `from app.routers import skills; app.include_router(skills.router)` (lines 36-56)
+- `backend/app/main.py` — append `, skills` to the `from app.routers import ...` block (currently line 6) and add `app.include_router(skills.router)` after the existing `app.include_router(folders.router)` line (currently line 71)
 - `backend/app/config.py` — no new env vars needed for Phase 7 (Supabase bucket creation is a Supabase-side operation; bucket name can be a constant in the router or config)
 - Supabase Storage: new `skills-files` bucket must be created (include in migration via Supabase Storage API or document as setup step)
 - Next migration numbers: 034 (skills table), 035 (skill_files table + bucket policy)
