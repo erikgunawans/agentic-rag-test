@@ -5,6 +5,10 @@ title: skills.py router — CRUD + share + export + import
 wave: 3
 depends_on: [07-01, 07-02, 07-03]
 closes: [SKILL-01, SKILL-03, SKILL-04, SKILL-05, SKILL-06, EXPORT-01, EXPORT-02, EXPORT-03]
+# Note: EXPORT-03 = "Import validates name/description and reports per-skill errors
+# without blocking other skills in a bulk import" — closed by endpoint #8 (POST
+# /skills/import) error aggregation, NOT by admin-moderation DELETE. Cycle-1 review
+# MEDIUM correction.
 estimated_atomic_commits: 1
 ---
 
@@ -16,7 +20,7 @@ Eight FastAPI endpoints under `/skills` covering create, list, read, update, del
 
 ## Closes
 
-- SKILL-01 (create), SKILL-03 (list with search/filter), SKILL-04 (update), SKILL-05 (delete), SKILL-06 (share/unshare), EXPORT-01 (router-side export), EXPORT-02 (router-side import multipart), EXPORT-03 (admin-moderation delete).
+- SKILL-01 (create), SKILL-03 (list with search/filter), SKILL-04 (update), SKILL-05 (delete), SKILL-06 (share/unshare), EXPORT-01 (router-side export streaming), EXPORT-02 (router-side import multipart), EXPORT-03 (per-skill error reporting in bulk import — endpoint #8's `ImportResult.results[].error` channel, not blocked by an earlier failure).
 
 ## Files to create / modify
 
@@ -36,7 +40,7 @@ from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validat
 from app.dependencies import get_current_user, require_admin
 from app.database import get_supabase_authed_client, get_supabase_client
 from app.services.audit_service import log_action
-from app.services.skill_zip_service import build_skill_zip, parse_skill_zip, ImportResult, SkillImportItem
+from app.services.skill_zip_service import build_skill_zip, parse_skill_zip, ImportResult, SkillImportItem, SkippedFile
 
 router = APIRouter(prefix="/skills", tags=["skills"])
 
@@ -96,13 +100,13 @@ All depend on `Depends(get_current_user)` unless noted.
 | # | Method | Path | Body / Query | Behavior |
 |---|---|---|---|---|
 | 1 | POST   | `/skills` | `SkillCreate` | RLS-scoped client; INSERT with `created_by = user_id = auth.uid()`. 409 on `unique_violation`. `log_action("create", "skill", id)`. Returns `SkillResponse`, status 201. |
-| 2 | GET    | `/skills` | `?search=` `?enabled=` `?limit=50` `?offset=0` | RLS-scoped query. Sanitize `search` via `replace(",","").replace("(","").replace(")","").replace("."," ")` before ILIKE (matches `clause_library.py:53`). Order by `is_global DESC, created_at DESC`. Return `{"data": [SkillResponse...], "count": N}`. |
+| 2 | GET    | `/skills` | `?search=` `?enabled=` `?limit=50` `?offset=0` | RLS-scoped query. Sanitize `search` via `replace(",","").replace("(","").replace(")","").replace("."," ")` before ILIKE (matches `clause_library.py:53`). **Cycle-1 review HIGH #3 fix**: order by `user_id NULLS FIRST, created_at DESC` (no `is_global` column exists in DB; that field is computed Pydantic-side only). PostgREST: `query.order("user_id", desc=False, nullsfirst=True).order("created_at", desc=True)`. Return `{"data": [SkillResponse...], "count": N}`. |
 | 3 | GET    | `/skills/{id}` | — | RLS-scoped fetch; 404 if no row. |
 | 4 | PATCH  | `/skills/{id}` | `SkillUpdate` | Pre-fetch (RLS-scoped). If `user_id IS NULL` → **403 "Cannot edit a global skill — unshare it first"** (D-P7-03). Else RLS-scoped UPDATE. `log_action("update", ...)`. |
-| 5 | DELETE | `/skills/{id}` | — | If `user["role"] == "super_admin"` → service-role client deletes ANY (D-P7-04, EXPORT-03 for admin moderation). Else RLS-scoped DELETE (created_by enforced by RLS). 404 if not found. `skill_files` cascade via FK. `log_action("delete", ...)`. Returns 204. |
-| 6 | PATCH  | `/skills/{id}/share` | `ShareToggle` | Pre-fetch (RLS-scoped or service-role for share-already-global case); require `created_by = auth.uid()` else 403. If `global=true` → service-role UPDATE setting `user_id = NULL`. Else → service-role UPDATE setting `user_id = created_by`. `log_action("share"/"unshare", ...)`. Returns the updated `SkillResponse`. |
-| 7 | GET    | `/skills/{id}/export` | — | RLS-scoped fetch of skill; RLS-scoped fetch of `skill_files` rows. For each file, `bytes_loader = lambda path: get_supabase_client().storage.from_('skills-files').download(path)`. Pipe through `build_skill_zip(skill_dict, files_list, bytes_loader)`. Return `StreamingResponse(zip_bytes, media_type="application/zip", headers={"Content-Disposition": f'attachment; filename="{name}.zip"'})`. |
-| 8 | POST   | `/skills/import` | `file: UploadFile = File(...)` | Read body. Call `parse_skill_zip(content)`; on `ValueError` ("exceeds 50 MB") → 413. For each `ParsedSkill`: if `error` set → `SkillImportItem(status="error", error=...)`. Else INSERT skill row (catch unique_violation → `error: "Skill name already exists"`); for each parsed file, upload to storage at `{user_id}/{skill_id}/{filename}` via service-role and INSERT skill_files row. Aggregate into `ImportResult`. `log_action("import", "skill", null, details={"created_count": N})`. |
+| 5 | DELETE | `/skills/{id}` | — | If `user["role"] == "super_admin"` → service-role client deletes ANY (D-P7-04 admin moderation). Else RLS-scoped DELETE — RLS now requires `user_id = auth.uid() AND created_by = auth.uid()` (private-and-owned only); creator must unshare first to delete a global skill. If RLS rejects (row exists but is global) → return **403 "Cannot delete a global skill — unshare it first"** (matches the symmetry of edit-global). 404 if no row at all. `skill_files` cascade via FK. `log_action("delete", ...)`. Returns 204. |
+| 6 | PATCH  | `/skills/{id}/share` | `ShareToggle` | **Cycle-1 review MEDIUM fix (existence disclosure)**: Step 1, RLS-scoped pre-fetch; if no row → 404 "Skill not found" (do not leak via service-role check). Step 2, require `row.created_by == auth.uid()` else 403 "Only the creator can change sharing". Step 3, name-conflict guard (cycle-1 review MEDIUM): if `global=true`, check no existing global row with the same `lower(name)`; if `global=false`, check no existing private row with same owner + same `lower(name)`; collision → **409 "Skill name already exists"**. Step 4, service-role UPDATE: `global=true` sets `user_id = NULL`; else sets `user_id = created_by`. `log_action("share"/"unshare", ...)`. Returns the updated `SkillResponse`. |
+| 7 | GET    | `/skills/{id}/export` | — | RLS-scoped fetch of skill (404 else); RLS-scoped fetch of matching `skill_files` rows. **Cycle-1 review HIGH #2 fix**: before service-role download, re-validate that each `storage_path == auth.uid()::text + '/' + skill_id::text + '/' + filename` for private skills, OR `split_part(storage_path, '/', 2) == skill_id::text` for globals (the table-level CHECK already enforces this, but we double-check at runtime to make any future RLS regression visible). Then `bytes_loader = lambda path: get_supabase_client().storage.from_('skills-files').download(path)`. Pipe through `build_skill_zip(...)`. Return `StreamingResponse(zip_bytes, media_type="application/zip", headers={"Content-Disposition": f'attachment; filename="{name}.zip"'})`. |
+| 8 | POST   | `/skills/import` | `file: UploadFile = File(...)` | **Cycle-1 review HIGH #6 fix (pre-read body cap)**: BEFORE `await file.read()`, check `request.headers.get("content-length")`; if absent or > 52_428_800 (50 MB) → immediately raise `HTTPException(413, "ZIP exceeds 50 MB limit")`. Then read body, call `parse_skill_zip(content)`; on `ValueError` ("exceeds 50 MB") → 413 (defense-in-depth — covers gzipped uploads where content-length lies). For each `ParsedSkill`: if `error` set → `SkillImportItem(status="error", error=..., skipped_files=[])`. Else INSERT skill row (catch unique_violation → `status="error", error="Skill name already exists"`); for each parsed file in `skill.files`, **use the user's RLS-scoped client** to upload to storage at `{user_id}/{skill_id}/{filename}` and INSERT matching skill_files row (service-role only used for the `_system` seed-time path, not for normal user import — addresses cycle-1 review MEDIUM "avoid service-role for import"). Carry `parsed.skipped_files` through to `SkillImportItem.skipped_files` so the API caller sees per-file warnings (oversized, path_traversal, outside_layout, non_ascii_path). Aggregate into `ImportResult`. `log_action("import", "skill", null, details={"created_count": N, "error_count": M})`. **EXPORT-03 closure**: this aggregation continues past errors and reports each skill's status independently. |
 
 ## Error mapping
 
@@ -115,12 +119,14 @@ All depend on `Depends(get_current_user)` unless noted.
 
 ## Service-role escape hatches (acceptable per `database.py` patterns)
 
-Each MUST carry an inline `# service-role: <reason> per D-P7-NN` comment for reviewer auditability (PATTERNS.md §C):
+Each MUST carry an inline `# service-role: <reason> per D-P7-NN` comment for reviewer auditability (PATTERNS.md §C). **Cycle-1 review tightening: minimize the service-role surface.**
 
-- DELETE for super_admin (admin moderation, **D-P7-04**, **EXPORT-03**)
-- PATCH `/skills/{id}/share` toggling — flipping `user_id` to/from NULL collides with the general UPDATE RLS, so we go service-role after a manual `created_by = auth.uid()` check
-- POST `/skills/import` storage uploads when the storage path uses `_system` or a global-skill creator folder
-- GET `/skills/{id}/export` storage downloads (the export endpoint must be able to download files for skills the user can SELECT but doesn't own — globals)
+- DELETE for super_admin only (admin moderation, **D-P7-04**)
+- PATCH `/skills/{id}/share` UPDATE step — flipping `user_id` to/from NULL collides with the general UPDATE RLS. Service-role is invoked ONLY after the prior steps confirm caller is creator and there's no name conflict. The pre-fetch and conflict check use the RLS-scoped client (no existence-disclosure leak).
+- GET `/skills/{id}/export` storage download — required to read files for globally-shared skills the caller doesn't own. Pre-validated by the runtime path-shape check (HIGH #2 mitigation).
+- **Removed from service-role** (cycle-1 fix): POST `/skills/import` storage uploads for normal user-owned imports — these now use the RLS-scoped client; service-role is only used for the seed-time `_system` path created in migration 035 (not at runtime by users).
+
+Every service-role usage MUST carry an inline `# service-role: <reason> per D-P7-NN` comment so reviewers can audit.
 
 ## Verification (executor must run before commit)
 
@@ -139,7 +145,8 @@ feat(skills): REST API for CRUD, share, export, import (SKILL-01/03/04/05/06, EX
 
 ## Risks / open verifications
 
-- **`get_current_user` `role` field**: `clause_library.py` uses `user["id"]`/`user["email"]`/`user["token"]`. Confirm `user["role"]` is also populated by `get_current_user` (CLAUDE.md says it returns `{id, email, token, role}`); if absent, fetch role inline from `user_profiles`.
-- **`storage.from_('skills-files').download`**: returns `bytes` synchronously per supabase-py 2.x. Confirm this is the actual signature in the repo's pinned version (`grep "supabase" backend/requirements.txt`); if it returns a response object, adapt the bytes_loader accordingly.
-- **413 handling for upload body itself**: FastAPI/Uvicorn defaults may accept >50 MB before the parser sees it. Confirm Railway/Uvicorn config has no looser body size limit, or add an explicit `Content-Length` check before reading.
+- **`get_current_user` `role` field** is populated (cycle-1 codex review confirmed); no fallback fetch needed.
+- **`storage.from_('skills-files').download`** returns `bytes` synchronously per supabase-py 2.x. Confirm this matches the pinned version (`grep "supabase" backend/requirements.txt`); if it returns a response object, adapt the bytes_loader accordingly.
+- **413 pre-read defense**: FastAPI's Request supports header inspection before consuming the body. The `Content-Length` check above is best-effort — clients can omit it (chunked transfer-encoding) or lie. The post-read uncompressed-sum check in `parse_skill_zip` is the second line of defense. Reviewers may suggest a streaming MultiPartParser with a hard cap; that's a Phase 8+ enhancement.
 - **Multipart import is sequential**: parse → for each skill { db_insert + N storage uploads + N db inserts }. With large bulk ZIPs this can exceed Vercel's 300 s function default. Phase 7 ships sequential; Phase 8+ may revisit with background jobs.
+- **PostgREST `nullsfirst` parameter** must be supported by the supabase-py version. If the client doesn't expose `nullsfirst`, fall back to `query.order("user_id.asc.nullsfirst,created_at.desc")` literal or sort `result.data` in Python by `(user_id is None, -created_at)`. Verify before authoring.

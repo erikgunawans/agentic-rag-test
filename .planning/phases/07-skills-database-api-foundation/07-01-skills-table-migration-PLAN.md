@@ -43,7 +43,13 @@ CREATE UNIQUE INDEX idx_skills_global_name      ON public.skills (lower(name))  
 CREATE INDEX        idx_skills_created_by       ON public.skills (created_by);
 ```
 
-Add an `updated_at` trigger reusing the existing `update_updated_at_column()` function. **Verification step before authoring:** `grep -n "update_updated_at_column" supabase/migrations/001_*.sql` — if the function is absent, fall back to an inline `BEFORE UPDATE` trigger that sets `NEW.updated_at = now()`.
+Add an `updated_at` trigger reusing the existing `public.handle_updated_at()` function defined in migration 001 (verified used by migrations 002, 003, 013, 014, 015, 024, 025 — `grep -rn "handle_updated_at" supabase/migrations/`).
+
+```sql
+CREATE TRIGGER skills_handle_updated_at
+  BEFORE UPDATE ON public.skills
+  FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
+```
 
 ## RLS policies (D-P7-05)
 
@@ -52,7 +58,7 @@ Add an `updated_at` trigger reusing the existing `update_updated_at_column()` fu
 1. **SELECT** — `user_id = auth.uid() OR user_id IS NULL` (own + global)
 2. **INSERT** — `created_by = auth.uid() AND user_id = auth.uid()` (caller can only create as themselves; no inserting global rows from the API — those come from migrations only)
 3. **UPDATE (general)** — `user_id = auth.uid()` (cannot edit global rows; the share/unshare flow is a service-role escape hatch documented in 07-04)
-4. **DELETE** — `created_by = auth.uid() OR (auth.jwt() -> 'app_metadata' ->> 'role') = 'super_admin'` (creator OR admin moderation per D-P7-04)
+4. **DELETE** — `(user_id = auth.uid() AND created_by = auth.uid()) OR (auth.jwt() -> 'app_metadata' ->> 'role') = 'super_admin'` — the row must be **private and owned** by the caller, OR the caller is super_admin. Creators cannot DELETE a globally-shared skill directly: they must first PATCH `/skills/{id}/share {global: false}` to bring the row back into their private namespace. Only super_admin deletes globals directly (admin moderation per D-P7-04). Addresses cycle-1 review MEDIUM: "DELETE semantics inconsistent". The product requirement (REQ SKILL-05) says "User can delete their own private skills" — this RLS now enforces that literally.
 
 ## Seed (D-P7-10, D-P7-11)
 
@@ -97,6 +103,6 @@ feat(skills): migration 034 — skills table, RLS, seed skill-creator (SKILL-10)
 
 ## Risks / open verifications
 
-- `update_updated_at_column()` may not exist in this repo's migrations; verify before authoring (fallback noted above).
+- `public.handle_updated_at()` confirmed present (used in 7 prior migrations); no fallback needed.
 - Deterministic UUID `0000...0007` collides only if a test fixture uses the same literal. None known; rerun `grep -r "00000000-0000-0000-0000-000000000007"` before writing.
 - The `auth.jwt()` JSONB selector for `super_admin` matches the project pattern in CLAUDE.md ("RLS admin pattern"). Re-confirm against `028_global_folders.sql` if present, else against `migration 014` (RBAC settings).

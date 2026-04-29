@@ -12,7 +12,7 @@ estimated_atomic_commits: 1
 
 ## Goal
 
-Fourteen integration tests that exercise every Phase 7 endpoint against a live backend, verifying RLS, share/unshare semantics, ZIP round-trips, and admin moderation. This is the verification gate for ALL nine of Phase 7's requirements; convergence on this plan means Phase 7 is done.
+Twenty integration tests that exercise every Phase 7 endpoint against a live backend, verifying RLS (including cycle-1 review HIGH #1/#2 regressions), share/unshare semantics with name-conflict guards, ZIP round-trips with per-file warnings, and admin moderation. This is the verification gate for ALL nine of Phase 7's requirements; convergence on this plan means Phase 7 is done.
 
 ## Closes
 
@@ -30,7 +30,9 @@ Verifies all 9 Phase 7 requirements: SKILL-01, 03, 04, 05, 06, 10 + EXPORT-01, 0
 
 If any fixture is missing, fall back to inline login helpers using the credentials from CLAUDE.md `## Testing` block.
 
-## Test cases (14)
+## Test cases (20)
+
+### Core CRUD + share + admin (1–9)
 
 1. **`test_seed_skill_creator_exists`** — `GET /skills` as any authed user returns a row with `name == "skill-creator"`, `is_global is True`, `created_by is None`. Closes SKILL-10.
 2. **`test_create_read_update_delete_cycle`** — POST creates → 201 with returned `id`; GET returns the row; PATCH `name` → 200 with new name; DELETE → 204; GET → 404. Closes SKILL-01, 03, 04, 05.
@@ -40,12 +42,27 @@ If any fixture is missing, fall back to inline login helpers using the credentia
 6. **`test_share_unshare_roundtrip`** — A shares (200, `is_global=true`); B GETs → visible; A unshares (200, `is_global=false`); B GETs → 404 on direct fetch and absent from list. SKILL-06 round-trip.
 7. **`test_share_only_creator_403`** — A creates + shares; B tries `PATCH /skills/{id}/share {global: false}` → 403 with `"Only the creator can change sharing"` (or equivalent).
 8. **`test_edit_global_skill_403`** — A creates and shares; A tries `PATCH /skills/{id} {name: "x"}` → 403 with the exact `"Cannot edit a global skill — unshare it first"` detail string.
-9. **`test_admin_can_delete_any_skill`** — A creates a private skill; admin (super_admin) DELETEs → 204; subsequent GET → 404. Closes EXPORT-03 (admin moderation).
-10. **`test_export_returns_valid_zip`** — Create skill + 1 file; GET `/skills/{id}/export` → 200, `Content-Type: application/zip`, body parses via `parse_skill_zip` and yields a single `ParsedSkill` whose `frontmatter.name` and `frontmatter.description` match the original. Closes EXPORT-01.
-11. **`test_import_single_skill_zip`** — Build a ZIP via `build_skill_zip` round-trip helper; POST as multipart `{"file": ("skill.zip", data, "application/zip")}` → 200 with `created_count=1`. Closes EXPORT-02 single.
-12. **`test_import_bulk_zip_with_mixed_results`** — 3 skills in ZIP: one valid (`approving-clause-x`), one with bad name (`Bad Name`), one duplicate of an existing user-owned skill. Expect `created_count=1`, `error_count=2`, errors indexed by name in `results`. Closes EXPORT-02 bulk.
-13. **`test_import_oversized_file_skipped`** — ZIP with one 11 MB file inside an otherwise-valid skill → response is 200, `created_count=1`, but the per-skill `skill_files` row count is 0 for the oversized file (or surfaced via the `results[].error` channel — exact field per D-P7-08).
-14. **`test_import_oversized_zip_413`** — Build a synthetic 51 MB ZIP body (simply pad an entry); POST → 413 with `"ZIP exceeds 50 MB limit"`.
+9. **`test_admin_can_delete_any_skill`** — A creates a private skill; admin (super_admin) DELETEs → 204; subsequent GET → 404. Closes admin moderation (D-P7-04). **Note (cycle-1 review fix)**: this test does NOT close EXPORT-03 — that is closed by tests 12 + 17 below.
+
+### Cycle-1 review HIGH regressions (10–15)
+
+10. **`test_export_returns_valid_zip_with_frontmatter_delimiter`** (HIGH #4) — Create skill + 1 file in `references/`; GET `/skills/{id}/export` → 200, `Content-Type: application/zip`, body parses via `parse_skill_zip` and yields a single `ParsedSkill`. Open the inner `SKILL.md` raw bytes and assert it starts with `b"---\n"`. Frontmatter `name`/`description` round-trip equal. Closes EXPORT-01.
+11. **`test_list_skills_orders_globals_first`** (HIGH #3) — Create one private skill, share another (or rely on seed `skill-creator`); `GET /skills` → 200; assert all rows where `is_global is True` appear before any private rows in `data`. The endpoint must NOT crash with a "column is_global does not exist" error.
+12. **`test_import_oversized_file_skipped_skill_still_created`** (HIGH #5 + EXPORT-03) — ZIP with one valid skill containing a `references/big.bin` file at 11 MB and a `references/ok.md` at 9 MB. POST → 200 with `created_count=1`, `error_count=0`; `results[0].status == "created"`; `results[0].skipped_files` contains exactly one entry with `relative_path="references/big.bin"` and `reason="oversized"`; the in-DB `skill_files` row count for the new skill is 1 (only ok.md). Asserts the new soft-skip semantics hold.
+13. **`test_import_oversized_zip_413_pre_read`** (HIGH #6) — Send a multipart upload with `Content-Length: 60000000` (60 MB) but a tiny payload; expect 413 BEFORE the body is fully read (use httpx `event_hooks` or measure response time vs. body size to confirm short-circuit).
+14. **`test_import_oversized_zip_413_post_read`** — Build a real 51 MB synthetic ZIP body; POST → 413 with `"ZIP exceeds 50 MB limit"` (this exercises the `parse_skill_zip` defense).
+15. **`test_storage_path_spoofing_rejected`** (HIGH #2 + storage RLS HIGH #1) — As user A, attempt direct Supabase INSERT into `skill_files` with `storage_path = "<other_user_uid>/<some_skill_id>/secret.md"` (mismatched skill_id and/or wrong owner). Expect failure (CHECK constraint violation OR INSERT RLS denial). Then attempt cross-user storage read of a private file via the export endpoint of a global skill — confirm only the global skill's own files come back.
+
+### Share/unshare conflict + cross-user RLS (16–18)
+
+16. **`test_share_name_conflict_409`** (cycle-1 MEDIUM) — User A creates `legal-review` (private). User B creates `legal-review` (private). User A `PATCH share {global: true}` → 200 (no global with that name yet). User B `PATCH share {global: true}` → **409** with `"Skill name already exists"`. Validates the new step-3 conflict guard.
+17. **`test_unshare_name_conflict_409`** (cycle-1 MEDIUM + EXPORT-03 partial) — User A creates `legal-review` (private), shares it (now global), then creates a second private `legal-review`. PATCH unshare on the first → **409** (would collide with their own private one). Validates the symmetric guard.
+18. **`test_other_user_cannot_see_private_skill`** — User A creates a private skill; user B's `GET /skills` does NOT include it; user B's direct `GET /skills/{A_id}` → 404. RLS positive smoke.
+
+### Open-standard import — bulk + per-skill error reporting (19–20, EXPORT-03)
+
+19. **`test_import_single_skill_zip`** — Build a ZIP via `build_skill_zip` round-trip helper; POST as multipart `{"file": ("skill.zip", data, "application/zip")}` → 200 with `created_count=1`, `results[0].status="created"`, `skipped_files=[]`. Closes EXPORT-02 single.
+20. **`test_import_bulk_zip_with_mixed_results`** (EXPORT-03 closure) — 3 skills in ZIP: one valid (`approving-clause-x`), one with bad name (`Bad Name`), one duplicate of an existing user-owned skill. Expect `created_count=1`, `error_count=2`, results indexed in order: valid → `status="created"`; bad-name → `status="error", error contains "Invalid name"`; duplicate → `status="error", error="Skill name already exists"`. Asserts that one error does NOT block the others (= EXPORT-03 verbatim). Closes EXPORT-02 bulk + EXPORT-03.
 
 ## Run target
 
@@ -63,20 +80,22 @@ For CI parity, the same command with `API_BASE_URL="https://api-production-cde1.
 
 ## Verification (executor must do)
 
-1. All 14 test cases pass against `http://localhost:8000` (backend running with migrations 034 + 035 applied).
+1. All 20 test cases pass against `http://localhost:8000` (backend running with migrations 034 + 035 applied).
 2. `cd backend && source venv/bin/activate && python -c "from app.main import app; print('OK')"` still prints OK (no import-side breakage).
 3. PostToolUse lint hook is green for `test_skills.py`.
-4. Re-run all 14 against deployed backend after `railway up` — all pass (Phase 7 closure confirmation).
+4. Re-run all 20 against deployed backend after `railway up` — all pass (Phase 7 closure confirmation).
 
 ## Atomic commit
 
 ```
-test(skills): API integration tests for Phase 7 (14 cases)
+test(skills): API integration tests for Phase 7 (20 cases)
 ```
 
 ## Risks / open verifications
 
 - **`test-2@test.com` super_admin status**: CLAUDE.md says only `test@test.com` is super_admin. Confirm `test-2@test.com` is NOT promoted before relying on it for the negative-RLS tests. If it is, demote with `python -m scripts.set_admin_role` before the test run.
-- **Test 13's surface for oversized files**: D-P7-08 leaves the surface ambiguous between "drop file silently" vs "report in `results[].error`". Whichever 07-03 chose, this test must mirror — fail loudly if 07-03 changes.
+- **Test 12's oversized-file surface is now decided**: 07-03's `ParsedSkill.skipped_files: list[SkippedFile]` channel surfaces oversized files; this test asserts that exact shape. If 07-03's API changes, 07-04 and this test must change in lockstep.
+- **Test 13 (pre-read 413)**: confirming a 413 BEFORE the body is fully read requires the client to lie about Content-Length. The httpx + Starlette plumbing may surface this differently across versions; if the assertion is unreliable, fall back to asserting that the response time is < 500ms regardless of payload size (i.e., the server short-circuited).
+- **Test 15 (storage spoofing)**: this test issues raw INSERTs against Supabase as a non-admin user. Use the user's authed Supabase client; expect either CHECK constraint violation or INSERT RLS denial. Either is acceptable evidence that HIGH #2 is mitigated.
 - **Multipart `httpx` quirks**: bulk ZIP tests at 51 MB body may stress the test client's default timeout. Use `httpx.AsyncClient(timeout=60)` explicitly.
 - **Test isolation**: each test that creates skills must clean up via DELETE in a fixture teardown OR use unique names per run (e.g., `f"legal-review-{uuid.uuid4().hex[:6]}"`); without isolation, repeated runs hit duplicate-name 409s.

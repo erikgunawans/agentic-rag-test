@@ -33,20 +33,29 @@ CREATE TABLE public.skill_files (
   mime_type     TEXT,
   storage_path  TEXT NOT NULL UNIQUE,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
-  created_by    UUID REFERENCES auth.users(id) ON DELETE SET NULL
+  created_by    UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  -- Cycle-1 review HIGH #2: bind storage_path to (owner, skill_id) so a malicious
+  -- direct insert can't point a row at someone else's object. The constraint splits
+  -- on '/'; first segment must be the owner-folder, second must be the skill_id.
+  CONSTRAINT skill_files_storage_path_shape CHECK (
+    storage_path ~ '^[a-zA-Z0-9_-]+/[0-9a-fA-F-]{36}/[^/]+$'
+  ),
+  CONSTRAINT skill_files_storage_path_skill_match CHECK (
+    split_part(storage_path, '/', 2) = skill_id::text
+  )
 );
 CREATE INDEX idx_skill_files_skill_id ON public.skill_files(skill_id);
 ```
 
-`storage_path` is globally unique because the bucket is single-tenanted from a path-prefix perspective; uniqueness prevents two rows pointing at the same blob.
+`storage_path` is globally unique because the bucket is single-tenanted from a path-prefix perspective; uniqueness prevents two rows pointing at the same blob. The two CHECK constraints additionally bind the path's structure: `{owner}/{skill_id}/{filename}` where `skill_id` MUST equal the row's `skill_id` column. This blocks the cycle-1 HIGH #2 attack of pointing a fabricated row at another skill's blob.
 
 ## RLS (table policies)
 
 `ALTER TABLE public.skill_files ENABLE ROW LEVEL SECURITY;`
 
-- **SELECT** — `EXISTS (SELECT 1 FROM public.skills s WHERE s.id = skill_files.skill_id AND (s.user_id = auth.uid() OR s.user_id IS NULL))`
-- **INSERT** — `EXISTS (SELECT 1 FROM public.skills s WHERE s.id = skill_files.skill_id AND s.user_id = auth.uid())` (own private skill files only — global skills are immutable to non-creators; if owner unshares + edits, they'll re-share later)
-- **DELETE** — same predicate as INSERT
+- **SELECT** — `EXISTS (SELECT 1 FROM public.skills s WHERE s.id = skill_files.skill_id AND (s.user_id = auth.uid() OR s.user_id IS NULL))` (visible if the parent skill is visible)
+- **INSERT** — `EXISTS (SELECT 1 FROM public.skills s WHERE s.id = skill_files.skill_id AND s.user_id = auth.uid()) AND created_by = auth.uid() AND split_part(storage_path, '/', 1) = auth.uid()::text` — additionally constrains `created_by` to caller and the path's first segment to caller's UID. This addresses cycle-1 HIGH #2: a row's `storage_path` cannot be inserted with someone else's owner-folder, even if the parent-skill check passes.
+- **DELETE** — `EXISTS (SELECT 1 FROM public.skills s WHERE s.id = skill_files.skill_id AND s.user_id = auth.uid()) AND created_by = auth.uid()` (own files on private skills only)
 - **No UPDATE policy** — files are immutable (replace = delete + insert)
 
 ## Storage bucket (D-P7-07)
@@ -57,11 +66,21 @@ VALUES ('skills-files', 'skills-files', false)
 ON CONFLICT (id) DO NOTHING;
 ```
 
-Plus 2 storage RLS policies on `storage.objects`:
+Plus 2 storage RLS policies on `storage.objects`. **Cycle-1 review HIGH #1 fix:** the SELECT policy is now joined to `skill_files` by exact `storage_path`, not just first-segment matching, so it cannot leak unrelated objects under the same owner folder.
 
-1. **`skills-files SELECT`** — `bucket_id = 'skills-files' AND ((storage.foldername(name))[1] = auth.uid()::text OR (storage.foldername(name))[1] = '_system' OR EXISTS (SELECT 1 FROM public.skills s WHERE s.user_id IS NULL AND s.created_by::text = (storage.foldername(name))[1]))`
-   - Allow: own folder, `_system` folder (seeded skills), or any global skill's creator folder.
-2. **`skills-files INSERT/DELETE`** — `bucket_id = 'skills-files' AND (storage.foldername(name))[1] = auth.uid()::text` (own folder only — global skill files written via service-role escape hatch in router)
+1. **`skills-files SELECT`** — visibility is delegated to `skill_files` table RLS via an EXISTS join on the full path:
+   ```sql
+   bucket_id = 'skills-files'
+   AND EXISTS (
+     SELECT 1
+     FROM public.skill_files sf
+     JOIN public.skills s ON s.id = sf.skill_id
+     WHERE sf.storage_path = storage.objects.name
+       AND (s.user_id = auth.uid() OR s.user_id IS NULL)
+   )
+   ```
+   This means an object is readable iff there is a `skill_files` row pointing at it AND the parent skill is visible to the caller. No first-segment-only heuristic. Private files of users with global skills are NOT exposed.
+2. **`skills-files INSERT/DELETE`** — `bucket_id = 'skills-files' AND (storage.foldername(name))[1] = auth.uid()::text AND (storage.foldername(name))[2] ~ '^[0-9a-fA-F-]{36}$'` (own folder + a UUID-shaped second segment; cross-checks the table-level CHECK constraint). Service-role escapes in 07-04 only used for the `_system` seed folder.
 
 ## Path scheme
 
@@ -75,11 +94,13 @@ The router (07-04) computes the prefix; storage RLS enforces it.
 ## Verification (executor must run before commit)
 
 1. **Local apply**: `supabase migration up`.
-2. **Schema check**: `\d public.skill_files` shows all 8 columns, FK to skills, the index.
-3. **Bucket check**: `SELECT * FROM storage.buckets WHERE id = 'skills-files'` returns one row with `public = false`.
-4. **RLS positive smoke**: as test@test.com, upload a file at `<my_uid>/<skill_id>/test.md` — succeeds.
-5. **RLS negative smoke**: as test-2@test.com, attempt SELECT on `<test_uid>/<skill_id>/test.md` — denied (403).
-6. **Cascade smoke**: delete a skill row → corresponding `skill_files` rows are gone (FK cascade fires).
+2. **Schema check**: `\d public.skill_files` shows all 8 columns + the 2 CHECK constraints, FK to skills, the index.
+3. **CHECK constraint smoke**: try to INSERT a `skill_files` row with `storage_path = '<my_uid>/<wrong_skill_id>/test.md'` (skill_id mismatch) — fails with check constraint violation. Same for `storage_path = 'malformed-only-one-segment'` — fails the regex CHECK.
+4. **Bucket check**: `SELECT * FROM storage.buckets WHERE id = 'skills-files'` returns one row with `public = false`.
+5. **RLS positive smoke**: as test@test.com, upload a file at `<my_uid>/<skill_id>/test.md` and INSERT matching `skill_files` row — succeeds.
+6. **RLS negative smoke (HIGH #1 regression)**: as test-2@test.com, while test@test.com has a global skill `g1`, try to SELECT a private file under test@test.com's owner folder `<test_uid>/<other_private_skill_id>/secret.md` — denied (no `skill_files` row + parent-skill match exists for test-2).
+7. **Storage-path spoofing (HIGH #2 regression)**: as test@test.com, INSERT `skill_files` row whose `storage_path` points at test-2's blob — fails the CHECK + INSERT RLS.
+8. **Cascade smoke**: delete a skill row → corresponding `skill_files` rows are gone (FK cascade fires).
 
 ## Atomic commit
 
@@ -89,6 +110,7 @@ feat(skills): migration 035 — skill_files table + skills-files storage bucket
 
 ## Risks / open verifications
 
-- **Storage RLS path-prefix syntax must be verified before writing the migration.** Run `grep -rn "storage.foldername" supabase/migrations/` to find a precedent in this repo. If none exists, write a minimal probe migration locally first or consult Supabase docs (`mcp__claude_ai_Supabase__search_docs query="storage.foldername path-prefix RLS"`).
-- The "global skill creator folder" branch in the SELECT policy is the riskiest construct here — reviewers should challenge whether a simpler scheme (always read globals through the service-role API only) is cleaner. If accepted, document in 07-04 that all global-skill file reads MUST route through the router's service-role client and never expose direct storage signed URLs to clients.
+- **Storage RLS syntax must be verified before writing the migration.** Run `grep -rn "storage.foldername\|storage.buckets" supabase/migrations/` to find a precedent in this repo. If none exists, write a minimal probe migration locally first or consult Supabase docs (`mcp__claude_ai_Supabase__search_docs query="storage RLS exists join"`). The new EXISTS-join policy is more conservative than first-segment matching and should be the safe default.
+- **Service-role policy for `_system` skill files**: the SELECT policy above does not include the `_system` folder in its first-segment heuristic anymore. For the `skill-creator` seed (which has `user_id IS NULL`), the EXISTS join still resolves because the parent skill is global. So no special-casing is required — but do verify with a positive smoke test on the seed file before commit.
 - The 10 MB cap in the CHECK constraint is duplicated in `skill_zip_service.parse_skill_zip(max_per_file=...)` (07-03) — keep both in sync if the cap ever changes.
+- **`split_part` and regex are Postgres-native** (no extension required) — but confirm the regex in the CHECK matches Supabase's UUID format (lowercase hex with dashes; current regex is case-insensitive `[0-9a-fA-F-]{36}`).
