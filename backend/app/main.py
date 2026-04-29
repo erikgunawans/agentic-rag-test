@@ -3,7 +3,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
-from app.routers import threads, chat, documents, document_tools, admin_settings, user_preferences, audit_trail, obligations, clause_library, document_templates, approvals, user_management, regulatory, notifications, dashboard, integrations, google_export, bjr, compliance_snapshots, pdp, folders
+from app.routers import threads, chat, documents, document_tools, admin_settings, user_preferences, audit_trail, obligations, clause_library, document_templates, approvals, user_management, regulatory, notifications, dashboard, integrations, google_export, bjr, compliance_snapshots, pdp, folders, skills
+from app.middleware.skills_upload_size import SkillsUploadSizeMiddleware
 from app.services.tracing_service import configure_tracing
 from app.services.redaction_service import get_redaction_service
 from app.database import get_supabase_client
@@ -48,6 +49,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Skills upload size cap (50 MB) — fires before multipart body parsing (cycle-2 H6 fix)
+app.add_middleware(SkillsUploadSizeMiddleware)
+
 app.include_router(threads.router)
 app.include_router(chat.router)
 app.include_router(documents.router)
@@ -69,6 +73,7 @@ app.include_router(bjr.router)
 app.include_router(compliance_snapshots.router)
 app.include_router(pdp.router)
 app.include_router(folders.router)
+app.include_router(skills.router)
 
 
 @app.get("/health")
