@@ -31,16 +31,18 @@ class SkillsUploadSizeMiddleware(BaseHTTPMiddleware):
         # Chunked transfer-encoding: count bytes as they stream in; abort on overflow.
         # (Starlette streams the body; we wrap receive() to enforce the cap.)
         original_receive = request._receive
-        total = {"n": 0}
+        total = {"n": 0, "overflow": False}
 
         async def capped_receive():
             msg = await original_receive()
             if msg["type"] == "http.request":
                 total["n"] += len(msg.get("body", b""))
                 if total["n"] > MAX_IMPORT_BYTES:
-                    # Replace body with a sentinel; downstream import handler returns 413.
-                    return {"type": "http.disconnect"}
+                    total["overflow"] = True
             return msg
 
         request._receive = capped_receive
-        return await call_next(request)
+        response = await call_next(request)
+        if total["overflow"]:
+            return JSONResponse({"detail": "ZIP exceeds 50 MB limit"}, status_code=413)
+        return response
