@@ -19,7 +19,7 @@
 - [x] **Phase 3: Entity Resolution & LLM Provider Configuration** ✅ 2026-04-26 — `algorithmic`/`llm`/`none` resolution modes; global + per-feature `LLM_PROVIDER` plumbing with egress filter and admin UI (7 plans across 6 waves; migration 030 applied to live Supabase; 79/79 tests pass; 5/5 SCs verified)
 - [x] **Phase 4: Fuzzy De-anonymization, Missed-PII Scan & Prompt Guidance** ✅ 2026-04-27 — 3-phase placeholder-tokenized de-anon pipeline; optional secondary LLM scan; system-prompt formatting guidance (7 plans across 6 waves; migration 031 applied to live Supabase; 135/135 tests pass; 9/9 REQ-IDs satisfied; 5/5 SCs verified)
 - [x] **Phase 5: Chat-Loop Integration (Buffering, SSE Status, Tool/Sub-Agent Coverage)** ✅ 2026-04-28 — Full end-to-end privacy invariant: buffered responses, status events, symmetric tool/sub-agent anonymization (6 plans across 4 waves; 256/256 tests pass; 7/7 REQ-IDs satisfied; 5/5 SCs verified)
-- [ ] **Phase 6: Embedding Provider & Production Hardening** — `EMBEDDING_PROVIDER=local|cloud`; latency target met; graceful provider-failure degradation; full audit logging
+- [x] **Phase 6: Embedding Provider & Production Hardening** ✅ 2026-04-29 — `EMBEDDING_PROVIDER=local|cloud` switch; graceful fallback on all provider failure paths; thread_id correlation logs across 5 modules; title-gen template fallback; PERF-02/PERF-04/OBS-02/OBS-03 regression tests; startup validation for local config (8 plans, 352 tests pass)
 
 ## Phase Details
 
@@ -142,7 +142,7 @@
 | 3. Entity Resolution & LLM Provider Configuration | 7/7 | Complete | 2026-04-26 |
 | 4. Fuzzy De-anonymization, Missed-PII Scan & Prompt Guidance | 7/7 | Complete | 2026-04-27 |
 | 5. Chat-Loop Integration (Buffering, SSE Status, Tool/Sub-Agent Coverage) | 6/6 | Complete | 2026-04-28 |
-| 6. Embedding Provider & Production Hardening | 8/8 | Executing (Wave 4 done) | — |
+| 6. Embedding Provider & Production Hardening | 8/8 | Complete | 2026-04-29 |
 
 ## Completed Phases (Pre-GSD)
 
@@ -190,3 +190,4 @@ Milestone v1.0 phase numbering starts at **Phase 1** (workflow flag `--reset-pha
 *Last updated: 2026-04-28 — Phase 5 EXECUTION COMPLETE ✅: 6 plans across 4 waves; all 7 REQ-IDs (BUFFER-01..03, TOOL-01..04) SATISFIED; 5/5 ROADMAP SCs verified; 256/256 tests pass. Privacy invariant enforced end-to-end: batch history anon, egress filter at 3 sites + classify_intent, walker-wrapped tool I/O, SSE redaction_status events, single-batch buffered delta, graceful degrade, off-mode SC#5 regression-free. Verification: `.planning/phases/05-chat-loop-integration-buffering-sse-status-tool-sub-agent-co/05-VERIFICATION.md` (status: passed, 5/5 SCs). Next: Phase 6 (Embedding Provider & Production Hardening).*
 *Last updated: 2026-04-28 — Phase 5 GAP-CLOSURE COMPLETE ✅ (plans 05-07 + 05-08): D-48 variant cascade blocker fixed (ConversationRegistry.canonicals() + egress canonical-only scan); pii_redaction_enabled migrated from config.py env var to system_settings DB column (migration 032 applied to production, admin UI toggle now functional); 195/195 unit tests pass; gap-closure verification: passed (5/5 must-haves).*
 *Last updated: 2026-04-29 — Phase 6 PLANNING COMPLETE: 8 plans across 4 waves drafted (06-01..06-08); all 6 REQ-IDs covered (EMBED-01, EMBED-02, OBS-02, OBS-03, PERF-02, PERF-04); 17 D-P6-XX decisions traced. UI hint corrected to no (CONTEXT.md scope: env-var + service-layer + tests + docs only).*
+*Last updated: 2026-04-29 — Phase 6 EXECUTION COMPLETE ✅: 8 plans across 4 waves; all 6 REQ-IDs (EMBED-01, EMBED-02, OBS-02, OBS-03, PERF-02, PERF-04) SATISFIED; 4/5 SCs auto-verified (PERF-02 requires server-class hardware for 500ms gate — 2000ms hard gate passed, UAT item created); 352/352 non-slow tests pass; code review blockers fixed (CR-01 title-gen wiring, CR-02 startup validation, WR-01 fuzzy-deanon thread_id, WR-04 false-positive test). Milestone v1.0 PII Redaction System COMPLETE.*
