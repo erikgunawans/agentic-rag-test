@@ -102,17 +102,20 @@ async def scan_for_missed_pii(
     except _EgressBlocked:
         # Defense-in-depth backstop fired (Phase 3 D-53..D-56). Soft-fail.
         logger.warning(
-            "event=missed_scan_skipped feature=missed_scan error_class=_EgressBlocked"
+            "event=missed_scan_skipped thread_id=%s feature=missed_scan error_class=_EgressBlocked",
+            registry.thread_id,
         )
         return anonymized_text, 0
     except ValidationError:
         logger.warning(
-            "event=missed_scan_skipped feature=missed_scan error_class=ValidationError"
+            "event=missed_scan_skipped thread_id=%s feature=missed_scan error_class=ValidationError",
+            registry.thread_id,
         )
         return anonymized_text, 0
     except Exception as exc:  # noqa: BLE001 — D-78 catch-all (timeout / 5xx / network)
         logger.warning(
-            "event=missed_scan_skipped feature=missed_scan error_class=%s",
+            "event=missed_scan_skipped thread_id=%s feature=missed_scan error_class=%s",
+            registry.thread_id,
             type(exc).__name__,
         )
         return anonymized_text, 0
