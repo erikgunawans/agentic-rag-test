@@ -69,11 +69,20 @@ Indonesian legal teams can manage the full contract lifecycle — chat with docu
 - ✓ **PERF-01, PERF-03, PERF-04** — v1.0: Lazy singletons at startup; asyncio-lock race-protection; graceful LLM-failure degradation
 - ✓* **PERF-02** — v1.0: <500ms anonymization target — 2000ms hard gate passed; 500ms unconfirmed on dev hardware (pending server-class run)
 
+## Current Milestone: v1.1 Agent Skills & Code Execution
+
+**Goal:** Transform LexCore's chat interface into a customizable AI agent platform where users create and manage reusable skills, attach resource files, execute sandboxed Python code, and maintain persistent tool memory across conversation turns.
+
+**Target features:**
+- Agent Skills — CRUD + discovery (lightweight catalog in system prompt, on-demand loading via `load_skill`/`save_skill` LLM tools), private/global ownership model, 3 creation paths (AI-guided, manual form, import from ZIP), Skills tab in navigation
+- Skill Building-Block Files — file attachments per skill stored in Supabase Storage, on-demand LLM reading via `read_skill_file` tool, file preview panel in skill editor
+- Code Execution Sandbox — sandboxed Docker Python execution (llm-sandbox), IPython session persistence per thread (TTL 30min), SSE streaming output, generated-file download via signed URLs, `SANDBOX_ENABLED` feature flag
+- Skills Open Standard — ZIP import/export in agentskills.io-compatible format (SKILL.md frontmatter), bulk import support, naming conflict reporting
+- Persistent Tool Memory — tool results stored in messages JSONB `tool_calls` column, reconstructed on conversation history load, no schema migration required
+
 ### Active
 
-<!-- Fresh scope for next milestone — populate via `/gsd-new-milestone` -->
-
-(None — run `/gsd-new-milestone` to define v1.1 requirements)
+<!-- Fresh scope for v1.1 milestone — will be populated after requirements scoping -->
 
 ### Out of Scope
 
@@ -157,3 +166,5 @@ This document evolves at phase transitions and milestone boundaries.
 *Last updated: 2026-04-25 — milestone v1.0 PII Redaction System started (`/gsd-new-milestone`)*
 
 *Last updated: 2026-04-29 — **Milestone v1.0 PII Redaction System COMPLETE** ✅ — All 54 v1.0 REQ-IDs shipped (53 full + PERF-02 partial pending hardware). 6 phases, 44 plans, 352 tests, 5 migrations (029–033). Privacy invariant end-to-end: no real PII reaches cloud-LLM payloads. Active requirements moved to Validated. Key Decisions updated.*
+
+*Last updated: 2026-04-29 — Milestone v1.1 Agent Skills & Code Execution started (`/gsd-new-milestone`)*

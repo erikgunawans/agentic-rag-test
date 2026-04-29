@@ -1,32 +1,33 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: PII Redaction System
-status: archived
-last_updated: "2026-04-29T08:20:00.000Z"
+milestone: v1.1
+milestone_name: Agent Skills & Code Execution
+status: planning
+last_updated: "2026-04-29T08:49:00.000Z"
 last_activity: 2026-04-29
 progress:
-  total_phases: 6
-  completed_phases: 6
-  total_plans: 44
-  completed_plans: 44
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # State: LexCore
 
 ## Project Reference
 
-See: `.planning/PROJECT.md` (updated 2026-04-29 — post-v1.0 milestone close)
+See: `.planning/PROJECT.md` (updated 2026-04-29 — v1.1 milestone started)
 
 **Core value:** Indonesian legal teams can manage the full contract lifecycle with confidence that AI outputs are accurate, citable, and traceable, and that sensitive client PII never leaves the control boundary.
-**Current focus:** Between milestones — run `/gsd-new-milestone` to start v1.1
+**Current focus:** Milestone v1.1 — Agent Skills & Code Execution
 
 ## Current Position
 
-Milestone v1.0 — **ARCHIVED** ✅ 2026-04-29
-
-All 6 phases executed, verified, and archived. 44/44 plans complete. 352/352 non-slow tests pass. MILESTONES.md created. ROADMAP.md collapsed. REQUIREMENTS.md deleted (archived to `milestones/v1.0-REQUIREMENTS.md`). Git tag `v1.0` pending.
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-04-29 — Milestone v1.1 started
 
 ## Accumulated Context
 
@@ -40,19 +41,18 @@ All 6 phases executed, verified, and archived. 44/44 plans complete. 352/352 non
 
 ## Deferred Items
 
-Items acknowledged at v1.0 milestone close on 2026-04-29:
+Items carried forward from v1.0 milestone close on 2026-04-29:
 
 | Category | Item | Status |
 |----------|------|--------|
 | UAT | PERF-02: 500ms anonymization target on server hardware | Pending hardware run |
 | Tech debt | Async-lock cross-process upgrade (D-31): per-process asyncio.Lock for PERF-03 breaks under multi-worker / horizontally-scaled Railway instances. Replace with `pg_advisory_xact_lock(hashtext(thread_id))` when scale-out needed | Deferred to future milestone |
-| Tech debt | VERIFICATION.md anti-patterns (chat.py bare except): Already fixed by commit `827690c` before verification was written — stale docs | Resolved (no action needed) |
 
 ## Blockers
 
-(None — clean milestone close)
+(None)
 
 ---
 *Initialized: 2026-04-25 after `/gsd-new-project` brownfield bootstrap*
 *v1.0 milestone complete: 2026-04-29 — 6 phases, 44 plans, 352 tests, privacy invariant enforced end-to-end*
-*Archived: 2026-04-29 via `/gsd-complete-milestone`*
+*v1.1 milestone started: 2026-04-29 — Agent Skills & Code Execution*
