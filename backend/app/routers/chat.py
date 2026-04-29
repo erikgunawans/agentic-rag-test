@@ -19,6 +19,7 @@ from app.services.redaction import (
     ConversationRegistry,
     anonymize_tool_output,
     deanonymize_tool_args,
+    filter_tool_output_by_registry,
 )
 from app.services.redaction.egress import egress_filter
 from app.services.redaction_service import get_redaction_service
@@ -273,22 +274,20 @@ async def stream_chat(
                         # (LLM-emitted) so persistence and downstream
                         # consumers see the LLM's actual emission.
                         if func_name == "web_search":
-                            # web_search results are public web data;
-                            # anonymizing pollutes the registry with public
-                            # names that then trip egress on the synthesis
-                            # call. User PII is still protected at the input
-                            # boundary and on outbound queries.
+                            # Fix D: replace registry-known real values with
+                            # surrogates WITHOUT registering new Tavily entities.
+                            # Prevents user PII appearing incidentally in Tavily
+                            # results from reaching the LLM unmasked.
                             #
-                            # Known limitation (Fix D candidate): if a Faker-
-                            # generated surrogate happens to collide with a
-                            # real name in Tavily results, de_anonymize_text
-                            # on the synthesis response will map those
-                            # mentions back to the user's real value,
-                            # producing wrong attribution. Proper fix needs
-                            # a filter-only-by-existing-registry primitive
-                            # that anonymizes user-real values found in
-                            # Tavily output without registering new entities.
-                            pass
+                            # Residual (Codex [P2]): if a Faker surrogate
+                            # coincidentally matches a real public figure name
+                            # in Tavily results, de_anonymize_text will still
+                            # map it back to the user's real value in synthesis.
+                            # Full fix requires collision detection at surrogate
+                            # generation time — deferred.
+                            tool_output = filter_tool_output_by_registry(
+                                tool_output, registry,
+                            )
                         else:
                             tool_output = await anonymize_tool_output(
                                 tool_output, registry, redaction_service,

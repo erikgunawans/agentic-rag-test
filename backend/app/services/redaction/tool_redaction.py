@@ -283,3 +283,77 @@ async def anonymize_tool_output(
         return node
 
     return _rezip(shadow)
+
+
+# ---------------------------------------------------------------------------
+# Registry-filter direction (Fix D): real values → surrogates, no new registration
+# ---------------------------------------------------------------------------
+
+
+def _registry_filter_leaf(s: str, registry: ConversationRegistry) -> str:
+    """Replace canonical real values in ``s`` with their surrogates.
+
+    Uses ``registry.canonicals()`` (one entry per surrogate — the longest real
+    value; consistent with the egress filter after Plan 05-07). Longest-first
+    sort prevents partial-overlap corruption (e.g., "Pak Budi Sutomo" is
+    replaced before "Pak Budi" so the full name is matched as a unit).
+
+    Skip rules (UUID + len<3) mirror the other leaf helpers.
+    """
+    if _UUID_RE.fullmatch(s) or len(s) < _MIN_LEN:
+        return s
+    canonicals_sorted = sorted(
+        registry.canonicals(),
+        key=lambda m: len(m.real_value),
+        reverse=True,
+    )
+    out = s
+    for m in canonicals_sorted:
+        if not m.real_value or not m.surrogate_value:
+            continue
+        out = re.sub(
+            re.escape(m.real_value),
+            m.surrogate_value,
+            out,
+            flags=re.IGNORECASE,
+        )
+    return out
+
+
+def filter_tool_output_by_registry(
+    output: Any,
+    registry: ConversationRegistry,
+) -> Any:
+    """Replace registry-known real values in tool output with their surrogates.
+
+    Fix D / ADR-0004 + ADR-0008: used for ``web_search`` output to prevent the
+    user's own PII appearing incidentally in Tavily results from reaching the
+    LLM unmasked — without the side-effect of registering Tavily public figures
+    as new PII entities (which was the root cause of the egress-filter false
+    positives fixed by Fix C).
+
+    Key invariant: this function NEVER calls ``redact_text_batch`` — no NER,
+    no asyncio.Lock, no DB write, no new entity registration.
+
+    Residual limitation (Codex [P2]): if a Faker-generated surrogate coincidentally
+    matches a real public figure's name in Tavily results, ``de_anonymize_text``
+    will still map that name back to the user's real value in the synthesis
+    response. A complete fix requires surrogate-collision detection at generation
+    time or post-synthesis correction — out of scope for Fix D.
+
+    Pure registry lookup. Synchronous (no async I/O needed).
+    """
+    def _walk(node: Any, depth: int) -> Any:
+        if depth >= _MAX_DEPTH:
+            return node
+        if isinstance(node, dict):
+            return {k: _walk(v, depth + 1) for k, v in node.items()}
+        if isinstance(node, list):
+            return [_walk(v, depth + 1) for v in node]
+        if isinstance(node, tuple):
+            return tuple(_walk(v, depth + 1) for v in node)
+        if isinstance(node, str):
+            return _registry_filter_leaf(node, registry)
+        return node
+
+    return _walk(output, depth=0)
