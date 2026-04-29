@@ -13,7 +13,7 @@ class SkillsUploadSizeMiddleware(BaseHTTPMiddleware):
     """
 
     async def dispatch(self, request: Request, call_next):
-        if request.method != "POST" or request.url.path != SKILLS_IMPORT_PATH:
+        if request.method != "POST" or request.url.path.rstrip("/") != SKILLS_IMPORT_PATH:
             return await call_next(request)
 
         cl = request.headers.get("content-length")
