@@ -222,3 +222,5 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 *Last updated: 2026-04-25 — milestone v1.0 PII Redaction System started (`/gsd-new-milestone`)*
+
+*Last updated: 2026-04-29 — **Milestone v1.0 PII Redaction System COMPLETE** ✅ — All 6 phases executed (44 plans, 352/352 non-slow tests pass, 6 REQ-IDs Phase 6). Privacy invariant end-to-end: no real PII reaches cloud-LLM payloads. EMBEDDING_PROVIDER=local|cloud configurable. Pending: PERF-02 500ms gate on server hardware (UAT item).*
