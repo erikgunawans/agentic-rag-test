@@ -8,7 +8,19 @@ settings = get_settings()
 
 class EmbeddingService:
     def __init__(self):
-        self.client = AsyncOpenAI(api_key=settings.openai_api_key)
+        # Phase 6 D-P6-02 / EMBED-01 / EMBED-02: provider branch.
+        # cloud (default) preserves the existing OpenAI flow exactly (RAG-02 unchanged).
+        # local uses an OpenAI-API-compatible endpoint (Ollama bge-m3 / LM Studio) — no third-party egress.
+        # Pattern mirrors LLMProviderClient._get_client (Phase 3 D-50): same AsyncOpenAI library,
+        # same chat-completions-style API surface, deployer-supplied base_url for local.
+        if settings.embedding_provider == "local":
+            self.client = AsyncOpenAI(
+                base_url=settings.local_embedding_base_url,
+                api_key="not-needed",  # Ollama / LM Studio require no key
+            )
+        else:
+            # cloud (default) — RAG-02 preserved byte-identically
+            self.client = AsyncOpenAI(api_key=settings.openai_api_key)
         self.model = settings.openai_embedding_model
 
     @traced
