@@ -25,18 +25,66 @@ Eight FastAPI endpoints under `/skills` covering create, list, read, update, del
 ## Files to create / modify
 
 - `backend/app/routers/skills.py` (new)
+- `backend/app/middleware/skills_upload_size.py` (new — cycle-2 review H6 fix)
 - `backend/app/main.py` (modified)
   - Line 6: append `, skills` to the `from app.routers import ...` block.
+  - Add `app.add_middleware(SkillsUploadSizeMiddleware)` BEFORE `app.include_router(...)` calls so the size cap fires before any body parsing.
   - After current line 71 (`app.include_router(folders.router)`): add `app.include_router(skills.router)`.
+
+### `skills_upload_size.py` (ASGI middleware — true pre-body cap)
+
+```python
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from fastapi.responses import JSONResponse
+
+SKILLS_IMPORT_PATH = "/skills/import"
+MAX_IMPORT_BYTES = 50 * 1024 * 1024  # 50 MB
+
+class SkillsUploadSizeMiddleware(BaseHTTPMiddleware):
+    """Cycle-2 review H6 fix: cap POST /skills/import body BEFORE Starlette
+    buffers the multipart upload. Rejects via Content-Length header when present;
+    rejects via streaming byte counter when absent (chunked transfer-encoding).
+    """
+    async def dispatch(self, request: Request, call_next):
+        if request.method != "POST" or request.url.path != SKILLS_IMPORT_PATH:
+            return await call_next(request)
+
+        cl = request.headers.get("content-length")
+        if cl is not None:
+            try:
+                if int(cl) > MAX_IMPORT_BYTES:
+                    return JSONResponse({"detail": "ZIP exceeds 50 MB limit"}, status_code=413)
+            except ValueError:
+                return JSONResponse({"detail": "Invalid Content-Length"}, status_code=400)
+
+        # Chunked transfer-encoding: count bytes as they stream in; abort on overflow.
+        # (Starlette streams the body; we wrap receive() to enforce the cap.)
+        original_receive = request._receive
+        total = {"n": 0}
+        async def capped_receive():
+            msg = await original_receive()
+            if msg["type"] == "http.request":
+                total["n"] += len(msg.get("body", b""))
+                if total["n"] > MAX_IMPORT_BYTES:
+                    # Replace body with a sentinel; downstream import handler returns 413.
+                    return {"type": "http.disconnect"}
+            return msg
+        request._receive = capped_receive
+        return await call_next(request)
+```
+
+This middleware enforces the 50 MB cap at the ASGI layer, BEFORE FastAPI's `UploadFile` parser. The Content-Length path is the fast path (fires before any byte is read); the streaming counter path covers chunked uploads.
 
 ## Pydantic request/response models (top of file)
 
 ```python
 import re
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
+from postgrest.exceptions import APIError as PostgrestAPIError  # for 23505 catch
 from app.dependencies import get_current_user, require_admin
 from app.database import get_supabase_authed_client, get_supabase_client
 from app.services.audit_service import log_action
@@ -104,9 +152,9 @@ All depend on `Depends(get_current_user)` unless noted.
 | 3 | GET    | `/skills/{id}` | — | RLS-scoped fetch; 404 if no row. |
 | 4 | PATCH  | `/skills/{id}` | `SkillUpdate` | Pre-fetch (RLS-scoped). If `user_id IS NULL` → **403 "Cannot edit a global skill — unshare it first"** (D-P7-03). Else RLS-scoped UPDATE. `log_action("update", ...)`. |
 | 5 | DELETE | `/skills/{id}` | — | If `user["role"] == "super_admin"` → service-role client deletes ANY (D-P7-04 admin moderation). Else RLS-scoped DELETE — RLS now requires `user_id = auth.uid() AND created_by = auth.uid()` (private-and-owned only); creator must unshare first to delete a global skill. If RLS rejects (row exists but is global) → return **403 "Cannot delete a global skill — unshare it first"** (matches the symmetry of edit-global). 404 if no row at all. `skill_files` cascade via FK. `log_action("delete", ...)`. Returns 204. |
-| 6 | PATCH  | `/skills/{id}/share` | `ShareToggle` | **Cycle-1 review MEDIUM fix (existence disclosure)**: Step 1, RLS-scoped pre-fetch; if no row → 404 "Skill not found" (do not leak via service-role check). Step 2, require `row.created_by == auth.uid()` else 403 "Only the creator can change sharing". Step 3, name-conflict guard (cycle-1 review MEDIUM): if `global=true`, check no existing global row with the same `lower(name)`; if `global=false`, check no existing private row with same owner + same `lower(name)`; collision → **409 "Skill name already exists"**. Step 4, service-role UPDATE: `global=true` sets `user_id = NULL`; else sets `user_id = created_by`. `log_action("share"/"unshare", ...)`. Returns the updated `SkillResponse`. |
+| 6 | PATCH  | `/skills/{id}/share` | `ShareToggle` | **Cycle-1 review MEDIUM fix (existence disclosure)**: Step 1, RLS-scoped pre-fetch; if no row → 404 "Skill not found" (do not leak via service-role check). Step 2, require `row.created_by == auth.uid()` else 403 "Only the creator can change sharing". Step 3, name-conflict guard (cycle-1 review MEDIUM): if `global=true`, check no existing global row with the same `lower(name)`; if `global=false`, check no existing private row with same owner + same `lower(name)`; collision → **409 "Skill name already exists"**. Step 4, service-role UPDATE wrapped in `try / except PostgrestAPIError` — on PostgREST `23505` unique-violation (race between step-3 check and the UPDATE), translate to **409 "Skill name already exists"** (cycle-2 review MEDIUM fix: never let a unique violation surface as 500). `global=true` sets `user_id = NULL`; else sets `user_id = created_by`. `log_action("share"/"unshare", ...)`. Returns the updated `SkillResponse`. |
 | 7 | GET    | `/skills/{id}/export` | — | RLS-scoped fetch of skill (404 else); RLS-scoped fetch of matching `skill_files` rows. **Cycle-1 review HIGH #2 fix**: before service-role download, re-validate that each `storage_path == auth.uid()::text + '/' + skill_id::text + '/' + filename` for private skills, OR `split_part(storage_path, '/', 2) == skill_id::text` for globals (the table-level CHECK already enforces this, but we double-check at runtime to make any future RLS regression visible). Then `bytes_loader = lambda path: get_supabase_client().storage.from_('skills-files').download(path)`. Pipe through `build_skill_zip(...)`. Return `StreamingResponse(zip_bytes, media_type="application/zip", headers={"Content-Disposition": f'attachment; filename="{name}.zip"'})`. |
-| 8 | POST   | `/skills/import` | `file: UploadFile = File(...)` | **Cycle-1 review HIGH #6 fix (pre-read body cap)**: BEFORE `await file.read()`, check `request.headers.get("content-length")`; if absent or > 52_428_800 (50 MB) → immediately raise `HTTPException(413, "ZIP exceeds 50 MB limit")`. Then read body, call `parse_skill_zip(content)`; on `ValueError` ("exceeds 50 MB") → 413 (defense-in-depth — covers gzipped uploads where content-length lies). For each `ParsedSkill`: if `error` set → `SkillImportItem(status="error", error=..., skipped_files=[])`. Else INSERT skill row (catch unique_violation → `status="error", error="Skill name already exists"`); for each parsed file in `skill.files`, **use the user's RLS-scoped client** to upload to storage at `{user_id}/{skill_id}/{filename}` and INSERT matching skill_files row (service-role only used for the `_system` seed-time path, not for normal user import — addresses cycle-1 review MEDIUM "avoid service-role for import"). Carry `parsed.skipped_files` through to `SkillImportItem.skipped_files` so the API caller sees per-file warnings (oversized, path_traversal, outside_layout, non_ascii_path). Aggregate into `ImportResult`. `log_action("import", "skill", null, details={"created_count": N, "error_count": M})`. **EXPORT-03 closure**: this aggregation continues past errors and reports each skill's status independently. |
+| 8 | POST   | `/skills/import` | `request: Request, file: UploadFile = File(...)` | **Cycle-2 review H6 fix (true pre-body cap)**: 50 MB cap is enforced by `SkillsUploadSizeMiddleware` (defined above) BEFORE FastAPI parses the multipart body. The middleware short-circuits via Content-Length on the fast path and via streaming byte-counter on chunked uploads, returning 413 "ZIP exceeds 50 MB limit" without buffering the upload. The endpoint signature still includes `request: Request` so any future check has access. Endpoint body: `await file.read()`, then `parse_skill_zip(content)`; on `ValueError` → 413 (defense-in-depth for ZIP-bomb compressed→uncompressed expansion). For each `ParsedSkill`: if `error` set → `SkillImportItem(status="error", error=..., skipped_files=[])`. Else INSERT skill row via the user's RLS-scoped client (catch `PostgrestAPIError` 23505 → `status="error", error="Skill name already exists"`); for each parsed file in `skill.files`, **use the user's RLS-scoped client** to upload to storage at `{user_id}/{skill_id}/{filename}` and INSERT matching skill_files row (service-role only used for the `_system` seed-time path, not for normal user import). Carry `parsed.skipped_files` through to `SkillImportItem.skipped_files` so the API caller sees per-file warnings (oversized, path_traversal, outside_layout, non_ascii_path). Aggregate into `ImportResult`. `log_action("import", "skill", null, details={"created_count": N, "error_count": M})`. **EXPORT-03 closure**: this aggregation continues past errors and reports each skill's status independently. |
 
 ## Error mapping
 

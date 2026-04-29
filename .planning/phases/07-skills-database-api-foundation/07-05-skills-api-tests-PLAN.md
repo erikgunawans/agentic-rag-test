@@ -12,7 +12,7 @@ estimated_atomic_commits: 1
 
 ## Goal
 
-Twenty integration tests that exercise every Phase 7 endpoint against a live backend, verifying RLS (including cycle-1 review HIGH #1/#2 regressions), share/unshare semantics with name-conflict guards, ZIP round-trips with per-file warnings, and admin moderation. This is the verification gate for ALL nine of Phase 7's requirements; convergence on this plan means Phase 7 is done.
+Twenty-three integration tests that exercise every Phase 7 endpoint against a live backend, verifying RLS (including cycle-1 review HIGH #1/#2 + cycle-2 NEW-H1 regressions), share/unshare semantics with name-conflict guards (incl. unique-violation race), ZIP round-trips with per-file warnings, error-only ParsedSkill construction, and admin moderation. This is the verification gate for ALL nine of Phase 7's requirements; convergence on this plan means Phase 7 is done.
 
 ## Closes
 
@@ -64,6 +64,16 @@ If any fixture is missing, fall back to inline login helpers using the credentia
 19. **`test_import_single_skill_zip`** — Build a ZIP via `build_skill_zip` round-trip helper; POST as multipart `{"file": ("skill.zip", data, "application/zip")}` → 200 with `created_count=1`, `results[0].status="created"`, `skipped_files=[]`. Closes EXPORT-02 single.
 20. **`test_import_bulk_zip_with_mixed_results`** (EXPORT-03 closure) — 3 skills in ZIP: one valid (`approving-clause-x`), one with bad name (`Bad Name`), one duplicate of an existing user-owned skill. Expect `created_count=1`, `error_count=2`, results indexed in order: valid → `status="created"`; bad-name → `status="error", error contains "Invalid name"`; duplicate → `status="error", error="Skill name already exists"`. Asserts that one error does NOT block the others (= EXPORT-03 verbatim). Closes EXPORT-02 bulk + EXPORT-03.
 
+### Cycle-2 review regressions (21–23)
+
+21. **`test_global_skill_creator_cannot_mutate_storage`** (NEW-H1) — User A creates a private skill `s1` and uploads `references/note.md`. A shares `s1` (now global). A then attempts (via raw Supabase Storage SDK with their own JWT) to DELETE `<A_uid>/<s1_id>/note.md` from the `skills-files` bucket — expect denial (storage RLS DELETE policy now requires `s.user_id = auth.uid()`, which is NULL for globals). A also attempts to UPLOAD a replacement at the same path — denied. Then A unshares `s1`; the same delete + upload now succeed. Validates the parent-private join in storage INSERT/DELETE policies.
+22. **`test_parser_returns_error_only_skill_for_bad_yaml`** (NEW-H2) — Build a ZIP whose SKILL.md has malformed YAML frontmatter (e.g., `description: : :`). Invoke `parse_skill_zip` directly (this is a unit-test cross-over but is run via the API: POST `/skills/import` with such a ZIP → response includes `results[0].status="error"`, `error` contains "Malformed YAML"; the endpoint did NOT 500). Validates that ParsedSkill's optional success fields permit error-only construction.
+23. **`test_share_unique_violation_race_returns_409`** (cycle-2 MEDIUM) — Two clients race: both PATCH `share {global: true}` on different private skills with the same name (between step-3 conflict-check and step-4 UPDATE). One wins with 200; the loser's UPDATE hits a unique violation and gets translated to 409 "Skill name already exists" (NOT 500). Note: easier to simulate with a fixture that monkeypatches the conflict-check to no-op so the race is forced; document this in the test docstring.
+
+### Pre-body 413 — true ASGI cap (replacement for cycle-1 test 13)
+
+Test 13 (`test_import_oversized_zip_413_pre_read`) is **upgraded** to assert the middleware's behavior: send a request with `Content-Length: 60000000` and a small actual body; expect 413 returned in < 200ms (no body parsing). The streaming-counter path (chunked transfer-encoding) is exercised in a sibling test if httpx supports it; otherwise document as Phase 8+ coverage.
+
 ## Run target
 
 Per CLAUDE.md `## Code Quality`:
@@ -80,15 +90,15 @@ For CI parity, the same command with `API_BASE_URL="https://api-production-cde1.
 
 ## Verification (executor must do)
 
-1. All 20 test cases pass against `http://localhost:8000` (backend running with migrations 034 + 035 applied).
+1. All 23 test cases pass against `http://localhost:8000` (backend running with migrations 034 + 035 applied).
 2. `cd backend && source venv/bin/activate && python -c "from app.main import app; print('OK')"` still prints OK (no import-side breakage).
 3. PostToolUse lint hook is green for `test_skills.py`.
-4. Re-run all 20 against deployed backend after `railway up` — all pass (Phase 7 closure confirmation).
+4. Re-run all 23 against deployed backend after `railway up` — all pass (Phase 7 closure confirmation).
 
 ## Atomic commit
 
 ```
-test(skills): API integration tests for Phase 7 (20 cases)
+test(skills): API integration tests for Phase 7 (23 cases)
 ```
 
 ## Risks / open verifications

@@ -50,9 +50,15 @@ class SkippedFile(BaseModel):
     size_bytes: int | None = None
 
 class ParsedSkill(BaseModel):
-    frontmatter: SkillFrontmatter
-    instructions_md: str        # body after frontmatter
-    files: list[ParsedSkillFile]
+    """Cycle-2 review NEW-H2 fix: success fields are Optional/defaulted so the parser
+    can construct a ParsedSkill with ONLY `error` set when SKILL.md is unparseable
+    (missing frontmatter delimiter, malformed YAML, missing required fields, bad name).
+    Consumers MUST check `if skill.error: ... else: ...` first; once error is None,
+    `frontmatter` is guaranteed non-None and `instructions_md` is guaranteed non-empty.
+    """
+    frontmatter: SkillFrontmatter | None = None
+    instructions_md: str = ""        # body after frontmatter (empty when error set)
+    files: list[ParsedSkillFile] = Field(default_factory=list)
     skipped_files: list[SkippedFile] = Field(default_factory=list)  # soft per-file warnings
     error: str | None = None    # ONLY for fatal skill-level errors (bad name, malformed YAML, missing required frontmatter); NEVER for per-file issues
 

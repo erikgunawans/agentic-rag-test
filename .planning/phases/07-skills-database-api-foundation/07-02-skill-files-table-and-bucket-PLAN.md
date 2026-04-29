@@ -80,7 +80,23 @@ Plus 2 storage RLS policies on `storage.objects`. **Cycle-1 review HIGH #1 fix:*
    )
    ```
    This means an object is readable iff there is a `skill_files` row pointing at it AND the parent skill is visible to the caller. No first-segment-only heuristic. Private files of users with global skills are NOT exposed.
-2. **`skills-files INSERT/DELETE`** — `bucket_id = 'skills-files' AND (storage.foldername(name))[1] = auth.uid()::text AND (storage.foldername(name))[2] ~ '^[0-9a-fA-F-]{36}$'` (own folder + a UUID-shaped second segment; cross-checks the table-level CHECK constraint). Service-role escapes in 07-04 only used for the `_system` seed folder.
+2. **`skills-files INSERT`** (separate `FOR INSERT WITH CHECK` policy) — caller's UID matches first segment AND there exists a **private** parent skill they own with id matching the second segment. Cycle-2 review NEW-H1 fix: parent-privacy join blocks creators from mutating their globally-shared skill's files directly via Storage.
+   ```sql
+   bucket_id = 'skills-files'
+   AND (storage.foldername(name))[1] = auth.uid()::text
+   AND (storage.foldername(name))[2] ~ '^[0-9a-fA-F-]{36}$'
+   AND EXISTS (
+     SELECT 1 FROM public.skills s
+     WHERE s.id::text = (storage.foldername(name))[2]
+       AND s.created_by = auth.uid()
+       AND s.user_id    = auth.uid()   -- parent must be PRIVATE; creator must unshare to edit
+   )
+   ```
+3. **`skills-files DELETE`** (separate `FOR DELETE USING` policy) — same predicate as INSERT. After this policy, a creator who has shared their skill cannot delete its blobs through Storage; they must `PATCH /skills/{id}/share {global: false}` first. Mirrors the table-level skills DELETE policy.
+
+Service-role escapes in 07-04 are only used for the `_system` seed folder (created at migration time, never modified at runtime).
+
+**Cycle-2 review LOW fix**: policies are now expressed as the precise Postgres forms (`CREATE POLICY ... FOR INSERT WITH CHECK (...)`, `CREATE POLICY ... FOR DELETE USING (...)`), not the loose "INSERT/DELETE" combined wording.
 
 ## Path scheme
 
