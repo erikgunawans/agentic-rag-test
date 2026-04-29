@@ -36,7 +36,12 @@ class _StubRegistry:
     with egress_filter after the Plan 05-07 D-48 gap-closure switch to
     canonicals(). For existing tests, mappings are treated as canonical
     (no variants); canonicals() returns the same set as entries().
+
+    Phase 6 D-P6-16: thread_id attribute added so egress_filter trip log can
+    read registry.thread_id without AttributeError.
     """
+
+    thread_id: str = "stub-thread-id"
 
     def __init__(self, mappings):
         self._mappings = list(mappings)

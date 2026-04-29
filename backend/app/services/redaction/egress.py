@@ -113,10 +113,13 @@ def egress_filter(
     )
 
     if result.tripped:
-        # D-55: counts + entity_types + 8-char SHA-256 hashes ONLY. NEVER raw values.
+        # D-55 + Phase 6 D-P6-16: counts + entity_types + 8-char SHA-256 hashes
+        # ONLY. NEVER raw values. thread_id is the per-thread Supabase UUID
+        # (non-PII by construction) — preserves grep-extractable correlation
+        # for OBS-02.
         logger.warning(
-            "egress_filter_blocked event=egress_filter_blocked match_count=%d entity_types=%s match_hashes=%s",
-            result.match_count, result.entity_types, result.match_hashes,
+            "egress_filter_blocked event=egress_filter_blocked thread_id=%s match_count=%d entity_types=%s match_hashes=%s",
+            registry.thread_id, result.match_count, result.entity_types, result.match_hashes,
         )
 
     return result

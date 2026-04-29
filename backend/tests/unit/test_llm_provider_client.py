@@ -30,6 +30,14 @@ class _StubMapping:
 
 
 class _StubRegistry:
+    """Duck-typed stand-in for ConversationRegistry.
+
+    Phase 6 D-P6-16: thread_id attribute added so egress_filter trip log
+    can read registry.thread_id without AttributeError.
+    """
+
+    thread_id: str = "stub-thread-id"
+
     def __init__(self, mappings):
         self._mappings = list(mappings)
 
