@@ -73,3 +73,55 @@ CYCLE_SUMMARY: current_high=6
 ### Consensus Summary
 
 Single reviewer (codex) — no cross-CLI consensus to compute. Concerns above are codex's verdict only.
+
+---
+
+## Codex Review (cycle 2)
+
+Reviewed at: 2026-04-29T17:20:00+07:00
+Plans rev: post replan-cycle-1 (commit 7339c3e)
+
+### Cycle-1 HIGH Status Table
+
+| ID | Status | Evidence | Notes |
+|---|---|---|---|
+| H1 | FULLY RESOLVED | 07-02 lines 69–83; 07-05 line 54 | Storage SELECT no longer uses first-segment ownership alone; joins exact `storage_path` to `skill_files` and parent `skills` visibility. Regression coverage planned. |
+| H2 | FULLY RESOLVED | 07-02 lines 37–57; 07-04 line 108; 07-05 line 54 | Direct row spoofing blocked by `storage_path` shape/skill checks plus INSERT RLS. Export also revalidates before service-role download. |
+| H3 | FULLY RESOLVED | 07-04 line 103; 07-05 line 50 | Plan no longer orders by computed `is_global` field. Orders by `user_id NULLS FIRST, created_at DESC` and tests that listing does not crash. |
+| H4 | FULLY RESOLVED | 07-03 line 76; 07-05 line 49 | ZIP export now explicitly emits leading `---\n`; unit and API regression tests assert it. |
+| H5 | FULLY RESOLVED | 07-03 lines 43–57 and 87–99; 07-04 line 109; 07-05 line 51 | Oversized files now use `skipped_files`, not fatal `ParsedSkill.error`; created skill semantics match D-P7-08. |
+| H6 | PARTIALLY RESOLVED | 07-04 lines 109 + 150; 07-05 lines 52 + 98 | Plan checks `Content-Length` before `await file.read()`, but FastAPI parses multipart `UploadFile` BEFORE endpoint code runs. Avoids one in-process bytes copy, but does not truly cap request-body ingestion. |
+
+### New HIGH Concerns (cycle 2)
+
+- **NEW-H1**: Storage INSERT/DELETE policy allows direct mutation of global skill files by the creator after sharing. The path scheme keeps shared files under `created_by`, while storage INSERT/DELETE only checks first path segment equals `auth.uid()`. A creator can delete or replace blobs for a global skill directly through Supabase Storage, bypassing the router's "cannot edit global skill" rule. Storage write/delete policy should join `skills` by the second path segment and require `s.user_id = auth.uid()` (parent must be private).
+
+- **NEW-H2**: `ParsedSkill` Pydantic model cannot represent fatal parse errors as specified. The model requires `frontmatter: SkillFrontmatter`, `instructions_md: str`, and `files: list[ParsedSkillFile]` (no defaults), but the parser is supposed to return `ParsedSkill.error="..."` for missing delimiters, malformed YAML, and missing required fields. As written, instantiation fails before `.error` can be set. Fix: make those fields optional with defaults, OR split into success/error result models.
+
+### New MEDIUM/LOW Concerns
+
+- **MEDIUM**: `/skills/import` uses `request.headers`, but the planned imports/signature omit `Request` (07-04 lines 35–43, 109).
+- **MEDIUM**: Share/unshare conflict checks are non-atomic; unique indexes protect data, but the service-role UPDATE must catch late unique violations and return 409 instead of 500 (07-04 line 107).
+- **LOW**: Storage policy syntax is still left as an open verification. The "INSERT/DELETE" wording in 07-02 should be split into exact `FOR INSERT WITH CHECK` and `FOR DELETE USING` policy statements before execution.
+
+### Risk Assessment
+
+HIGH: most cycle-1 HIGHs are fixed, but the multipart size cap is still not an effective pre-body cap, and cycle 2 introduced a direct storage integrity bypass for global skill files.
+
+RISK_LEVEL: HIGH
+
+---
+
+## Cycle 2 Tally
+
+CYCLE_SUMMARY: current_high=3
+
+### Current HIGH Concerns (cycle 2)
+
+1. **H6 (carry-forward, partial)**: Pre-read 50 MB cap relies on FastAPI's `UploadFile` already having parsed the multipart body — the check fires after Starlette buffers the upload. Need an ASGI middleware OR raw-`Request` body streaming with early abort.
+2. **NEW-H1**: Storage INSERT/DELETE policy lets a skill's creator mutate blobs of their now-globally-shared skill directly via Storage, bypassing router's "edit global → 403". Add parent-skill privacy check to write/delete policies.
+3. **NEW-H2**: `ParsedSkill` required fields prevent constructing the error-only return shape the parser commits to. Make fields optional or split the model.
+
+### Convergence Trend
+
+prev_high=6 → current_high=3 (decreasing, no stall). Cycle 2 of 3 (max=3). One more replan cycle remaining before escalation.
