@@ -130,7 +130,7 @@
   - [x] **Wave 2** — 06-05-PLAN.md — Replace title-gen except-pass with 6-word anonymized-message template fallback (PERF-04 / D-P6-12) ✓ commit `5e7d435` (2026-04-29)
   - [x] **Wave 3** — 06-06-PLAN.md — PERF-02 latency-budget regression test (real Presidio, @pytest.mark.slow, <500ms) (PERF-02 / D-P6-05..08) ✓ commit `e21cf3b` (2026-04-29)
   - [x] **Wave 3** — 06-07-PLAN.md — PERF-04 graceful-degradation tests (entity-resolution / missed-scan / title-gen) (PERF-04 / D-P6-09..13) ✓ commit `53685d3` (2026-04-29)
-  - [ ] **Wave 4** — 06-08-PLAN.md — OBS-02/03 thread_id + resolved-provider caplog tests + CLAUDE.md gotcha note + final regression checkpoint (OBS-02, OBS-03, EMBED-02, PERF-04 / D-P6-04, D-P6-14..17)
+  - [x] **Wave 4** — 06-08-PLAN.md — OBS-02/03 thread_id + resolved-provider caplog tests + CLAUDE.md gotcha note + final regression checkpoint (OBS-02, OBS-03, EMBED-02, PERF-04 / D-P6-04, D-P6-14..17) ✓ commits `08ce7e4`+`d6a8c2a` (2026-04-29)
 **UI hint**: no (deviation from initial roadmap; Phase 6 is env-var + service-layer + tests + docs only — no UI work per CONTEXT.md "Out of scope: Admin UI toggle for EMBEDDING_PROVIDER")
 
 ## Progress
@@ -142,7 +142,7 @@
 | 3. Entity Resolution & LLM Provider Configuration | 7/7 | Complete | 2026-04-26 |
 | 4. Fuzzy De-anonymization, Missed-PII Scan & Prompt Guidance | 7/7 | Complete | 2026-04-27 |
 | 5. Chat-Loop Integration (Buffering, SSE Status, Tool/Sub-Agent Coverage) | 6/6 | Complete | 2026-04-28 |
-| 6. Embedding Provider & Production Hardening | 7/8 | Executing (Wave 3 done) | — |
+| 6. Embedding Provider & Production Hardening | 8/8 | Executing (Wave 4 done) | — |
 
 ## Completed Phases (Pre-GSD)
 
