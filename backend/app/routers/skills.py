@@ -1,4 +1,5 @@
 import re
+import zipfile
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Request
@@ -140,8 +141,10 @@ async def import_skills(
 
     try:
         parsed_skills = parse_skill_zip(content)
-    except ValueError:
-        raise HTTPException(status_code=413, detail="ZIP exceeds 50 MB limit")
+    except (ValueError, zipfile.BadZipFile) as exc:
+        status = 413 if isinstance(exc, ValueError) else 422
+        detail = str(exc) if isinstance(exc, ValueError) else "Uploaded file is not a valid ZIP"
+        raise HTTPException(status_code=status, detail=detail)
 
     client = get_supabase_authed_client(user["token"])
     results: list[SkillImportItem] = []
