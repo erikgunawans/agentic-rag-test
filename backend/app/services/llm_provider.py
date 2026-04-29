@@ -180,6 +180,7 @@ class LLMProviderClient:
         client = _get_client(provider)
         model = _model_for(provider)
         started = time.monotonic()
+        thread_id = registry.thread_id if registry is not None else "-"
 
         # Cloud-mode pre-flight egress filter (D-53..D-56).
         if provider == "cloud" and registry is not None:
@@ -191,9 +192,9 @@ class LLMProviderClient:
                 latency_ms = int((time.monotonic() - started) * 1000)
                 logger.info(
                     "llm_provider_call event=llm_provider_call "
-                    "feature=%s provider=%s source=%s success=False "
+                    "thread_id=%s feature=%s provider=%s source=%s success=False "
                     "latency_ms=%d egress_tripped=True",
-                    feature, provider, source, latency_ms,
+                    thread_id, feature, provider, source, latency_ms,
                 )
                 raise _EgressBlocked(result)
 
@@ -209,8 +210,8 @@ class LLMProviderClient:
             # D-63 INFO-level resolved-provider audit.
             logger.info(
                 "llm_provider_call event=llm_provider_call "
-                "feature=%s provider=%s source=%s success=True latency_ms=%d",
-                feature, provider, source, latency_ms,
+                "thread_id=%s feature=%s provider=%s source=%s success=True latency_ms=%d",
+                thread_id, feature, provider, source, latency_ms,
             )
             return parsed
         except _EgressBlocked:
@@ -220,8 +221,8 @@ class LLMProviderClient:
             latency_ms = int((time.monotonic() - started) * 1000)
             logger.info(
                 "llm_provider_call event=llm_provider_call "
-                "feature=%s provider=%s source=%s success=False latency_ms=%d "
+                "thread_id=%s feature=%s provider=%s source=%s success=False latency_ms=%d "
                 "error_type=%s",
-                feature, provider, source, latency_ms, type(exc).__name__,
+                thread_id, feature, provider, source, latency_ms, type(exc).__name__,
             )
             raise
