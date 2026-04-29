@@ -352,7 +352,7 @@ async def update_skill(
             detail="Cannot edit a global skill — unshare it first",
         )
 
-    updates = {k: v for k, v in body.model_dump().items() if v is not None}
+    updates = body.model_dump(exclude_none=True)
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
 
@@ -569,7 +569,9 @@ async def export_skill(skill_id: str, user: dict = Depends(get_current_user)):
     def bytes_loader(path: str) -> bytes:
         return svc_storage.storage.from_("skills-files").download(path)
 
-    zip_buf = build_skill_zip(skill, files, bytes_loader)
+    # Convert DB filename format ("scripts__foo.py") back to relative_path ("scripts/foo.py")
+    files_for_zip = [{**f, "relative_path": f["filename"].replace("__", "/")} for f in files]
+    zip_buf = build_skill_zip(skill, files_for_zip, bytes_loader)
 
     return StreamingResponse(
         zip_buf,

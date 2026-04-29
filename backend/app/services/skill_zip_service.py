@@ -336,10 +336,8 @@ def build_skill_zip(
         fm["license"] = skill["license"]
     if skill.get("compatibility"):
         fm["compatibility"] = skill["compatibility"]
-    # Carry through any extra metadata fields
-    for k, v in skill.items():
-        if k not in ("name", "description", "license", "compatibility", "instructions"):
-            fm[k] = v
+    # Merge only user-authored metadata JSONB — never expose DB columns (id, user_id, etc.)
+    fm.update(skill.get("metadata") or {})
 
     instructions_body: str = skill.get("instructions", "")
     skill_md_content = _compose_skill_md(fm, instructions_body)
