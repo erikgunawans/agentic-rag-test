@@ -99,7 +99,7 @@ class Settings(BaseSettings):
     # Phase 3: Entity resolution mode + global LLM provider (D-57, D-60)
     entity_resolution_mode: Literal["algorithmic", "llm", "none"] = "algorithmic"
     llm_provider: Literal["local", "cloud"] = "local"
-    llm_provider_fallback_enabled: bool = False
+    llm_provider_fallback_enabled: bool = True  # Phase 6 D-P6-09: PERF-04 ships fallback ON by default
     llm_provider_timeout_seconds: int = 30  # D-50
 
     # Phase 3: Per-feature provider overrides (None = inherit global) (D-51 / PROVIDER-07)
