@@ -83,11 +83,15 @@ _Populated by roadmapper after roadmap creation._
 
 | REQ-ID | Phase | Status |
 |--------|-------|--------|
-| SKILL-01..11 | — | Pending |
-| SFILE-01..05 | — | Pending |
-| SANDBOX-01..08 | — | Pending |
-| EXPORT-01..03 | — | Pending |
-| MEM-01..03 | — | Pending |
+| SKILL-01, 03–06, 10 | Phase 7: Skills Database & API Foundation | Pending |
+| EXPORT-01–03 | Phase 7: Skills Database & API Foundation | Pending |
+| SKILL-02, 07–09 | Phase 8: LLM Tool Integration & Discovery | Pending |
+| SFILE-01–03, 05 | Phase 8: LLM Tool Integration & Discovery | Pending |
+| SKILL-11 | Phase 9: Skills Frontend | Pending |
+| SFILE-04 | Phase 9: Skills Frontend | Pending |
+| SANDBOX-01–06, 08 | Phase 10: Code Execution Sandbox Backend | Pending |
+| SANDBOX-07 | Phase 11: Code Execution UI & Persistent Tool Memory | Pending |
+| MEM-01–03 | Phase 11: Code Execution UI & Persistent Tool Memory | Pending |
 
 ---
 
