@@ -637,7 +637,7 @@ async def stream_chat(
                     if new_title:
                         client.table("threads").update({"title": new_title}).eq("id", body.thread_id).execute()
                         yield f"data: {json.dumps({'type': 'thread_title', 'title': new_title, 'thread_id': body.thread_id})}\n\n"
-            except Exception:
+            except Exception as _title_exc:
                 # D-P6-12: 6-word template fallback — never crash the chat loop (NFR-3)
                 try:
                     stub = " ".join(anonymized_message.split()[:6]) or "New Thread"
@@ -646,9 +646,15 @@ async def stream_chat(
                     if stub:
                         client.table("threads").update({"title": stub}).eq("id", body.thread_id).execute()
                         yield f"data: {json.dumps({'type': 'thread_title', 'title': stub, 'thread_id': body.thread_id})}\n\n"
-                    logger.info("chat.title_gen_fallback event=title_gen_fallback thread_id=%s", body.thread_id)
-                except Exception:
-                    pass  # Fallback itself failed — default title stays, never crash
+                    logger.info(
+                        "chat.title_gen_fallback event=title_gen_fallback thread_id=%s error_class=%s",
+                        body.thread_id, type(_title_exc).__name__,
+                    )
+                except Exception as _fb_exc:
+                    logger.warning(
+                        "event=title_gen_fallback_failed thread_id=%s error_class=%s",
+                        body.thread_id, type(_fb_exc).__name__,
+                    )
 
         yield f"data: {json.dumps({'type': 'delta', 'delta': '', 'done': True})}\n\n"
 
