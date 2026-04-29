@@ -1,0 +1,7 @@
+# Pytest config only — the project still installs via requirements.txt.
+# This file exists solely so `@pytest.mark.slow` is a registered marker (PERF-02 latency test).
+# Phase 6 (Plan 06-02). Default CI uses `pytest -m 'not slow'`.
+[tool.pytest.ini_options]
+markers = [
+    "slow: marks tests as slow / not run by default (deselect with '-m \"not slow\"')",
+]
