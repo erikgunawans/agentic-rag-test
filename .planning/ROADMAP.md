@@ -122,8 +122,16 @@
   3. When the configured `LLM_PROVIDER` is unavailable: entity resolution falls back to algorithmic clustering, the missed-PII scan is skipped, and title/metadata generation falls back to a templated default — failures are logged but never crash the chat loop and never leak raw PII.
   4. Debug-level logs capture (per redaction operation) entities detected, surrogates assigned, fuzzy matches, missed-PII scan results, UUID-filter drops, the resolved LLM provider per call, and pre-flight egress-filter results for cloud calls — all verifiable by inspecting a single chat turn's log block.
   5. Every LLM call records its **resolved** provider (after per-feature override resolution) for audit, and the production smoke-test suite extends to a full anonymize → resolve → buffer → de-anonymize round-trip without raw-PII leakage.
-**Plans**: TBD
-**UI hint**: yes
+**Plans**: 8 plans across 4 waves
+  - [ ] **Wave 1** — 06-01-PLAN.md — config.py: add EMBEDDING_PROVIDER + LOCAL_EMBEDDING_BASE_URL settings; flip llm_provider_fallback_enabled default to True (EMBED-01, EMBED-02, PERF-04 / D-P6-01..03, D-P6-09)
+  - [ ] **Wave 1** — 06-02-PLAN.md — Establish @pytest.mark.slow marker via backend/pyproject.toml (PERF-02 / D-P6-07)
+  - [ ] **Wave 2** — 06-03-PLAN.md — EmbeddingService provider branch (cloud / local) + 3 unit tests (EMBED-01, EMBED-02 / D-P6-02)
+  - [ ] **Wave 2** — 06-04-PLAN.md — Add thread_id correlation field to redaction-pipeline debug logs (detection / redaction_service / egress / llm_provider) (OBS-02, OBS-03 / D-P6-14..17)
+  - [ ] **Wave 2** — 06-05-PLAN.md — Replace title-gen except-pass with 6-word anonymized-message template fallback (PERF-04 / D-P6-12)
+  - [ ] **Wave 3** — 06-06-PLAN.md — PERF-02 latency-budget regression test (real Presidio, @pytest.mark.slow, <500ms) (PERF-02 / D-P6-05..08)
+  - [ ] **Wave 3** — 06-07-PLAN.md — PERF-04 graceful-degradation tests (entity-resolution / missed-scan / title-gen) (PERF-04 / D-P6-09..13)
+  - [ ] **Wave 4** — 06-08-PLAN.md — OBS-02/03 thread_id + resolved-provider caplog tests + CLAUDE.md gotcha note + final regression checkpoint (OBS-02, OBS-03, EMBED-02, PERF-04 / D-P6-04, D-P6-14..17)
+**UI hint**: no (deviation from initial roadmap; Phase 6 is env-var + service-layer + tests + docs only — no UI work per CONTEXT.md "Out of scope: Admin UI toggle for EMBEDDING_PROVIDER")
 
 ## Progress
 
@@ -134,7 +142,7 @@
 | 3. Entity Resolution & LLM Provider Configuration | 7/7 | Complete | 2026-04-26 |
 | 4. Fuzzy De-anonymization, Missed-PII Scan & Prompt Guidance | 7/7 | Complete | 2026-04-27 |
 | 5. Chat-Loop Integration (Buffering, SSE Status, Tool/Sub-Agent Coverage) | 6/6 | Complete | 2026-04-28 |
-| 6. Embedding Provider & Production Hardening | 0/0 | Not started | — |
+| 6. Embedding Provider & Production Hardening | 0/8 | Planning complete | — |
 
 ## Completed Phases (Pre-GSD)
 
@@ -181,3 +189,4 @@ Milestone v1.0 phase numbering starts at **Phase 1** (workflow flag `--reset-pha
 *Last updated: 2026-04-26 — Phase 3 PLANNING COMPLETE: 7 plans across 6 waves drafted (03-01..03-07); all 11 REQ-IDs covered (RESOLVE-01..04, PROVIDER-01..07). Wave 2 plan 03-02 is the [BLOCKING] migration apply task.*
 *Last updated: 2026-04-28 — Phase 5 EXECUTION COMPLETE ✅: 6 plans across 4 waves; all 7 REQ-IDs (BUFFER-01..03, TOOL-01..04) SATISFIED; 5/5 ROADMAP SCs verified; 256/256 tests pass. Privacy invariant enforced end-to-end: batch history anon, egress filter at 3 sites + classify_intent, walker-wrapped tool I/O, SSE redaction_status events, single-batch buffered delta, graceful degrade, off-mode SC#5 regression-free. Verification: `.planning/phases/05-chat-loop-integration-buffering-sse-status-tool-sub-agent-co/05-VERIFICATION.md` (status: passed, 5/5 SCs). Next: Phase 6 (Embedding Provider & Production Hardening).*
 *Last updated: 2026-04-28 — Phase 5 GAP-CLOSURE COMPLETE ✅ (plans 05-07 + 05-08): D-48 variant cascade blocker fixed (ConversationRegistry.canonicals() + egress canonical-only scan); pii_redaction_enabled migrated from config.py env var to system_settings DB column (migration 032 applied to production, admin UI toggle now functional); 195/195 unit tests pass; gap-closure verification: passed (5/5 must-haves).*
+*Last updated: 2026-04-29 — Phase 6 PLANNING COMPLETE: 8 plans across 4 waves drafted (06-01..06-08); all 6 REQ-IDs covered (EMBED-01, EMBED-02, OBS-02, OBS-03, PERF-02, PERF-04); 17 D-P6-XX decisions traced. UI hint corrected to no (CONTEXT.md scope: env-var + service-layer + tests + docs only).*

@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-last_updated: "2026-04-29T06:10:40.371Z"
+last_updated: "2026-04-29T07:05:49.520Z"
 last_activity: 2026-04-27
 progress:
   total_phases: 6
   completed_phases: 5
-  total_plans: 36
+  total_plans: 44
   completed_plans: 36
-  percent: 100
+  percent: 82
 ---
 
 # State: LexCore
@@ -80,3 +80,5 @@ Verification: passed (5/5 SCs, 7/7 REQ-IDs, 15 decisions D-83..D-97)
 *Updated: 2026-04-27 — Phase 4 EXECUTION COMPLETE ✅: 7 plans across 6 waves; all 9 REQ-IDs (DEANON-03..05, SCAN-01..05, PROMPT-01) SATISFIED; 5/5 ROADMAP SCs verified. 135/135 backend tests pass (75 unit + 60 integration: 17 new Phase 4 + 39 Phase 1+2 + 8 Phase 3 + 75 unit including 13 new missed_scan + 11 prompt_guidance + 23 fuzzy_match). Migration 031 applied live to Supabase qedhulpfezucnfadlfiz (orchestrator MCP). 3-phase de_anon pipeline (surrogate→placeholder→fuzzy/LLM-match→real) ships in `redaction_service.py:de_anonymize_text(mode=...)` with backward-compatible `mode=None` default. Missed-PII scan auto-chained inside `_redact_text_with_registry` with single-re-run cap (`_scan_rerun_done`). Centralized prompt-guidance helper (`prompt_guidance.py`) wired into both single-agent (`chat.py`) and 4 sub-agent paths (`agent_service.py`). Admin UI surfaces fuzzy mode + threshold inside the existing PII section. Phase 3 regression introduced by auto-chain RESOLVED via parallel patch on `missed_scan.get_settings` in 2 tests (commit `b9ced3e`). Verification: `.planning/phases/04-fuzzy-de-anonymization-missed-pii-scan-prompt-guidance/04-VERIFICATION.md` (status: passed, 16/16 decisions D-67..D-82 traced). Next: Phase 5 (Chat-Loop Integration).*
 
 *Updated: 2026-04-28 — Phase 5 EXECUTION COMPLETE ✅: 6 plans across 4 waves; all 7 REQ-IDs (BUFFER-01..03, TOOL-01..04) SATISFIED; 5/5 ROADMAP SCs verified; 256/256 backend tests pass. Privacy invariant enforced end-to-end: `redact_text_batch` single-lock-acquisition history anonymization chokepoint (D-93), egress filter at 3 `OpenRouterService` call sites + `classify_intent` auxiliary LLM (D-94), walker-wrapped tool I/O via `deanonymize_tool_args`/`anonymize_tool_output` (D-91), SSE `redaction_status:anonymizing/deanonymizing` events (D-88), single-batch buffered delta delivery (D-87), graceful de-anon degrade to mode='none' (D-90), SC#5 off-mode regression-free (D-83/D-84). Frontend: `RedactionStatusEvent` discriminated union + `useChatState.redactionStage` dispatch + 3 bilingual i18n keys. Verification: `.planning/phases/05-chat-loop-integration-buffering-sse-status-tool-sub-agent-co/05-VERIFICATION.md` (status: passed, 5/5 SCs, 1 accepted override on SC#2 SSE literal ordering). Next: Phase 6 (Embedding Provider & Production Hardening).*
+
+**Planned Phase:** 06 (Embedding Provider & Production Hardening) — 8 plans — 2026-04-29T07:05:49.514Z
