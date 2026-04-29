@@ -620,7 +620,7 @@ class RedactionService:
         """
         t0 = time.perf_counter()
 
-        masked_text, entities, sentinels = detect_entities(text)
+        masked_text, entities, sentinels = detect_entities(text, thread_id=registry.thread_id)
 
         # Step 3: split PERSON / non-PERSON; cluster PERSON by mode.
         person_entities, non_person_entities = _split_person_non_person(entities)
@@ -759,10 +759,11 @@ class RedactionService:
         # D-18 / D-41 / B4 / D-63: counts, timings, mode flags ONLY.
         # NEVER real values, NEVER member texts, NEVER cluster canonicals.
         logger.debug(
-            "redaction.redact_text(reg): chars=%d entities=%d "
+            "redaction.redact_text(reg): thread_id=%s chars=%d entities=%d "
             "clusters=%d cluster_size_max=%d merged_via=%s "
             "surrogates=%d hard=%d uuid_drops=%d deltas=%d "
             "provider_fallback=%s egress_tripped=%s fallback_reason=%s ms=%.2f",
+            registry.thread_id,
             len(text),
             len(entities),
             len(clusters),
@@ -921,9 +922,10 @@ class RedactionService:
         # backing tracing provider (langsmith/langfuse/none) gets these as
         # span attributes via the @traced decorator's structured-log path.
         logger.debug(
-            "redaction.de_anonymize_text: text_len=%d surrogate_count=%d "
+            "redaction.de_anonymize_text: thread_id=%s text_len=%d surrogate_count=%d "
             "placeholders_resolved=%d fuzzy_deanon_mode=%s "
             "fuzzy_matches_resolved=%d fuzzy_provider_fallback=%s ms=%.2f",
+            registry.thread_id,
             len(text),
             len(entries),
             resolved,
