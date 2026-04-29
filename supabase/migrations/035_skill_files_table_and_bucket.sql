@@ -135,17 +135,22 @@ CREATE POLICY "skills-files SELECT"
 --         second segment must look like a UUID (regex guard);
 --         a PRIVATE parent skill exists with that id, created by caller.
 --         Cycle-2 NEW-H1: parent must be private (s.user_id = auth.uid()).
+--
+-- BUG FIX (07-05): Use objects.name in EXISTS subquery to avoid PostgreSQL
+-- resolving bare `name` as s.name (skills.name column) inside the subquery,
+-- which caused the EXISTS to never match and all uploads to fail with
+-- "new row violates row-level security policy".
 CREATE POLICY "skills-files INSERT"
   ON storage.objects
   FOR INSERT
   WITH CHECK (
     bucket_id = 'skills-files'
-    AND (storage.foldername(name))[1] = auth.uid()::text
-    AND (storage.foldername(name))[2] ~ '^[0-9a-fA-F-]{36}$'
+    AND (storage.foldername(objects.name))[1] = auth.uid()::text
+    AND (storage.foldername(objects.name))[2] ~ '^[0-9a-fA-F-]{36}$'
     AND EXISTS (
       SELECT 1
       FROM public.skills s
-      WHERE s.id::text = (storage.foldername(name))[2]
+      WHERE s.id::text = (storage.foldername(objects.name))[2]
         AND s.created_by = auth.uid()
         AND s.user_id    = auth.uid()   -- parent must be PRIVATE; creator must unshare to edit
     )
@@ -157,12 +162,12 @@ CREATE POLICY "skills-files DELETE"
   FOR DELETE
   USING (
     bucket_id = 'skills-files'
-    AND (storage.foldername(name))[1] = auth.uid()::text
-    AND (storage.foldername(name))[2] ~ '^[0-9a-fA-F-]{36}$'
+    AND (storage.foldername(objects.name))[1] = auth.uid()::text
+    AND (storage.foldername(objects.name))[2] ~ '^[0-9a-fA-F-]{36}$'
     AND EXISTS (
       SELECT 1
       FROM public.skills s
-      WHERE s.id::text = (storage.foldername(name))[2]
+      WHERE s.id::text = (storage.foldername(objects.name))[2]
         AND s.created_by = auth.uid()
         AND s.user_id    = auth.uid()   -- parent must be PRIVATE
     )
