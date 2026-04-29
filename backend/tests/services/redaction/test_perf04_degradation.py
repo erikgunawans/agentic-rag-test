@@ -256,34 +256,30 @@ class TestTitleGenFallback:
             stub = "New Thread"
         assert stub == "New Thread"
 
-    @pytest.mark.asyncio
-    async def test_title_gen_fallback_emits_log_line(
-        self, caplog: pytest.LogCaptureFixture
-    ) -> None:
-        """The fallback log line carries thread_id + error_class fields.
+    def test_title_gen_fallback_is_wired_in_chat_py(self) -> None:
+        """Structural guard: verify that chat.py actually contains the D-P6-12
+        template fallback implementation (CR-01 regression guard).
 
-        We construct a fake LLMProviderClient that raises, run the relevant
-        portion of the fallback (Plan 06-05 block), and assert the caplog.
+        The previous test emitted its own log line and then asserted it —
+        a false-positive that would pass even if chat.py was never changed.
+        This test checks that the three required artefacts exist in production
+        source code instead of manufacturing them in the test body.
         """
-        # Re-create the relevant fallback block. This is the SAME logic
-        # Plan 06-05 wires into chat.py; this test guards its log-emission
-        # invariant in isolation.
-        thread_id = "title-gen-test-thread"
-        logger = logging.getLogger("app.routers.chat")
+        import pathlib
 
-        try:
-            raise RuntimeError("simulated title-gen 5xx")
-        except Exception as exc:
-            with caplog.at_level(logging.INFO, logger="app.routers.chat"):
-                logger.info(
-                    "chat.title_gen_fallback event=title_gen_fallback "
-                    "thread_id=%s error_class=%s",
-                    thread_id, type(exc).__name__,
-                )
+        source = (
+            pathlib.Path(__file__).parents[3] / "app" / "routers" / "chat.py"
+        ).read_text()
 
-        # NFR-3: log line emitted with thread_id + error_class.
-        log_messages = [r.getMessage() for r in caplog.records]
-        assert any(
-            "title_gen_fallback" in m and thread_id in m and "RuntimeError" in m
-            for m in log_messages
-        ), f"expected fallback log; got {log_messages!r}"
+        # D-P6-12 formula must be present in chat.py.
+        assert "anonymized_message.split()[:6]" in source, (
+            "6-word template formula not found in chat.py — D-P6-12 fallback not wired"
+        )
+        # Empty-message sentinel must be present.
+        assert '"New Thread"' in source or "'New Thread'" in source, (
+            "empty-message 'New Thread' sentinel not found in chat.py"
+        )
+        # Log event marker must be present.
+        assert "title_gen_fallback" in source, (
+            "title_gen_fallback log event not found in chat.py — NFR-3 logging not wired"
+        )

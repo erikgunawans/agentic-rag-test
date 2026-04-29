@@ -1,4 +1,4 @@
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
 from typing import Literal
@@ -124,6 +124,16 @@ class Settings(BaseSettings):
     fuzzy_deanon_mode: Literal["algorithmic", "llm", "none"] = "none"
     # D-69: PRD-mandated default 0.85; range [0.50, 1.00] (Pydantic + DB CHECK defense in depth).
     fuzzy_deanon_threshold: float = Field(default=0.85, ge=0.50, le=1.00)
+
+    @model_validator(mode="after")
+    def _validate_local_embedding(self) -> "Settings":
+        # CR-02 fix: catch EMBEDDING_PROVIDER=local + empty LOCAL_EMBEDDING_BASE_URL at startup.
+        if self.embedding_provider == "local" and not self.local_embedding_base_url.strip():
+            raise ValueError(
+                "LOCAL_EMBEDDING_BASE_URL must be set when EMBEDDING_PROVIDER=local "
+                "(e.g. 'http://localhost:11434/v1' for Ollama)"
+            )
+        return self
 
 
 @lru_cache

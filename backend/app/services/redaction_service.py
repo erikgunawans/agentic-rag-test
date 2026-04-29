@@ -1133,7 +1133,8 @@ class RedactionService:
             # B4 invariant: error_class only — never payload or registry contents.
             logger.warning(
                 "event=fuzzy_deanon_skipped feature=fuzzy_deanon "
-                "error_class=_EgressBlocked"
+                "thread_id=%s error_class=_EgressBlocked",
+                registry.thread_id,
             )
             if settings.llm_provider_fallback_enabled:
                 out, n = self._fuzzy_match_algorithmic(
@@ -1144,7 +1145,8 @@ class RedactionService:
         except (ValidationError, Exception) as exc:  # noqa: BLE001 — D-78 catch-all
             logger.warning(
                 "event=fuzzy_deanon_skipped feature=fuzzy_deanon "
-                "error_class=%s",
+                "thread_id=%s error_class=%s",
+                registry.thread_id,
                 type(exc).__name__,
             )
             if settings.llm_provider_fallback_enabled:

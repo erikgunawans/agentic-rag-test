@@ -638,7 +638,17 @@ async def stream_chat(
                         client.table("threads").update({"title": new_title}).eq("id", body.thread_id).execute()
                         yield f"data: {json.dumps({'type': 'thread_title', 'title': new_title, 'thread_id': body.thread_id})}\n\n"
             except Exception:
-                pass  # Non-blocking — default title stays
+                # D-P6-12: 6-word template fallback — never crash the chat loop (NFR-3)
+                try:
+                    stub = " ".join(anonymized_message.split()[:6]) or "New Thread"
+                    if redaction_on and stub != "New Thread":
+                        stub = await redaction_service.de_anonymize_text(stub, registry, mode="none")
+                    if stub:
+                        client.table("threads").update({"title": stub}).eq("id", body.thread_id).execute()
+                        yield f"data: {json.dumps({'type': 'thread_title', 'title': stub, 'thread_id': body.thread_id})}\n\n"
+                    logger.info("chat.title_gen_fallback event=title_gen_fallback thread_id=%s", body.thread_id)
+                except Exception:
+                    pass  # Fallback itself failed — default title stays, never crash
 
         yield f"data: {json.dumps({'type': 'delta', 'delta': '', 'done': True})}\n\n"
 
