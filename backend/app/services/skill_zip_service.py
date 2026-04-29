@@ -387,64 +387,63 @@ def parse_skill_zip(
         ValueError: If the ZIP exceeds max_total uncompressed size.
         zipfile.BadZipFile: If zip_bytes is not a valid ZIP.
     """
-    zf = zipfile.ZipFile(io.BytesIO(zip_bytes))
+    with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zf:
+        # ZIP-bomb defense: check total uncompressed size before reading any content
+        total_uncompressed = sum(info.file_size for info in zf.infolist())
+        if total_uncompressed > max_total:
+            raise ValueError("ZIP exceeds 50 MB limit")
 
-    # ZIP-bomb defense: check total uncompressed size before reading any content
-    total_uncompressed = sum(info.file_size for info in zf.infolist())
-    if total_uncompressed > max_total:
-        raise ValueError("ZIP exceeds 50 MB limit")
+        all_entries = zf.infolist()
 
-    all_entries = zf.infolist()
+        # -------------------------------------------------------------------
+        # Layout detection
+        # -------------------------------------------------------------------
+        # Collect top-level names (not directories themselves, just the first component)
+        top_level_dirs: set[str] = set()
+        has_root_skill_md = False
 
-    # -------------------------------------------------------------------
-    # Layout detection
-    # -------------------------------------------------------------------
-    # Collect top-level names (not directories themselves, just the first component)
-    top_level_dirs: set[str] = set()
-    has_root_skill_md = False
+        for info in all_entries:
+            name = info.filename
+            if name == "SKILL.md":
+                has_root_skill_md = True
+            parts = name.split("/")
+            if len(parts) > 1 and parts[0]:
+                top_level_dirs.add(parts[0])
 
-    for info in all_entries:
-        name = info.filename
-        if name == "SKILL.md":
-            has_root_skill_md = True
-        parts = name.split("/")
-        if len(parts) > 1 and parts[0]:
-            top_level_dirs.add(parts[0])
+        # Determine layout
+        if has_root_skill_md:
+            # Single-skill at root — all entries belong to this skill
+            return [_parse_single_skill(zf, all_entries, "", max_per_file=max_per_file)]
 
-    # Determine layout
-    if has_root_skill_md:
-        # Single-skill at root — all entries belong to this skill
-        return [_parse_single_skill(zf, all_entries, "", max_per_file=max_per_file)]
+        if not top_level_dirs:
+            # No top-level dirs and no root SKILL.md — empty or unrecognized
+            return [ParsedSkill(error="No SKILL.md found in skill")]
 
-    if not top_level_dirs:
-        # No top-level dirs and no root SKILL.md — empty or unrecognized
-        return [ParsedSkill(error="No SKILL.md found in skill")]
+        # Check which top-level dirs contain a SKILL.md
+        dirs_with_skill_md: list[str] = []
+        for d in sorted(top_level_dirs):
+            skill_md_path = f"{d}/SKILL.md"
+            if skill_md_path in {info.filename for info in all_entries}:
+                dirs_with_skill_md.append(d)
 
-    # Check which top-level dirs contain a SKILL.md
-    dirs_with_skill_md: list[str] = []
-    for d in sorted(top_level_dirs):
-        skill_md_path = f"{d}/SKILL.md"
-        if skill_md_path in {info.filename for info in all_entries}:
-            dirs_with_skill_md.append(d)
+        if len(dirs_with_skill_md) == 0:
+            # No SKILL.md anywhere
+            return [ParsedSkill(error="No SKILL.md found in skill")]
 
-    if len(dirs_with_skill_md) == 0:
-        # No SKILL.md anywhere
-        return [ParsedSkill(error="No SKILL.md found in skill")]
+        if len(dirs_with_skill_md) == 1 and len(top_level_dirs) == 1:
+            # Single-named-dir layout
+            skill_dir = dirs_with_skill_md[0]
+            skill_root = f"{skill_dir}/"
+            skill_entries = [info for info in all_entries if info.filename.startswith(skill_root) or info.filename == skill_root]
+            return [_parse_single_skill(zf, skill_entries, skill_root, max_per_file=max_per_file)]
 
-    if len(dirs_with_skill_md) == 1 and len(top_level_dirs) == 1:
-        # Single-named-dir layout
-        skill_dir = dirs_with_skill_md[0]
-        skill_root = f"{skill_dir}/"
-        skill_entries = [info for info in all_entries if info.filename.startswith(skill_root) or info.filename == skill_root]
-        return [_parse_single_skill(zf, skill_entries, skill_root, max_per_file=max_per_file)]
+        # Bulk layout: each dir is its own skill
+        # Entries that are NOT under any skill dir are ignored (no stray root files in bulk)
+        results: list[ParsedSkill] = []
+        for skill_dir in sorted(dirs_with_skill_md):
+            skill_root = f"{skill_dir}/"
+            skill_entries = [info for info in all_entries if info.filename.startswith(skill_root)]
+            result = _parse_single_skill(zf, skill_entries, skill_root, max_per_file=max_per_file)
+            results.append(result)
 
-    # Bulk layout: each dir is its own skill
-    # Entries that are NOT under any skill dir are ignored (no stray root files in bulk)
-    results: list[ParsedSkill] = []
-    for skill_dir in sorted(dirs_with_skill_md):
-        skill_root = f"{skill_dir}/"
-        skill_entries = [info for info in all_entries if info.filename.startswith(skill_root)]
-        result = _parse_single_skill(zf, skill_entries, skill_root, max_per_file=max_per_file)
-        results.append(result)
-
-    return results
+        return results
