@@ -210,7 +210,10 @@ def get_analyzer() -> AnalyzerEngine:
 
 
 @traced(name="redaction.detect")
-def detect_entities(text: str) -> tuple[str, list[Entity], dict[str, str]]:
+def detect_entities(
+    text: str,
+    thread_id: str | None = None,
+) -> tuple[str, list[Entity], dict[str, str]]:
     """Detect PII entities in `text` with two-pass thresholds.
 
     Steps:
@@ -228,6 +231,12 @@ def detect_entities(text: str) -> tuple[str, list[Entity], dict[str, str]]:
 
     Args:
         text: Raw input text. May contain UUIDs.
+        thread_id: Optional correlation key (Phase 6 OBS-02 / D-P6-14, D-P6-15).
+            When supplied, the redaction.detect debug log line gains a
+            `thread_id=<value>` field for grep-extractable correlation across
+            the full chat turn (detection -> anonymization -> egress -> LLM).
+            Stateless callers (Phase 1 D-39 path) MUST omit this — backward-
+            compat is preserved by the default of None.
 
     Returns:
         (masked_text, entities, sentinels). `entities` is sorted by start
@@ -289,17 +298,32 @@ def detect_entities(text: str) -> tuple[str, list[Entity], dict[str, str]]:
     entities.sort(key=lambda e: e.start)
 
     elapsed_ms = (time.perf_counter() - t0) * 1000
-    logger.debug(
-        "redaction.detect: input_chars=%d uuid_drops=%d entities=%d surrogate=%d redact=%d "
-        "denied=%d denied_types=%s elapsed_ms=%.2f",
-        len(text),
-        len(sentinels),
-        len(entities),
-        sum(1 for e in entities if e.bucket == "surrogate"),
-        sum(1 for e in entities if e.bucket == "redact"),
-        denied_count,
-        sorted(denied_types),
-        elapsed_ms,
-    )
+    if thread_id is not None:
+        logger.debug(
+            "redaction.detect: thread_id=%s input_chars=%d uuid_drops=%d entities=%d surrogate=%d redact=%d "
+            "denied=%d denied_types=%s elapsed_ms=%.2f",
+            thread_id,
+            len(text),
+            len(sentinels),
+            len(entities),
+            sum(1 for e in entities if e.bucket == "surrogate"),
+            sum(1 for e in entities if e.bucket == "redact"),
+            denied_count,
+            sorted(denied_types),
+            elapsed_ms,
+        )
+    else:
+        logger.debug(
+            "redaction.detect: input_chars=%d uuid_drops=%d entities=%d surrogate=%d redact=%d "
+            "denied=%d denied_types=%s elapsed_ms=%.2f",
+            len(text),
+            len(sentinels),
+            len(entities),
+            sum(1 for e in entities if e.bucket == "surrogate"),
+            sum(1 for e in entities if e.bucket == "redact"),
+            denied_count,
+            sorted(denied_types),
+            elapsed_ms,
+        )
 
     return masked_text, entities, sentinels
