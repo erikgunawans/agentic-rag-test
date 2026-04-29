@@ -123,8 +123,8 @@
   4. Debug-level logs capture (per redaction operation) entities detected, surrogates assigned, fuzzy matches, missed-PII scan results, UUID-filter drops, the resolved LLM provider per call, and pre-flight egress-filter results for cloud calls — all verifiable by inspecting a single chat turn's log block.
   5. Every LLM call records its **resolved** provider (after per-feature override resolution) for audit, and the production smoke-test suite extends to a full anonymize → resolve → buffer → de-anonymize round-trip without raw-PII leakage.
 **Plans**: 8 plans across 4 waves
-  - [ ] **Wave 1** — 06-01-PLAN.md — config.py: add EMBEDDING_PROVIDER + LOCAL_EMBEDDING_BASE_URL settings; flip llm_provider_fallback_enabled default to True (EMBED-01, EMBED-02, PERF-04 / D-P6-01..03, D-P6-09)
-  - [ ] **Wave 1** — 06-02-PLAN.md — Establish @pytest.mark.slow marker via backend/pyproject.toml (PERF-02 / D-P6-07)
+  - [x] **Wave 1** — 06-01-PLAN.md — config.py: add EMBEDDING_PROVIDER + LOCAL_EMBEDDING_BASE_URL settings; flip llm_provider_fallback_enabled default to True (EMBED-01, EMBED-02, PERF-04 / D-P6-01..03, D-P6-09) ✓ commits `e7a9e31`+`eab3923` (2026-04-29)
+  - [x] **Wave 1** — 06-02-PLAN.md — Establish @pytest.mark.slow marker via backend/pyproject.toml (PERF-02 / D-P6-07) ✓ commit `98fc89c` (2026-04-29)
   - [ ] **Wave 2** — 06-03-PLAN.md — EmbeddingService provider branch (cloud / local) + 3 unit tests (EMBED-01, EMBED-02 / D-P6-02)
   - [ ] **Wave 2** — 06-04-PLAN.md — Add thread_id correlation field to redaction-pipeline debug logs (detection / redaction_service / egress / llm_provider) (OBS-02, OBS-03 / D-P6-14..17)
   - [ ] **Wave 2** — 06-05-PLAN.md — Replace title-gen except-pass with 6-word anonymized-message template fallback (PERF-04 / D-P6-12)
@@ -142,7 +142,7 @@
 | 3. Entity Resolution & LLM Provider Configuration | 7/7 | Complete | 2026-04-26 |
 | 4. Fuzzy De-anonymization, Missed-PII Scan & Prompt Guidance | 7/7 | Complete | 2026-04-27 |
 | 5. Chat-Loop Integration (Buffering, SSE Status, Tool/Sub-Agent Coverage) | 6/6 | Complete | 2026-04-28 |
-| 6. Embedding Provider & Production Hardening | 0/8 | Planning complete | — |
+| 6. Embedding Provider & Production Hardening | 2/8 | Executing (Wave 1 done) | — |
 
 ## Completed Phases (Pre-GSD)
 
