@@ -1215,3 +1215,209 @@ class TestShareUniqueViolationRaceReturns409:
                 client.delete(f"/skills/{skill_a_id}")
             with _http(auth_token_2) as client:
                 client.delete(f"/skills/{skill_b_id}")
+
+
+# ---------------------------------------------------------------------------
+# Phase 8 file endpoint tests (SFILE-01, SFILE-03, SFILE-05)
+# ---------------------------------------------------------------------------
+
+
+class TestUploadSkillFile:
+    """POST /skills/{id}/files — upload a single file to an owned skill (SFILE-01)."""
+
+    def test_upload_text_file_201(self, auth_token: str):
+        skill = _create_skill(auth_token, name=_unique("upload-test"))
+        skill_id = skill["id"]
+        try:
+            with _http(auth_token) as client:
+                resp = client.post(
+                    f"/skills/{skill_id}/files",
+                    files={"file": ("notes.md", b"# Hello\nworld\n", "text/markdown")},
+                )
+            assert resp.status_code == 201, resp.text
+            body = resp.json()
+            assert body["filename"] == "notes.md"
+            assert body["size_bytes"] == len(b"# Hello\nworld\n")
+            assert body["mime_type"].startswith("text/")
+        finally:
+            with _http(auth_token) as client:
+                client.delete(f"/skills/{skill_id}")
+
+    def test_upload_to_nonowned_skill_403_or_404(self, auth_token: str, auth_token_2: str):
+        """User2 uploading to user1's private skill must not return 200/201."""
+        # user1 creates a private skill
+        skill = _create_skill(auth_token, name=_unique("owner-test"))
+        skill_id = skill["id"]
+        try:
+            # user2 tries to upload to user1's skill
+            with _http(auth_token_2) as client:
+                resp = client.post(
+                    f"/skills/{skill_id}/files",
+                    files={"file": ("x.md", b"x", "text/markdown")},
+                )
+            # RLS hides the private skill from user2 → expect 404 (not 403),
+            # because returning 403 would leak existence. Either is acceptable
+            # per PATTERNS.md handler; what matters is NOT 200/201.
+            assert resp.status_code in (403, 404), (
+                f"Cross-user upload should fail, got {resp.status_code}: {resp.text}"
+            )
+        finally:
+            with _http(auth_token) as client:
+                client.delete(f"/skills/{skill_id}")
+
+
+class TestUploadOversize413:
+    """Mirrors TestImportOversizedZip413PreRead pattern (Phase 7 cycle-2 H6).
+
+    Use a raw socket so we can send Content-Length=11_000_000 with a much
+    smaller body — httpx/h11 enforces the size match and would reject locally.
+    """
+
+    def test_oversize_upload_returns_413_pre_read(self, auth_token: str):
+        skill = _create_skill(auth_token, name=_unique("oversize-test"))
+        skill_id = skill["id"]
+        try:
+            parsed = urllib.parse.urlparse(API_BASE_URL)
+            host = parsed.hostname or "localhost"
+            port = parsed.port or 8000
+
+            boundary = "----testboundary"
+            body = (
+                f"--{boundary}\r\n"
+                f'Content-Disposition: form-data; name="file"; filename="x.md"\r\n'
+                f"Content-Type: text/markdown\r\n\r\n"
+                f"x\r\n"
+                f"--{boundary}--\r\n"
+            ).encode()
+            fake_content_length = 11 * 1024 * 1024  # 11 MB > 10 MB cap
+
+            req = (
+                f"POST /skills/{skill_id}/files HTTP/1.1\r\n"
+                f"Host: {host}:{port}\r\n"
+                f"Authorization: Bearer {auth_token}\r\n"
+                f"Content-Type: multipart/form-data; boundary={boundary}\r\n"
+                f"Content-Length: {fake_content_length}\r\n"
+                f"Connection: close\r\n\r\n"
+            ).encode() + body
+
+            with socket.create_connection((host, port), timeout=10) as s:
+                s.sendall(req)
+                response = b""
+                while b"\r\n\r\n" not in response:
+                    chunk = s.recv(4096)
+                    if not chunk:
+                        break
+                    response += chunk
+
+            status_line = response.split(b"\r\n", 1)[0].decode("ascii", errors="replace")
+            assert " 413 " in status_line, (
+                f"Expected 413, got status line: {status_line!r}"
+            )
+        finally:
+            with _http(auth_token) as client:
+                client.delete(f"/skills/{skill_id}")
+
+
+class TestDeleteSkillFile:
+    """DELETE /skills/{id}/files/{file_id} — remove a file from an owned skill (SFILE-05)."""
+
+    def test_delete_file_204(self, auth_token: str):
+        skill = _create_skill(auth_token, name=_unique("delete-test"))
+        skill_id = skill["id"]
+        try:
+            with _http(auth_token) as client:
+                up = client.post(
+                    f"/skills/{skill_id}/files",
+                    files={"file": ("d.md", b"delete me", "text/markdown")},
+                )
+            assert up.status_code == 201, up.text
+            file_id = up.json()["id"]
+
+            with _http(auth_token) as client:
+                d = client.delete(f"/skills/{skill_id}/files/{file_id}")
+            assert d.status_code == 204, d.text
+
+            # Subsequent GET /content should 404
+            with _http(auth_token) as client:
+                g = client.get(f"/skills/{skill_id}/files/{file_id}/content")
+            assert g.status_code == 404
+        finally:
+            with _http(auth_token) as client:
+                client.delete(f"/skills/{skill_id}")
+
+    def test_delete_nonowned_file_404(self, auth_token: str, auth_token_2: str):
+        """User2 attempting to delete user1's file must get 404."""
+        # user1 creates and uploads
+        skill = _create_skill(auth_token, name=_unique("crossdel"))
+        skill_id = skill["id"]
+        try:
+            with _http(auth_token) as client:
+                up = client.post(
+                    f"/skills/{skill_id}/files",
+                    files={"file": ("x.md", b"x", "text/markdown")},
+                )
+            assert up.status_code == 201, up.text
+            file_id = up.json()["id"]
+
+            # user2 attempts delete
+            with _http(auth_token_2) as client:
+                d = client.delete(f"/skills/{skill_id}/files/{file_id}")
+            assert d.status_code == 404, (
+                f"Expected 404, got {d.status_code}: {d.text}"
+            )
+        finally:
+            with _http(auth_token) as client:
+                client.delete(f"/skills/{skill_id}")
+
+
+class TestReadSkillFileContent:
+    """GET /skills/{id}/files/{file_id}/content — text inline or binary metadata (SFILE-03)."""
+
+    def test_get_content_text_inline(self, auth_token: str):
+        skill = _create_skill(auth_token, name=_unique("read-text"))
+        skill_id = skill["id"]
+        text_bytes = b"# Notes\nLine 1\nLine 2\n"
+        try:
+            with _http(auth_token) as client:
+                up = client.post(
+                    f"/skills/{skill_id}/files",
+                    files={"file": ("notes.md", text_bytes, "text/markdown")},
+                )
+            assert up.status_code == 201, up.text
+            file_id = up.json()["id"]
+
+            with _http(auth_token) as client:
+                g = client.get(f"/skills/{skill_id}/files/{file_id}/content")
+            assert g.status_code == 200
+            body = g.json()
+            assert body["filename"] == "notes.md"
+            assert body["content"] == text_bytes.decode("utf-8")
+            assert body["truncated"] is False
+            assert body["message"] is None
+        finally:
+            with _http(auth_token) as client:
+                client.delete(f"/skills/{skill_id}")
+
+    def test_get_content_binary_metadata(self, auth_token: str):
+        skill = _create_skill(auth_token, name=_unique("read-bin"))
+        skill_id = skill["id"]
+        try:
+            with _http(auth_token) as client:
+                up = client.post(
+                    f"/skills/{skill_id}/files",
+                    files={"file": ("doc.pdf", b"%PDF-1.4\n%fake", "application/pdf")},
+                )
+            assert up.status_code == 201, up.text
+            file_id = up.json()["id"]
+
+            with _http(auth_token) as client:
+                g = client.get(f"/skills/{skill_id}/files/{file_id}/content")
+            assert g.status_code == 200
+            body = g.json()
+            assert body["readable"] is False
+            assert body["mime_type"] == "application/pdf"
+            assert "content" not in body, "D-P8-13: NO content key for binary files"
+            assert "Binary file" in body["message"]
+        finally:
+            with _http(auth_token) as client:
+                client.delete(f"/skills/{skill_id}")
