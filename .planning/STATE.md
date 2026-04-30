@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Agent Skills & Code Execution — In Progress
 status: planning
-last_updated: "2026-04-30T15:05:26.045Z"
+last_updated: "2026-04-30T17:23:46.830Z"
 last_activity: 2026-04-29
 progress:
   total_phases: 5
   completed_phases: 1
-  total_plans: 5
+  total_plans: 9
   completed_plans: 5
-  percent: 100
+  percent: 56
 ---
 
 # State: LexCore
@@ -56,3 +56,5 @@ Items carried forward from v1.0 milestone close on 2026-04-29:
 *Initialized: 2026-04-25 after `/gsd-new-project` brownfield bootstrap*
 *v1.0 milestone complete: 2026-04-29 — 6 phases, 44 plans, 352 tests, privacy invariant enforced end-to-end*
 *v1.1 milestone started: 2026-04-29 — Agent Skills & Code Execution*
+
+**Planned Phase:** 08 (LLM Tool Integration & Discovery) — 4 plans — 2026-04-30T17:23:46.787Z
