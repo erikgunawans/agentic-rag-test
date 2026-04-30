@@ -586,3 +586,201 @@ async def export_skill(skill_id: str, user: dict = Depends(get_current_user)):
             "Content-Disposition": f'attachment; filename="{skill["name"]}.zip"'
         },
     )
+
+
+# ---------------------------------------------------------------------------
+# Phase 8 — Skill File endpoints (SFILE-01, SFILE-03, SFILE-05)
+# ---------------------------------------------------------------------------
+
+
+_PER_FILE_MAX_BYTES = 10 * 1024 * 1024  # D-P7-08 — also enforced by middleware
+_TEXT_INLINE_CAP = 8000  # D-P8-12
+
+
+@router.post("/{skill_id}/files", status_code=201)
+async def upload_skill_file(
+    skill_id: str,
+    file: UploadFile = File(...),
+    user: dict = Depends(get_current_user),
+):
+    """SFILE-01: upload a single file to an owned skill.
+
+    - 10 MB per-file cap (D-P7-08) — enforced first by SkillsUploadSizeMiddleware
+      before the multipart body is parsed; this handler enforces a redundant
+      in-memory check after `await file.read()` as defense-in-depth.
+    - Storage path: {user_id}/{skill_id}/{flat_name} per D-P7-09 CHECK constraint.
+    - Only allowed for skills the user OWNS (RLS on skill_files INSERT gates this).
+    """
+    content = await file.read()
+    if len(content) > _PER_FILE_MAX_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"File exceeds {_PER_FILE_MAX_BYTES // (1024 * 1024)} MB limit",
+        )
+
+    # RLS-scoped pre-flight: confirm the skill exists AND the caller owns it.
+    # The skill_files INSERT RLS policy (migration 035) gates ownership at the
+    # database layer; this pre-flight is purely for clearer 403/404 messaging.
+    client = get_supabase_authed_client(user["token"])
+    skill_row = (
+        client.table("skills").select("id, user_id").eq("id", skill_id).execute()
+    )
+    if not skill_row.data:
+        raise HTTPException(status_code=404, detail="Skill not found")
+    if skill_row.data[0]["user_id"] != user["id"]:
+        raise HTTPException(
+            status_code=403,
+            detail="Cannot upload files to a skill you don't own (unshare global skills first)",
+        )
+
+    # Storage path must be three flat segments (D-P7-09).
+    # Flatten any "/" in filename to "__" so the path stays 3 segments.
+    flat_name = (file.filename or "unnamed").replace("/", "__")
+    storage_path = f"{user['id']}/{skill_id}/{flat_name}"
+    mime_type = file.content_type or "application/octet-stream"
+
+    try:
+        client.storage.from_("skills-files").upload(
+            storage_path,
+            content,
+            {"content-type": mime_type},
+        )
+        insert_result = client.table("skill_files").insert({
+            "skill_id": skill_id,
+            "filename": flat_name,
+            "size_bytes": len(content),
+            "mime_type": mime_type,
+            "storage_path": storage_path,
+            "created_by": user["id"],
+        }).execute()
+    except PostgrestAPIError as exc:
+        raise HTTPException(status_code=400, detail=f"Insert failed: {exc.message}")
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Upload failed: {exc}")
+
+    if not insert_result.data:
+        raise HTTPException(status_code=500, detail="Insert returned no data")
+
+    log_action(
+        user_id=user["id"],
+        user_email=user["email"],
+        action="upload_file",
+        resource_type="skill_file",
+        resource_id=str(insert_result.data[0]["id"]),
+        details={"skill_id": skill_id, "filename": flat_name, "size_bytes": len(content)},
+    )
+    return insert_result.data[0]
+
+
+@router.delete("/{skill_id}/files/{file_id}", status_code=204)
+async def delete_skill_file(
+    skill_id: str,
+    file_id: str,
+    user: dict = Depends(get_current_user),
+):
+    """SFILE-05: delete a file from an owned skill (RLS-gated)."""
+    client = get_supabase_authed_client(user["token"])
+    # Fetch first to know storage_path for cleanup AND distinguish 404 from 403
+    file_row = (
+        client.table("skill_files")
+        .select("storage_path, skill_id")
+        .eq("id", file_id)
+        .eq("skill_id", skill_id)
+        .execute()
+    )
+    if not file_row.data:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    storage_path = file_row.data[0]["storage_path"]
+
+    # RLS DELETE policy gates ownership in Postgres. If the user doesn't own
+    # the parent skill, the DELETE returns no rows and we 404 here (do not
+    # disclose existence of others' files).
+    delete_result = (
+        client.table("skill_files").delete().eq("id", file_id).execute()
+    )
+    if not delete_result.data:
+        raise HTTPException(status_code=404, detail="File not found or not deletable")
+
+    # Best-effort storage cleanup
+    try:
+        client.storage.from_("skills-files").remove([storage_path])
+    except Exception as exc:
+        # File row is gone; storage object is now orphaned but a periodic
+        # job can reconcile. Don't fail the request.
+        import logging
+        logging.getLogger(__name__).warning(
+            "Storage cleanup failed for %s: %s", storage_path, exc
+        )
+
+    log_action(
+        user_id=user["id"],
+        user_email=user["email"],
+        action="delete_file",
+        resource_type="skill_file",
+        resource_id=file_id,
+        details={"skill_id": skill_id, "storage_path": storage_path},
+    )
+
+
+@router.get("/{skill_id}/files/{file_id}/content")
+async def get_skill_file_content(
+    skill_id: str,
+    file_id: str,
+    user: dict = Depends(get_current_user),
+):
+    """SFILE-03 / D-P8-11/12/13: HTTP backing for the read_skill_file LLM tool.
+
+    Text files (mime_type starts with 'text/') are returned inline, capped
+    at 8000 chars. Binary files return metadata only — NO content, NO
+    signed URL (D-P8-13). The shape mirrors the LLM tool response so the
+    frontend can call this endpoint directly for the file-preview panel
+    in Phase 9.
+    """
+    client = get_supabase_authed_client(user["token"])
+    # RLS SELECT policy: own private skill files OR global skill files
+    file_row = (
+        client.table("skill_files")
+        .select("filename, mime_type, size_bytes, storage_path")
+        .eq("id", file_id)
+        .eq("skill_id", skill_id)
+        .execute()
+    )
+    if not file_row.data:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    f = file_row.data[0]
+    mime = f.get("mime_type") or "application/octet-stream"
+
+    # D-P8-13: binary → metadata only
+    if not mime.startswith("text/"):
+        return {
+            "filename": f["filename"],
+            "mime_type": mime,
+            "size_bytes": f["size_bytes"],
+            "readable": False,
+            "message": "Binary file — cannot display inline. Available as a skill resource.",
+        }
+
+    # D-P8-12: text → inline capped at 8000 chars
+    # Try RLS-scoped download first; fall back to service-role for global
+    # skills if needed (mirrors export endpoint pattern at line 573).
+    try:
+        raw = client.storage.from_("skills-files").download(f["storage_path"])
+    except Exception:
+        # service-role: required to download files for globally-shared skills per D-P7-07
+        svc = get_supabase_client()
+        try:
+            raw = svc.storage.from_("skills-files").download(f["storage_path"])
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=f"Download failed: {exc}")
+
+    text = raw.decode("utf-8", errors="replace")
+    truncated = len(text) > _TEXT_INLINE_CAP
+    return {
+        "filename": f["filename"],
+        "content": text[:_TEXT_INLINE_CAP],
+        "truncated": truncated,
+        "total_bytes": f["size_bytes"],
+        "message": "Content truncated at 8000 chars." if truncated else None,
+    }
