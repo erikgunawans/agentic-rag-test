@@ -1103,11 +1103,18 @@ class ToolService:
                 "message": "Binary file — cannot display inline. Available as a skill resource.",
             }
         # D-P8-12: text → inline capped at 8000 chars
+        # Try RLS-scoped download first; fall back to service-role for globally-shared
+        # skill files whose storage path starts with the creator's user_id (D-P7-07).
         try:
             raw = client.storage.from_("skills-files").download(f["storage_path"])
-        except Exception as e:
-            logger.warning("read_skill_file download failed: %s", e)
-            return {"error": "download_failed", "message": str(e)}
+        except Exception:
+            # service-role fallback: required for globally-shared skill files per D-P7-07
+            try:
+                svc = get_supabase_client()
+                raw = svc.storage.from_("skills-files").download(f["storage_path"])
+            except Exception as e:
+                logger.warning("read_skill_file download failed: %s", e)
+                return {"error": "download_failed", "message": str(e)}
         text = raw.decode("utf-8", errors="replace")
         truncated = len(text) > 8000
         return {
