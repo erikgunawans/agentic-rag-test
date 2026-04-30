@@ -181,6 +181,7 @@ async def stream_chat(
         messages, tools, max_iterations, user_id, tool_context,
         *, registry=None, redaction_service=None, redaction_on=False,
         available_tool_names=None,
+        token: str | None = None,   # Phase 8 D-P8-XX: enables RLS-scoped DB access for skill tools
     ):
         """Shared tool-calling loop used by both agent and non-agent paths.
 
@@ -270,6 +271,7 @@ async def stream_chat(
                         tool_output = await tool_service.execute_tool(
                             func_name, real_args, user_id, tool_context,
                             registry=registry,
+                            token=token,
                         )
                         # tool_records keep the surrogate-form func_args
                         # (LLM-emitted) so persistence and downstream
@@ -296,6 +298,7 @@ async def stream_chat(
                     else:
                         tool_output = await tool_service.execute_tool(
                             func_name, func_args, user_id, tool_context,
+                            token=token,
                         )
                     # ADR-0008 audit: record toggle state for every web_search
                     # dispatch (only when actually dispatched, not blocked).
@@ -460,6 +463,7 @@ async def stream_chat(
                     redaction_service=redaction_service,
                     redaction_on=redaction_on,
                     available_tool_names=available_tool_names,
+                    token=user["token"],
                 ):
                     if event_type == "records":
                         tool_records = data
@@ -525,6 +529,7 @@ async def stream_chat(
                     redaction_service=redaction_service,
                     redaction_on=redaction_on,
                     available_tool_names=available_tool_names,
+                    token=user["token"],
                 ):
                     if event_type == "records":
                         tool_records = data
