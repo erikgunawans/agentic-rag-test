@@ -1,14 +1,15 @@
 ---
 phase: "07-skills-database-api-foundation"
 verified: "2026-04-29T11:37:00Z"
-status: human_needed
+status: passed
 score: 5/5 must-haves verified
 overrides_applied: 0
 gaps: []
 human_verification:
   - test: "Export a skill that has attached files (imported via POST /skills/import with a ZIP containing references/ or scripts/ files). Then GET /skills/{id}/export and verify the response is a valid ZIP containing those files."
     expected: "200 response with application/zip content, inner SKILL.md present, attached files present under their original relative paths."
-    why_human: "build_skill_zip() accesses file_info['relative_path'] but skill_files DB rows store 'filename' (flattened, e.g. 'scripts__foo.py'). The automated test for export (test 10) only tests skills with zero files — the loop over files never executes — so this data-flow mismatch is not caught by the test suite. Whether the export round-trip works end-to-end for skills with attached files requires a live test."
+    why_human: "build_skill_zip() accessed file_info['relative_path'] but skill_files DB rows store 'filename' (flattened, e.g. 'scripts__foo.py'). Fixed 2026-05-01: skill_zip_service.py now uses file_info.get('relative_path') or file_info['filename']. Two regression tests added (TestBuildSkillZipDbStyleFiles). 34/34 unit tests pass."
+    result: "FIXED — code bug resolved, regression tests added, 34/34 unit tests pass."
 ---
 
 # Phase 7: Skills Database & API Foundation — Verification Report

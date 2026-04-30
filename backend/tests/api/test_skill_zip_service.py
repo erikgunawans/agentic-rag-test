@@ -471,3 +471,41 @@ class TestSkillNameValidation:
         assert parsed[0].error is None, f"Expected no error for name {good_name!r}, got: {parsed[0].error}"
         assert parsed[0].frontmatter is not None
         assert parsed[0].frontmatter.name == good_name
+
+
+# Test 13: DB-style file dicts (filename key, no relative_path) — regression for Phase 07 export bug
+# ---------------------------------------------------------------------------
+
+class TestBuildSkillZipDbStyleFiles:
+    """build_skill_zip must accept DB-row dicts that have 'filename' instead of 'relative_path'.
+
+    The skill_files table stores a flattened 'filename' column (e.g. 'scripts__foo.py').
+    The export router passes these rows directly to build_skill_zip, so the service must
+    not KeyError when 'relative_path' is absent.
+    """
+
+    def test_db_style_filename_key_used_when_relative_path_absent(self):
+        skill = {"name": "my-skill", "description": "A skill", "instructions": "body\n"}
+        files = [
+            {"filename": "scripts__helper.py", "storage_path": "storage/skills/helper.py"},
+            {"filename": "references__readme.md", "storage_path": "storage/skills/readme.md"},
+        ]
+        buf = build_skill_zip(skill, files, _fake_loader)
+        zf = zipfile.ZipFile(io.BytesIO(buf.read()))
+        names = zf.namelist()
+        assert "scripts__helper.py" in names
+        assert "references__readme.md" in names
+
+    def test_relative_path_preferred_over_filename_when_both_present(self):
+        skill = {"name": "my-skill", "description": "A skill", "instructions": "body\n"}
+        files = [
+            {
+                "relative_path": "scripts/helper.py",
+                "filename": "scripts__helper.py",
+                "storage_path": "storage/skills/helper.py",
+            },
+        ]
+        buf = build_skill_zip(skill, files, _fake_loader)
+        zf = zipfile.ZipFile(io.BytesIO(buf.read()))
+        assert "scripts/helper.py" in zf.namelist()
+        assert "scripts__helper.py" not in zf.namelist()

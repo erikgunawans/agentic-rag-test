@@ -346,7 +346,7 @@ def build_skill_zip(
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("SKILL.md", skill_md_content.encode("utf-8"))
         for file_info in files:
-            rel_path: str = file_info["relative_path"]
+            rel_path: str = file_info.get("relative_path") or file_info["filename"]
             storage_path: str = file_info["storage_path"]
             content = file_bytes_loader(storage_path)
             zf.writestr(rel_path, content)
