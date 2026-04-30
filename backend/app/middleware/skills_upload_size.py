@@ -21,8 +21,19 @@ class SkillsUploadSizeMiddleware(BaseHTTPMiddleware):
     rejects via streaming byte counter when absent (chunked transfer-encoding).
 
     Phase 8 extension: also caps POST /skills/{id}/files at 10 MB (D-P7-08
-    per-file limit), using the same pre-parse Content-Length + streaming-counter
-    mechanism as the /import 50 MB cap.
+    per-file limit), using the same pre-parse Content-Length mechanism.
+
+    NOTE — chunked-transfer enforcement for /skills/{id}/files:
+    The streaming byte counter below is best-effort only for the
+    /skills/{id}/files endpoint. Because the route handler calls
+    `await file.read()` synchronously before `call_next` returns, the
+    handler has already executed (and potentially committed the upload to
+    storage and DB) by the time `total["overflow"]` is checked. The
+    authoritative size gate for this endpoint is the in-handler check at
+    `skills.py` (raises HTTP 413 before any storage or DB write). The
+    Content-Length fast-path above still fires correctly for clients that
+    send the header. The chunked counter remains in place for the
+    /skills/import endpoint, where it IS authoritative.
     """
 
     async def dispatch(self, request: Request, call_next):
