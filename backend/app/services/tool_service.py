@@ -8,6 +8,7 @@ import httpx
 from app.services.tracing_service import traced
 from app.config import get_settings
 from app.database import get_supabase_authed_client, get_supabase_client
+from app.services.audit_service import log_action
 from app.services.hybrid_retrieval_service import HybridRetrievalService
 from postgrest.exceptions import APIError as PostgrestAPIError
 
@@ -997,6 +998,17 @@ class ToolService:
                     "skill_id": skill_id,
                 }
             row = upd.data[0]
+            try:
+                log_action(
+                    user_id=user_id,
+                    user_email=None,
+                    action="update",
+                    resource_type="skill",
+                    resource_id=str(row["id"]),
+                    details={"via": "llm_tool"},
+                )
+            except Exception:
+                pass
             return {
                 "skill_id": str(row["id"]),
                 "name": row["name"],
@@ -1024,6 +1036,17 @@ class ToolService:
         if not ins.data:
             return {"error": "db_error", "message": "Insert returned no data."}
         row = ins.data[0]
+        try:
+            log_action(
+                user_id=user_id,
+                user_email=None,
+                action="create",
+                resource_type="skill",
+                resource_id=str(row["id"]),
+                details={"via": "llm_tool"},
+            )
+        except Exception:
+            pass
         return {
             "skill_id": str(row["id"]),
             "name": row["name"],
