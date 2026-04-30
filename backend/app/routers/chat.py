@@ -11,6 +11,7 @@ from app.services import agent_service
 from app.config import get_settings
 from app.services.system_settings_service import get_system_settings
 from app.services.redaction.prompt_guidance import get_pii_guidance_block
+from app.services.skill_catalog_service import build_skill_catalog_block
 from app.services.audit_service import log_action
 from app.models.tools import ToolCallRecord, ToolCallSummary
 
@@ -432,9 +433,13 @@ async def stream_chat(
                 # 2. SSE: agent_start
                 yield f"data: {json.dumps({'type': 'agent_start', 'agent': agent_name, 'display_name': agent_def.display_name})}\n\n"
 
-                # 3. Build messages with agent's system prompt
+                # 3. Build messages with agent's system prompt.
+                # Phase 8 D-P8-03: append the enabled-skills catalog. Returns "" when
+                # the user has 0 enabled skills (D-P8-02), so this is byte-identical
+                # to pre-Phase-8 behavior in that case.
+                skill_catalog = await build_skill_catalog_block(user["id"], user["token"])
                 messages = (
-                    [{"role": "system", "content": agent_def.system_prompt}]
+                    [{"role": "system", "content": agent_def.system_prompt + skill_catalog}]
                     + [{"role": m["role"], "content": m["content"]} for m in anonymized_history]
                     + [{"role": "user", "content": anonymized_message}]
                 )
@@ -494,8 +499,12 @@ async def stream_chat(
                 pii_guidance = get_pii_guidance_block(
                     redaction_enabled=redaction_on,
                 )
+                # Phase 8 D-P8-01: append enabled-skills catalog. Returns "" when
+                # the user has 0 enabled skills (D-P8-02 SC#5-style invariant —
+                # behavior identical to pre-Phase-8 when feature unused).
+                skill_catalog = await build_skill_catalog_block(user["id"], user["token"])
                 messages = (
-                    [{"role": "system", "content": SYSTEM_PROMPT + pii_guidance}]
+                    [{"role": "system", "content": SYSTEM_PROMPT + pii_guidance + skill_catalog}]
                     + [{"role": m["role"], "content": m["content"]} for m in anonymized_history]
                     + [{"role": "user", "content": anonymized_message}]
                 )
