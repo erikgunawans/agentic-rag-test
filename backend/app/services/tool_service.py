@@ -7,8 +7,9 @@ import httpx
 
 from app.services.tracing_service import traced
 from app.config import get_settings
-from app.database import get_supabase_client
+from app.database import get_supabase_authed_client, get_supabase_client
 from app.services.hybrid_retrieval_service import HybridRetrievalService
+from postgrest.exceptions import APIError as PostgrestAPIError
 
 if TYPE_CHECKING:
     # Phase 5 D-86 / D-91: ConversationRegistry is referenced ONLY in the
@@ -25,6 +26,9 @@ _WRITE_KEYWORDS = re.compile(
     r"\b(insert|update|delete|drop|alter|create|truncate|grant|revoke|execute)\b",
     re.IGNORECASE,
 )
+
+# Phase 8: Skill name format (D-P8-09) — must match ^[a-z][a-z0-9]*(-[a-z0-9]+)*$
+_SKILL_NAME_REGEX = re.compile(r"^[a-z][a-z0-9]*(-[a-z0-9]+)*$")
 
 TOOL_DEFINITIONS = [
     {
@@ -237,7 +241,117 @@ TOOL_DEFINITIONS = [
             },
         },
     },
+    # ── Phase 8: Agent Skills tools (D-P8-04 unconditional) ───────────────
+    {
+        "type": "function",
+        "function": {
+            "name": "load_skill",
+            "description": (
+                "Load the full instructions and attached files for an enabled skill by name. "
+                "Use this when the user's request clearly matches a skill description shown "
+                "in the '## Your Skills' system block. Only call when the match is strong."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Skill name (lowercase-hyphenated identifier, e.g. 'legal-review').",
+                    },
+                },
+                "required": ["name"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "save_skill",
+            "description": (
+                "Persist a new skill to the user's library, or update an existing one when "
+                "update=true and skill_id is provided. After collaborating with the user on "
+                "name/description/instructions via the skill-creator skill, call save_skill "
+                "to commit. On a name_conflict error, resend with update=true + the "
+                "existing_skill_id from the error to overwrite."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "lowercase-hyphenated identifier, max 64 chars (regex ^[a-z][a-z0-9]*(-[a-z0-9]+)*$).",
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "20-1024 chars, third-person, what-it-does + when-to-use.",
+                    },
+                    "instructions": {
+                        "type": "string",
+                        "description": "Free-form markdown — context the LLM doesn't already know.",
+                    },
+                    "update": {
+                        "type": "boolean",
+                        "description": "When true, update the skill identified by skill_id instead of creating new. Default false.",
+                    },
+                    "skill_id": {
+                        "type": "string",
+                        "description": "Required when update=true. UUID of the skill to update.",
+                    },
+                },
+                "required": ["name", "description", "instructions"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "read_skill_file",
+            "description": (
+                "Read the content of a file attached to a skill. Text files are returned "
+                "inline capped at 8000 chars; binary files return metadata only. Use the "
+                "skill_id and filename from the load_skill response."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "skill_id": {
+                        "type": "string",
+                        "description": "UUID of the skill the file belongs to.",
+                    },
+                    "filename": {
+                        "type": "string",
+                        "description": "Flat filename as returned by load_skill (e.g. 'legal-clauses.md' or 'scripts__foo.py').",
+                    },
+                },
+                "required": ["skill_id", "filename"],
+            },
+        },
+    },
 ]
+
+
+def _name_conflict_response(client, name: str, user_id: str) -> dict:
+    """D-P8-08: return existing_skill_id so the LLM can retry with update=true."""
+    existing_id = None
+    try:
+        existing = (
+            client.table("skills")
+            .select("id")
+            .eq("name", name)
+            .eq("user_id", user_id)
+            .limit(1)
+            .execute()
+        )
+        if existing.data:
+            existing_id = str(existing.data[0]["id"])
+    except Exception:
+        pass
+    return {
+        "error": "name_conflict",
+        "message": f"Skill '{name}' already exists.",
+        "existing_skill_id": existing_id,
+        "hint": "Use a different name, or resend with update=true and skill_id=<existing_id> to update.",
+    }
 
 
 class ToolService:
@@ -271,6 +385,7 @@ class ToolService:
         context: dict | None = None,
         *,
         registry: "ConversationRegistry | None" = None,  # Phase 5 D-86 / D-91
+        token: str | None = None,                        # Phase 8: RLS-scoped DB access for skill tools
     ) -> dict:
         """Dispatch tool execution by name.
 
@@ -281,6 +396,12 @@ class ToolService:
         AFTER this method; this method itself is redaction-unaware and the
         dispatch switch body is byte-identical to Phase 4 (the parameter is
         received but NOT used here — that's the whole point of D-91).
+
+        Phase 8: Accepts an optional ``token: str`` keyword arg so skill tools
+        (load_skill, save_skill, read_skill_file) can call
+        ``get_supabase_authed_client(token)`` for RLS-scoped DB access.
+        Other tools ignore this kwarg — they continue to use service-role +
+        explicit user_id predicates.
         """
         if name == "search_documents":
             return await self._execute_search_documents(
@@ -330,6 +451,29 @@ class ToolService:
                 start_chunk=arguments.get("start_chunk", 0),
                 end_chunk=arguments.get("end_chunk"),
                 user_id=user_id,
+            )
+        elif name == "load_skill":
+            return await self._execute_load_skill(
+                skill_name=arguments.get("name", ""),
+                user_id=user_id,
+                token=token,
+            )
+        elif name == "save_skill":
+            return await self._execute_save_skill(
+                name=arguments.get("name", ""),
+                description=arguments.get("description", ""),
+                instructions=arguments.get("instructions", ""),
+                update=bool(arguments.get("update", False)),
+                skill_id=arguments.get("skill_id"),
+                user_id=user_id,
+                token=token,
+            )
+        elif name == "read_skill_file":
+            return await self._execute_read_skill_file(
+                skill_id=arguments.get("skill_id", ""),
+                filename=arguments.get("filename", ""),
+                user_id=user_id,
+                token=token,
             )
         else:
             return {"error": f"Unknown tool: {name}"}
@@ -725,3 +869,228 @@ class ToolService:
         except Exception as e:
             logger.error("kb_read failed: %s", e)
             return {"error": str(e)}
+
+    # ── Phase 8: Agent Skills tool handlers ──────────────────────────
+
+    @traced(name="tool_load_skill")
+    async def _execute_load_skill(
+        self, *, skill_name: str, user_id: str, token: str | None
+    ) -> dict:
+        """SKILL-08 / SFILE-02: return full skill + attached files table."""
+        if not token:
+            return {
+                "error": "auth_required",
+                "message": "Cannot load skill without authenticated session.",
+            }
+        if not skill_name:
+            return {"error": "missing_name", "message": "name is required."}
+        client = get_supabase_authed_client(token)
+        # RLS auto-filters: own skills + global skills
+        try:
+            result = (
+                client.table("skills")
+                .select("id, name, description, instructions, enabled")
+                .eq("name", skill_name)
+                .eq("enabled", True)
+                .limit(1)
+                .execute()
+            )
+        except Exception as e:
+            logger.warning("load_skill query failed: %s", e)
+            return {"error": "db_error", "message": str(e)}
+        rows = result.data or []
+        if not rows:
+            return {
+                "error": "skill_not_found",
+                "message": f"Skill '{skill_name}' not found or not enabled.",
+                "name": skill_name,
+            }
+        skill = rows[0]
+        try:
+            files_result = (
+                client.table("skill_files")
+                .select("filename, size_bytes, mime_type")
+                .eq("skill_id", skill["id"])
+                .execute()
+            )
+            files = [
+                {
+                    "filename": f["filename"],
+                    "size_bytes": f["size_bytes"],
+                    "mime_type": f.get("mime_type") or "application/octet-stream",
+                }
+                for f in (files_result.data or [])
+            ]
+        except Exception as e:
+            logger.warning("load_skill files query failed: %s", e)
+            files = []
+        return {
+            "name": skill["name"],
+            "description": skill["description"],
+            "instructions": skill["instructions"],
+            "files": files,
+        }
+
+    @traced(name="tool_save_skill")
+    async def _execute_save_skill(
+        self,
+        *,
+        name: str,
+        description: str,
+        instructions: str,
+        update: bool,
+        skill_id: str | None,
+        user_id: str,
+        token: str | None,
+    ) -> dict:
+        """SKILL-09: persist a new skill or update an existing one (D-P8-08..D-P8-10)."""
+        if not token:
+            return {
+                "error": "auth_required",
+                "message": "Cannot save skill without authenticated session.",
+            }
+        if not _SKILL_NAME_REGEX.match(name or ""):
+            return {
+                "error": "invalid_name",
+                "message": "name must match ^[a-z][a-z0-9]*(-[a-z0-9]+)*$ (max 64 chars).",
+            }
+        if len(description or "") < 20 or len(description) > 1024:
+            return {
+                "error": "invalid_description",
+                "message": "description must be 20-1024 characters.",
+            }
+        if not instructions:
+            return {
+                "error": "invalid_instructions",
+                "message": "instructions is required.",
+            }
+
+        if update and not skill_id:
+            return {
+                "error": "missing_skill_id",
+                "message": "skill_id is required when update=true.",
+            }
+
+        client = get_supabase_authed_client(token)
+
+        if update:
+            # RLS gates: UPDATE policy requires user_id = auth.uid() (D-P7-05)
+            try:
+                upd = (
+                    client.table("skills")
+                    .update({
+                        "name": name,
+                        "description": description,
+                        "instructions": instructions,
+                    })
+                    .eq("id", skill_id)
+                    .execute()
+                )
+            except PostgrestAPIError as exc:
+                if exc.code == "23505":
+                    return _name_conflict_response(client, name, user_id)
+                return {"error": "db_error", "message": str(exc.message)}
+            if not upd.data:
+                return {
+                    "error": "skill_not_found",
+                    "message": "Skill not found or not editable.",
+                    "skill_id": skill_id,
+                }
+            row = upd.data[0]
+            return {
+                "skill_id": str(row["id"]),
+                "name": row["name"],
+                "description": row["description"],
+                "instructions": row["instructions"],
+                "enabled": row["enabled"],
+                "message": "Skill saved successfully.",
+            }
+
+        # Create branch
+        try:
+            ins = client.table("skills").insert({
+                "user_id": user_id,
+                "created_by": user_id,
+                "name": name,
+                "description": description,
+                "instructions": instructions,
+                "enabled": True,
+                "metadata": {},
+            }).execute()
+        except PostgrestAPIError as exc:
+            if exc.code == "23505":
+                return _name_conflict_response(client, name, user_id)
+            return {"error": "db_error", "message": str(exc.message)}
+        if not ins.data:
+            return {"error": "db_error", "message": "Insert returned no data."}
+        row = ins.data[0]
+        return {
+            "skill_id": str(row["id"]),
+            "name": row["name"],
+            "description": row["description"],
+            "instructions": row["instructions"],
+            "enabled": row["enabled"],
+            "message": "Skill saved successfully.",
+        }
+
+    @traced(name="tool_read_skill_file")
+    async def _execute_read_skill_file(
+        self, *, skill_id: str, filename: str, user_id: str, token: str | None
+    ) -> dict:
+        """SFILE-03: text inline (≤8000 chars) or binary metadata (D-P8-11/12/13)."""
+        if not token:
+            return {
+                "error": "auth_required",
+                "message": "Cannot read skill file without authenticated session.",
+            }
+        if not skill_id or not filename:
+            return {
+                "error": "missing_args",
+                "message": "skill_id and filename are required.",
+            }
+        client = get_supabase_authed_client(token)
+        try:
+            row = (
+                client.table("skill_files")
+                .select("filename, mime_type, size_bytes, storage_path")
+                .eq("skill_id", skill_id)
+                .eq("filename", filename)
+                .limit(1)
+                .execute()
+            )
+        except Exception as e:
+            logger.warning("read_skill_file query failed: %s", e)
+            return {"error": "db_error", "message": str(e)}
+        if not row.data:
+            return {
+                "error": "file_not_found",
+                "message": f"File '{filename}' not found in skill.",
+                "skill_id": skill_id,
+                "filename": filename,
+            }
+        f = row.data[0]
+        mime = f.get("mime_type") or "application/octet-stream"
+        # D-P8-13: binary → metadata only, no content, no signed URL
+        if not mime.startswith("text/"):
+            return {
+                "filename": f["filename"],
+                "mime_type": mime,
+                "size_bytes": f["size_bytes"],
+                "readable": False,
+                "message": "Binary file — cannot display inline. Available as a skill resource.",
+            }
+        # D-P8-12: text → inline capped at 8000 chars
+        try:
+            raw = client.storage.from_("skills-files").download(f["storage_path"])
+        except Exception as e:
+            logger.warning("read_skill_file download failed: %s", e)
+            return {"error": "download_failed", "message": str(e)}
+        text = raw.decode("utf-8", errors="replace")
+        truncated = len(text) > 8000
+        return {
+            "filename": f["filename"],
+            "content": text[:8000],
+            "truncated": truncated,
+            "total_bytes": f["size_bytes"],
+            "message": "Content truncated at 8000 chars." if truncated else None,
+        }
