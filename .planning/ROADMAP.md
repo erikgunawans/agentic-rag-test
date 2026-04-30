@@ -71,6 +71,14 @@ Full archive: `.planning/milestones/v1.0-ROADMAP.md`
 4. LLM can call `read_skill_file` and receive text file content inline
 5. File uploads/deletes work via backend API (`POST /skills/{id}/files`, `DELETE /skills/{id}/files/{file_id}`)
 
+**Plans:** 4 plans
+
+Plans:
+- [ ] 08-01-PLAN.md — tool_service.py: 3 new TOOL_DEFINITIONS (load_skill, save_skill, read_skill_file) + token kwarg plumbing + 3 handler implementations + unit tests
+- [ ] 08-02-PLAN.md — skill_catalog_service.py: build_skill_catalog_block(user_id, token) RLS-scoped catalog formatter + unit tests
+- [ ] 08-03-PLAN.md — skills.py: 3 new file endpoints (POST /files, DELETE /files/{id}, GET /files/{id}/content) + 10MB middleware extension + integration tests
+- [ ] 08-04-PLAN.md — chat.py: catalog injection at both single-agent + multi-agent prompt sites + token forwarding to execute_tool + integration tests
+
 ---
 
 #### Phase 9: Skills Frontend
