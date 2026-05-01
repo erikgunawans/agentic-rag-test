@@ -136,6 +136,17 @@ Plans:
 4. Loading conversation history reconstructs tool-call → result → assistant text message sequence
 5. LLM can answer follow-up questions using data from earlier tool calls without re-executing
 
+**Plans:** 7 plans
+
+Plans:
+- [ ] 11-01-PLAN.md — backend/app/models/tools.py: extend ToolCallRecord with tool_call_id, status, and 50 KB head-truncate Pydantic field_validator + 11 unit tests
+- [ ] 11-02-PLAN.md — frontend/src/lib/database.types.ts: add CodeStdoutEvent + CodeStderrEvent to SSEEvent union; widen ToolCallRecord with tool_call_id?, status?
+- [ ] 11-03-PLAN.md — backend/app/routers/code_execution.py: add GET /code-executions/{execution_id} with RLS-via-404 + 4 integration tests
+- [ ] 11-04-PLAN.md — backend/app/routers/chat.py: history SELECT widening + _expand_history_row + _derive_tool_status + 4 ToolCallRecord ctor sites carry tool_call_id/status (incl. NEW multi-agent success path) + 13 tests
+- [ ] 11-05-PLAN.md — frontend/src/hooks/useChatState.ts: sandboxStreams Map state + code_stdout/code_stderr handlers + 3 lifecycle resets + return-shape exposure
+- [ ] 11-06-PLAN.md — frontend/src/components/chat/CodeExecutionPanel.tsx (NEW) per UI-SPEC §Component Inventory + 17 sandbox.* i18n keys (id + en)
+- [ ] 11-07-PLAN.md — frontend/src/components/chat/ToolCallCard.tsx + MessageView.tsx: ToolCallList switch + sandboxStreams plumb + human UAT checkpoint
+
 ## Completed Phases (Pre-GSD)
 
 The following capabilities shipped before GSD initialization. Tracked as the Validated Baseline in `.planning/milestones/v1.0-REQUIREMENTS.md` (38 requirements).
