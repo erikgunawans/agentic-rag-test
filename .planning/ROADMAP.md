@@ -110,6 +110,17 @@ Plans:
 5. `execute_code` tool is absent from system prompt when `SANDBOX_ENABLED=false`
 6. All executions logged to `code_executions` table with exit code, timing, and status
 
+
+**Plans:** 6 plans
+
+Plans:
+- [ ] 10-01-PLAN.md — Migration 036 (code_executions table + sandbox-outputs bucket + RLS) + llm-sandbox dependency + supabase db push
+- [ ] 10-02-PLAN.md — SandboxDockerfile (lexcore-sandbox:latest) + 4 sandbox_* settings in config.py
+- [ ] 10-03-PLAN.md — sandbox_service.py (llm-sandbox wrapper, session-per-thread, TTL cleanup, file upload)
+- [ ] 10-04-PLAN.md — tool_service.py: register execute_code, gate on SANDBOX_ENABLED, _execute_code handler + audit + DB persist
+- [ ] 10-05-PLAN.md — chat.py: queue-adapter SSE streaming for code_stdout/code_stderr (with PII anonymization)
+- [ ] 10-06-PLAN.md — code_execution.py router: GET /code-executions list endpoint with signed URL refresh
+
 ---
 
 #### Phase 11: Code Execution UI & Persistent Tool Memory
