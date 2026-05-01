@@ -4,4 +4,5 @@
 [tool.pytest.ini_options]
 markers = [
     "slow: marks tests as slow / not run by default (deselect with '-m \"not slow\"')",
+    "docker: marks tests that require a running Docker daemon (deselect with '-m \"not docker\"')",
 ]
