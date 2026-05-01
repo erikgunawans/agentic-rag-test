@@ -1,0 +1,49 @@
+# SandboxDockerfile — Phase 10 / D-P10-03
+# Build:  docker build -f SandboxDockerfile -t lexcore-sandbox:latest .
+# Push:   docker tag lexcore-sandbox:latest <dockerhub-user>/lexcore-sandbox:latest
+#         docker push <dockerhub-user>/lexcore-sandbox:latest
+#
+# llm-sandbox pulls this image at session-creation time. The backend service
+# (backend/Dockerfile) is unrelated — that runs the FastAPI app.
+#
+# Pre-installed packages (D-P10-03): pandas, matplotlib, python-pptx, jinja2,
+# requests, beautifulsoup4, numpy, openpyxl, scipy, ipython.
+#
+# All RUN commands MUST run BEFORE the USER switch — same lesson as
+# backend/Dockerfile spaCy install (CLAUDE.md gotchas: EACCES on .cache/pip
+# when running as non-root after USER switch).
+
+FROM python:3.11-slim
+
+WORKDIR /sandbox
+
+# System deps for matplotlib (libpng, freetype) and openpyxl/python-pptx (libxml2/libxslt)
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+        libpng-dev libfreetype6-dev libxml2 libxslt1.1 \
+ && rm -rf /var/lib/apt/lists/*
+
+# D-P10-03: pre-install scientific + document-generation packages.
+# No version pins — use whatever pip resolves at build time. Re-pin if
+# reproducibility becomes critical.
+RUN pip install --no-cache-dir \
+        pandas \
+        matplotlib \
+        python-pptx \
+        jinja2 \
+        requests \
+        beautifulsoup4 \
+        numpy \
+        openpyxl \
+        scipy \
+        ipython
+
+# Output dir — generated files land here (D-P10 / SANDBOX-04). World-writable
+# because the runtime user (1000:1000) needs to create files.
+RUN mkdir -p /sandbox/output && chmod 777 /sandbox/output
+
+# Non-root execution (security posture parity with backend/Dockerfile USER switch)
+USER 1000:1000
+
+# No CMD — llm-sandbox manages container exec. The image just provides the
+# Python runtime + libraries; llm-sandbox `docker exec`s into it.
