@@ -17,6 +17,14 @@ export function useChatState() {
   const [streamingContent, setStreamingContent] = useState('')
   const [activeTools, setActiveTools] = useState<ToolStartEvent[]>([])
   const [toolResults, setToolResults] = useState<ToolResultEvent[]>([])
+  // Phase 11 SANDBOX-07 D-P11-02: live SSE buffer for execute_code streaming.
+  // Keyed by tool_call_id. Cleared on thread switch, send, and post-stream
+  // finally — same lifecycle as activeTools/toolResults. After the post-stream
+  // refetch the panel switches to reading from the persisted
+  // msg.tool_calls.calls[N].output, so the buffer is reset to free memory.
+  const [sandboxStreams, setSandboxStreams] = useState<
+    Map<string, { stdout: string[]; stderr: string[] }>
+  >(new Map())
   const [activeAgent, setActiveAgent] = useState<{ agent: string; display_name: string } | null>(null)
   // Phase 5 D-88 + D-94: redaction status spinner state.
   // Set on backend redaction_status events; null when redaction is OFF or between turns.
@@ -55,6 +63,9 @@ export function useChatState() {
     setActiveThreadId(threadId)
     setStreamingContent('')
     setRedactionStage(null)
+    // Phase 11 SANDBOX-07 D-P11-02: thread switch clears live execute_code
+    // buffers (T-11-05-1 — prevent stale Map entries leaking across threads).
+    setSandboxStreams(new Map())
     setForkParentId(null)
     const newSelections = new Map<string, string>()
     setBranchSelections(newSelections)
@@ -132,6 +143,9 @@ export function useChatState() {
     setToolResults([])
     setActiveAgent(null)
     setRedactionStage(null)
+    // Phase 11 SANDBOX-07 D-P11-02: fresh send starts with an empty buffer;
+    // mirrors activeTools/toolResults reset at the same lifecycle site.
+    setSandboxStreams(new Map())
     setForkParentId(null)
 
     try {
@@ -194,6 +208,29 @@ export function useChatState() {
               setStreamingContent('')
               assistantContent = ''
             }
+          } else if (event.type === 'code_stdout') {
+            // Phase 11 SANDBOX-07 D-P11-02: append stdout line to per-call buffer.
+            // Immutable Map update mirrors setActiveTools((prev) => [...prev, event]).
+            setSandboxStreams((prev) => {
+              const next = new Map(prev)
+              const cur = next.get(event.tool_call_id) ?? { stdout: [], stderr: [] }
+              next.set(event.tool_call_id, {
+                stdout: [...cur.stdout, event.line],
+                stderr: cur.stderr,
+              })
+              return next
+            })
+          } else if (event.type === 'code_stderr') {
+            // Phase 11 SANDBOX-07 D-P11-02: append stderr line to per-call buffer.
+            setSandboxStreams((prev) => {
+              const next = new Map(prev)
+              const cur = next.get(event.tool_call_id) ?? { stdout: [], stderr: [] }
+              next.set(event.tool_call_id, {
+                stdout: cur.stdout,
+                stderr: [...cur.stderr, event.line],
+              })
+              return next
+            })
           } else {
             const delta = 'delta' in event ? event.delta : ''
             const isDone = 'done' in event ? event.done : false
@@ -222,6 +259,9 @@ export function useChatState() {
       setActiveTools([])
       setToolResults([])
       setActiveAgent(null)
+      // Phase 11 SANDBOX-07 D-P11-02: clear live buffer; CodeExecutionPanel
+      // (Plan 11-06) now reads persisted output from msg.tool_calls.calls[N].
+      setSandboxStreams(new Map())
       // D-94: keep `redactionStage === 'blocked'` visible after the stream ends so
       // the user sees the explanation card. It is reset on the next handleSendMessage.
       setRedactionStage((prev) => (prev === 'blocked' ? 'blocked' : null))
@@ -261,6 +301,7 @@ export function useChatState() {
     toolResults,
     activeAgent,
     redactionStage,
+    sandboxStreams, // Phase 11 SANDBOX-07 D-P11-02
     loadingThreads,
     webSearchEnabled,
     setWebSearchEnabled,
