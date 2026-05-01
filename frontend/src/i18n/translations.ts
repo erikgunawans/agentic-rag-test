@@ -660,6 +660,26 @@ export const translations: Record<Locale, Record<string, string>> = {
     redactionBlockedTitle: 'Pesan diblokir oleh redaksi PII',
     redactionBlockedBody:
       'Permintaan ini berisi data sensitif yang tidak boleh dikirim ke layanan eksternal. Coba ulangi tanpa nama atau lokasi spesifik, matikan toggle Web, atau nonaktifkan PII redaction di Pengaturan Admin.',
+
+    // Phase 11 — Code Execution Panel (SANDBOX-07).
+    // Indonesian copy per UI-SPEC §Copywriting Contract.
+    'sandbox.status.pending': 'Menunggu…',
+    'sandbox.status.running': 'Berjalan…',
+    'sandbox.status.success': 'Selesai',
+    'sandbox.status.error': 'Gagal',
+    'sandbox.status.timeout': 'Kedaluwarsa',
+    'sandbox.showCode': 'Tampilkan kode',
+    'sandbox.hideCode': 'Sembunyikan kode',
+    'sandbox.filesGenerated': 'File yang dihasilkan',
+    'sandbox.download': 'Unduh',
+    'sandbox.downloadError': 'Gagal mengunduh',
+    'sandbox.copyCode': 'Salin kode',
+    'sandbox.codeCopied': 'Tersalin!',
+    'sandbox.error.runtime': 'Kesalahan runtime Python',
+    'sandbox.error.timeout': 'Waktu eksekusi habis',
+    'sandbox.error.oom': 'Memori tidak cukup',
+    'sandbox.error.unknown': 'Terjadi kesalahan',
+    'sandbox.truncated': '…[terpotong, {bytes} byte lagi]',
   },
   en: {
     // Welcome screen
@@ -1320,5 +1340,25 @@ export const translations: Record<Locale, Record<string, string>> = {
     redactionBlockedTitle: 'Message blocked by PII redaction',
     redactionBlockedBody:
       'This request contains sensitive data that cannot be sent to an external service. Try rephrasing without specific names or locations, turn off the Web toggle, or disable PII redaction in Admin Settings.',
+
+    // Phase 11 — Code Execution Panel (SANDBOX-07).
+    // English copy per UI-SPEC §Copywriting Contract.
+    'sandbox.status.pending': 'Pending…',
+    'sandbox.status.running': 'Running…',
+    'sandbox.status.success': 'Completed',
+    'sandbox.status.error': 'Failed',
+    'sandbox.status.timeout': 'Timed out',
+    'sandbox.showCode': 'Show code',
+    'sandbox.hideCode': 'Hide code',
+    'sandbox.filesGenerated': 'Files generated',
+    'sandbox.download': 'Download',
+    'sandbox.downloadError': 'Download failed',
+    'sandbox.copyCode': 'Copy code',
+    'sandbox.codeCopied': 'Copied!',
+    'sandbox.error.runtime': 'Python runtime error',
+    'sandbox.error.timeout': 'Execution timed out',
+    'sandbox.error.oom': 'Out of memory',
+    'sandbox.error.unknown': 'An error occurred',
+    'sandbox.truncated': '…[truncated, {bytes} more bytes]',
   },
 }
