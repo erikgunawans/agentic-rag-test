@@ -6,6 +6,7 @@ import { AuthPage } from '@/pages/AuthPage'
 import { ChatPage } from '@/pages/ChatPage'
 import { DocumentsPage } from '@/pages/DocumentsPage'
 import { SettingsPage } from '@/pages/SettingsPage'
+import { SkillsPage } from '@/pages/SkillsPage'
 import { AdminSettingsPage } from '@/pages/AdminSettingsPage'
 import { DocumentCreationPage } from '@/pages/DocumentCreationPage'
 import { DocumentComparisonPage } from '@/pages/DocumentComparisonPage'
@@ -52,6 +53,7 @@ export default function App() {
               <Route path="documents" element={<DocumentsPage />} />
               <Route path="create" element={<DocumentCreationPage />} />
               <Route path="clause-library" element={<ClauseLibraryPage />} />
+              <Route path="skills" element={<SkillsPage />} />
               <Route path="compare" element={<DocumentComparisonPage />} />
               <Route path="compliance" element={<ComplianceCheckPage />} />
               <Route path="compliance/timeline" element={<ComplianceTimelinePage />} />
