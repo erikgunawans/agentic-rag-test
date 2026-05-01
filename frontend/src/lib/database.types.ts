@@ -13,6 +13,9 @@ export interface ToolCallRecord {
   input: Record<string, unknown>
   output: Record<string, unknown> | string
   error?: string | null
+  // Phase 11 D-P11-08: required for new rows; nullable so legacy rows still typecheck.
+  tool_call_id?: string | null
+  status?: 'success' | 'error' | 'timeout' | null
 }
 
 export interface Message {
@@ -70,6 +73,22 @@ export interface RedactionStatusEvent {
   stage: 'anonymizing' | 'deanonymizing' | 'blocked'
 }
 
+// Phase 11 SANDBOX-07 + Phase 10 D-P10-06: per-line stdout/stderr stream
+// from execute_code sandbox runs. tool_call_id matches the assistant
+// row's tool_calls.calls[N].tool_call_id so the Code Execution Panel
+// (Plan 11-06) can buffer lines per-call.
+export interface CodeStdoutEvent {
+  type: 'code_stdout'
+  line: string
+  tool_call_id: string
+}
+
+export interface CodeStderrEvent {
+  type: 'code_stderr'
+  line: string
+  tool_call_id: string
+}
+
 export type SSEEvent =
   | DeltaEvent
   | ToolStartEvent
@@ -78,6 +97,8 @@ export type SSEEvent =
   | AgentDoneEvent
   | ThreadTitleEvent
   | RedactionStatusEvent  // Phase 5 D-88
+  | CodeStdoutEvent       // Phase 11 SANDBOX-07
+  | CodeStderrEvent       // Phase 11 SANDBOX-07
 
 export interface DocumentMetadata {
   title: string
