@@ -32,14 +32,14 @@ Transform LexCore's chat interface into a customizable AI agent platform where u
 
 ### Code Execution Sandbox (SANDBOX-*)
 
-- [ ] **SANDBOX-01**: LLM can execute Python code in a sandboxed Docker container via `execute_code` tool
-- [ ] **SANDBOX-02**: Python session persists variables across `run()` calls within a thread (30-min TTL, auto-cleanup)
-- [ ] **SANDBOX-03**: stdout/stderr stream to frontend via SSE events (`code_stdout`, `code_stderr`) in real-time
-- [ ] **SANDBOX-04**: Files generated in `/sandbox/output/` are uploaded to Supabase Storage and returned as signed URLs
-- [ ] **SANDBOX-05**: `execute_code` tool is only registered when `SANDBOX_ENABLED=true`
-- [ ] **SANDBOX-06**: All executions logged in `code_executions` table (code, stdout, stderr, exit code, timing, status)
+- [x] **SANDBOX-01**: LLM can execute Python code in a sandboxed Docker container via `execute_code` tool
+- [x] **SANDBOX-02**: Python session persists variables across `run()` calls within a thread (30-min TTL, auto-cleanup)
+- [x] **SANDBOX-03**: stdout/stderr stream to frontend via SSE events (`code_stdout`, `code_stderr`) in real-time
+- [x] **SANDBOX-04**: Files generated in `/sandbox/output/` are uploaded to Supabase Storage and returned as signed URLs
+- [x] **SANDBOX-05**: `execute_code` tool is only registered when `SANDBOX_ENABLED=true`
+- [x] **SANDBOX-06**: All executions logged in `code_executions` table (code, stdout, stderr, exit code, timing, status)
 - [ ] **SANDBOX-07**: Chat shows inline Code Execution Panel with code preview, streaming output, and file downloads
-- [ ] **SANDBOX-08**: Custom Docker image pre-installs common packages (python-pptx, pandas, matplotlib, jinja2, requests, beautifulsoup4, etc.)
+- [x] **SANDBOX-08**: Custom Docker image pre-installs common packages (python-pptx, pandas, matplotlib, jinja2, requests, beautifulsoup4, etc.)
 
 ### Skills Open Standard (EXPORT-*)
 

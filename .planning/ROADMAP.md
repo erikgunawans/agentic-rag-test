@@ -38,7 +38,7 @@ Full archive: `.planning/milestones/v1.0-ROADMAP.md`
 | 7 | Skills Database & API Foundation | Establish skills data model, RLS, and REST API | SKILL-01, 03–06, 10, EXPORT-01–03 | Skills CRUD + share + export/import via API; seed skill-creator |
 | 8 | LLM Tool Integration & Discovery | Wire skills into LLM pipeline with catalog injection and tools | SKILL-02, 07–09, SFILE-01–03, 05 | Skills in system prompt; load_skill/save_skill/read_skill_file tools working |
 | 9 | Skills Frontend | Skills page with full CRUD UI, file manager, navigation tab | SKILL-11, SFILE-04 | Skills tab in nav; create/edit/delete via UI; file preview panel |
-| 10 | Code Execution Sandbox Backend | Docker sandbox with session persistence, SSE streaming, file output | SANDBOX-01–06, 08 | execute_code tool runs Python; streaming SSE; file download via signed URLs |
+| 10 | Code Execution Sandbox Backend | 6/6 | Complete    | 2026-05-01 |
 | 11 | Code Execution UI & Persistent Tool Memory | Surface sandbox in chat UI and persist tool results across turns | SANDBOX-07, MEM-01–03 | Code panel streams live; LLM references prior tool results without re-execution |
 
 ---
@@ -111,15 +111,15 @@ Plans:
 6. All executions logged to `code_executions` table with exit code, timing, and status
 
 
-**Plans:** 6 plans
+**Plans:** 6/6 plans complete
 
 Plans:
-- [ ] 10-01-PLAN.md — Migration 036 (code_executions table + sandbox-outputs bucket + RLS) + llm-sandbox dependency + supabase db push
-- [ ] 10-02-PLAN.md — SandboxDockerfile (lexcore-sandbox:latest) + 4 sandbox_* settings in config.py
-- [ ] 10-03-PLAN.md — sandbox_service.py (llm-sandbox wrapper, session-per-thread, TTL cleanup, file upload)
-- [ ] 10-04-PLAN.md — tool_service.py: register execute_code, gate on SANDBOX_ENABLED, _execute_code handler + audit + DB persist
-- [ ] 10-05-PLAN.md — chat.py: queue-adapter SSE streaming for code_stdout/code_stderr (with PII anonymization)
-- [ ] 10-06-PLAN.md — code_execution.py router: GET /code-executions list endpoint with signed URL refresh
+- [x] 10-01-PLAN.md — Migration 036 (code_executions table + sandbox-outputs bucket + RLS) + llm-sandbox dependency + supabase db push
+- [x] 10-02-PLAN.md — SandboxDockerfile (lexcore-sandbox:latest) + 4 sandbox_* settings in config.py
+- [x] 10-03-PLAN.md — sandbox_service.py (llm-sandbox wrapper, session-per-thread, TTL cleanup, file upload)
+- [x] 10-04-PLAN.md — tool_service.py: register execute_code, gate on SANDBOX_ENABLED, _execute_code handler + audit + DB persist
+- [x] 10-05-PLAN.md — chat.py: queue-adapter SSE streaming for code_stdout/code_stderr (with PII anonymization)
+- [x] 10-06-PLAN.md — code_execution.py router: GET /code-executions list endpoint with signed URL refresh
 
 ---
 
