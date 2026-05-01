@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
-from app.routers import threads, chat, documents, document_tools, admin_settings, user_preferences, audit_trail, obligations, clause_library, document_templates, approvals, user_management, regulatory, notifications, dashboard, integrations, google_export, bjr, compliance_snapshots, pdp, folders, skills
+from app.routers import threads, chat, documents, document_tools, admin_settings, user_preferences, audit_trail, obligations, clause_library, document_templates, approvals, user_management, regulatory, notifications, dashboard, integrations, google_export, bjr, compliance_snapshots, pdp, folders, skills, code_execution
 from app.middleware.skills_upload_size import SkillsUploadSizeMiddleware
 from app.services.tracing_service import configure_tracing
 from app.services.redaction_service import get_redaction_service
@@ -74,6 +74,7 @@ app.include_router(compliance_snapshots.router)
 app.include_router(pdp.router)
 app.include_router(folders.router)
 app.include_router(skills.router)
+app.include_router(code_execution.router)
 
 
 @app.get("/health")
