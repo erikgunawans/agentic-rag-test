@@ -1,7 +1,7 @@
 import json
 import logging
 import re
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 import httpx
 
@@ -10,6 +10,7 @@ from app.config import get_settings
 from app.database import get_supabase_authed_client, get_supabase_client
 from app.services.audit_service import log_action
 from app.services.hybrid_retrieval_service import HybridRetrievalService
+from app.services.sandbox_service import get_sandbox_service  # Phase 10 D-P10-05
 from postgrest.exceptions import APIError as PostgrestAPIError
 
 if TYPE_CHECKING:
@@ -328,6 +329,34 @@ TOOL_DEFINITIONS = [
             },
         },
     },
+    # ── Phase 10: Code Execution Sandbox tool (D-P10-05/07; SANDBOX-01/05/06; gated) ──
+    {
+        "type": "function",
+        "function": {
+            "name": "execute_code",
+            "description": (
+                "Execute Python code in a sandboxed Docker container. "
+                "Variables persist across calls within the same conversation thread. "
+                "Use for data analysis, calculations, file generation (write to /sandbox/output/), "
+                "or any task requiring runtime computation. The response includes stdout, stderr, "
+                "exit_code, and signed URLs for any files written to /sandbox/output/."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "code": {
+                        "type": "string",
+                        "description": "Python code to execute. Use stdout for results.",
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Brief description of what this code does (for execution log).",
+                    },
+                },
+                "required": ["code"],
+            },
+        },
+    },
 ]
 
 
@@ -365,6 +394,9 @@ class ToolService:
         ADR-0008: when web_search_enabled=False, the web_search tool is
         excluded from the catalog so the agent classifier and dispatcher
         never see it. The existing tavily_api_key check is preserved.
+
+        Phase 10 SANDBOX-05: execute_code is excluded when settings.sandbox_enabled
+        is False. Default OFF — opt-in per Railway env (config.py D-P10).
         """
         tools = []
         for tool in TOOL_DEFINITIONS:
@@ -373,6 +405,9 @@ class ToolService:
                 if not web_search_enabled:
                     continue
                 if not settings.tavily_api_key:
+                    continue
+            elif name == "execute_code":
+                if not settings.sandbox_enabled:
                     continue
             tools.append(tool)
         return tools
@@ -387,6 +422,7 @@ class ToolService:
         *,
         registry: "ConversationRegistry | None" = None,  # Phase 5 D-86 / D-91
         token: str | None = None,                        # Phase 8: RLS-scoped DB access for skill tools
+        stream_callback: Callable | None = None,         # Phase 10 D-P10-05 — used ONLY by execute_code branch
     ) -> dict:
         """Dispatch tool execution by name.
 
@@ -403,6 +439,11 @@ class ToolService:
         ``get_supabase_authed_client(token)`` for RLS-scoped DB access.
         Other tools ignore this kwarg — they continue to use service-role +
         explicit user_id predicates.
+
+        Phase 10 D-P10-05: Accepts an optional ``stream_callback`` kwarg used
+        ONLY by the execute_code branch to emit code_stdout/code_stderr SSE
+        events line-by-line during sandbox execution. Other tools accept and
+        silently ignore this parameter (parameter received, never invoked).
         """
         if name == "search_documents":
             return await self._execute_search_documents(
@@ -475,6 +516,14 @@ class ToolService:
                 filename=arguments.get("filename", ""),
                 user_id=user_id,
                 token=token,
+            )
+        elif name == "execute_code":
+            return await self._execute_code(
+                code=arguments.get("code", ""),
+                description=arguments.get("description"),
+                user_id=user_id,
+                thread_id=(context or {}).get("thread_id"),
+                stream_callback=stream_callback,
             )
         else:
             return {"error": f"Unknown tool: {name}"}
@@ -1123,4 +1172,112 @@ class ToolService:
             "truncated": truncated,
             "total_bytes": f["size_bytes"],
             "message": "Content truncated at 8000 chars." if truncated else None,
+        }
+
+    # ── Phase 10: Code Execution Sandbox handler ─────────────────────────────
+
+    @traced(name="tool_execute_code")
+    async def _execute_code(
+        self,
+        *,
+        code: str,
+        description: str | None,
+        user_id: str,
+        thread_id: str | None,
+        stream_callback: Callable | None,
+    ) -> dict:
+        """SANDBOX-01/02/04/06: dispatch to SandboxService, persist log, emit audit.
+
+        Returns a dict shaped per D-P10-07 — full stdout + stderr + signed URLs +
+        exit_code + error_type — so the LLM can reference specific values.
+
+        T-10-25: early-return if thread_id is absent to avoid orphan code_executions
+        rows and surface wiring bugs in chat.py (Plan 05 plumbs context['thread_id']).
+        """
+        if not code:
+            return {"error": "missing_code", "message": "code is required."}
+        if not thread_id:
+            # context.thread_id is plumbed by chat.py in Plan 05; failing fast here
+            # surfaces wiring bugs early rather than producing orphan code_executions rows.
+            return {
+                "error": "missing_thread_id",
+                "message": "thread_id is required in context (chat.py must set context['thread_id']).",
+            }
+
+        # Run in sandbox
+        try:
+            result = await get_sandbox_service().execute(
+                code=code,
+                thread_id=thread_id,
+                user_id=user_id,
+                stream_callback=stream_callback,
+            )
+        except Exception as exc:
+            logger.error("execute_code sandbox dispatch failed: %s", exc, exc_info=True)
+            return {
+                "error": "sandbox_error",
+                "message": str(exc),
+                "stdout": "",
+                "stderr": str(exc),
+                "exit_code": -1,
+                "files": [],
+            }
+
+        # Map sandbox output to status field for code_executions row
+        if result.get("error_type") == "timeout":
+            status = "timeout"
+        elif result.get("exit_code", 0) != 0 or result.get("error_type"):
+            status = "error"
+        else:
+            status = "success"
+
+        execution_id = result.get("execution_id")
+
+        # SANDBOX-06: persist row (service-role; RLS auto-passes own-row INSERT)
+        try:
+            client = get_supabase_client()
+            client.table("code_executions").insert({
+                "id": execution_id,
+                "user_id": user_id,
+                "thread_id": thread_id,
+                "code": code,
+                "description": description,
+                "stdout": result.get("stdout", ""),
+                "stderr": result.get("stderr", ""),
+                "exit_code": result.get("exit_code", 0),
+                "execution_ms": result.get("execution_ms", 0),
+                "status": status,
+                "files": result.get("files", []),
+            }).execute()
+        except Exception as exc:
+            logger.warning("code_executions insert failed: %s", exc)
+            # Continue — don't fail the tool call because logging failed.
+
+        # Audit trail (mirror Phase 8 CR-01 fix at lines 1001–1011)
+        try:
+            log_action(
+                user_id=user_id,
+                user_email=None,
+                action="execute_code",
+                resource_type="code_execution",
+                resource_id=str(execution_id) if execution_id else None,
+                details={
+                    "thread_id": thread_id,
+                    "exit_code": result.get("exit_code", 0),
+                    "status": status,
+                },
+            )
+        except Exception:
+            pass  # audit is fire-and-forget per chat.py line 327 pattern
+
+        # D-P10-07: return full payload to the LLM (stdout + stderr + URLs + exit_code)
+        return {
+            "execution_id": execution_id,
+            "stdout": result.get("stdout", ""),
+            "stderr": result.get("stderr", ""),
+            "exit_code": result.get("exit_code", 0),
+            "error_type": result.get("error_type"),
+            "execution_ms": result.get("execution_ms", 0),
+            "files": result.get("files", []),
+            "status": status,
         }
