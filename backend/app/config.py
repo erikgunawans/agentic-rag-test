@@ -69,6 +69,16 @@ class Settings(BaseSettings):
     agents_enabled: bool = False
     agents_orchestrator_model: str = ""
 
+    # Phase 10: Code Execution Sandbox (SANDBOX-01..06, 08; D-P10-01..D-P10-17)
+    # SANDBOX-05 / D-P10: gate the execute_code tool. Default OFF — opt-in per Railway env.
+    sandbox_enabled: bool = False
+    # D-P10-03: Docker Hub image (rebuild + push when packages change).
+    sandbox_image: str = "lexcore-sandbox:latest"
+    # D-P10-02: Railway socket-mount pattern. Override per-env if running rootless / DinD.
+    sandbox_docker_host: str = "unix:///var/run/docker.sock"
+    # D-P10-12: per-call execution timeout (seconds). Distinct from 30-min session TTL.
+    sandbox_max_exec_seconds: int = 30
+
     # Deployment
     frontend_url: str = "http://localhost:5173"
 
