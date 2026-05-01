@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 from fastapi import APIRouter, Depends, HTTPException
@@ -169,12 +170,13 @@ async def stream_chat(
     }).execute()
     user_msg_id = user_msg_result.data[0]["id"]
 
-    # Tool execution context (passed to search_documents tool)
+    # Tool execution context (passed to search_documents tool, used by execute_code tool for thread routing)
     tool_context = {
         "top_k": settings.rag_top_k,
         "threshold": settings.rag_similarity_threshold,
         "embedding_model": sys_settings.get("custom_embedding_model") or sys_settings["embedding_model"],
         "llm_model": llm_model,
+        "thread_id": body.thread_id,   # Phase 10 D-P10-04: needed by execute_code handler for session routing
     }
 
     async def _run_tool_loop(
@@ -242,6 +244,49 @@ async def stream_chat(
                         "type": "tool_start", "tool": func_name, "input": func_args,
                     }
 
+                # Phase 10 D-P10-05/06: queue adapter for execute_code streaming.
+                # Planner alert #1 resolution: _run_tool_loop is itself an async
+                # generator, so the callback CANNOT yield directly. Instead, the
+                # callback enqueues; we drain the queue between tool_start and
+                # tool_result while awaiting the execute_tool task.
+                sandbox_event_queue: asyncio.Queue | None = None
+                sandbox_callback = None
+                if func_name == "execute_code":
+                    sandbox_event_queue = asyncio.Queue()
+
+                    async def sandbox_stream_callback(event_type: str, line: str):
+                        """D-P10-05/06: enqueue code_stdout/code_stderr lines.
+
+                        Planner alert #2 resolution: when redaction_on=True, anonymize
+                        the line before enqueue so SSE never emits real PII (D-89
+                        invariant). Per-line anonymization (option b from alert #2) —
+                        different from tool_start/tool_result skeleton-emit because
+                        SANDBOX-03 requires meaningful streaming output.
+                        Skeleton-only would defeat the streaming UX.
+                        """
+                        emit_line = line
+                        if redaction_on and registry is not None:
+                            try:
+                                anon = await anonymize_tool_output(
+                                    {"line": line}, registry, redaction_service,
+                                )
+                                # anonymize_tool_output returns same shape; extract line
+                                if isinstance(anon, dict):
+                                    emit_line = anon.get("line", line)
+                            except Exception as _exc:
+                                logger.warning(
+                                    "sandbox stream anon failed err=%s — emitting skeleton",
+                                    _exc,
+                                )
+                                emit_line = ""  # skeleton fallback (D-89 safer default)
+                        await sandbox_event_queue.put({
+                            "type": event_type,
+                            "line": emit_line,
+                            "tool_call_id": tc["id"],
+                        })
+
+                    sandbox_callback = sandbox_stream_callback
+
                 try:
                     # ADR-0008 defense-in-depth: agent attempted a tool not in
                     # the effective catalog. Skip dispatch and synthesize a
@@ -268,11 +313,38 @@ async def stream_chat(
                             real_args = await deanonymize_tool_args(
                                 func_args, registry, redaction_service,
                             )
-                        tool_output = await tool_service.execute_tool(
-                            func_name, real_args, user_id, tool_context,
-                            registry=registry,
-                            token=token,
-                        )
+                        # Phase 10 D-P10-05: use Task + queue drain for execute_code;
+                        # direct await for all other tools (sandbox_callback is None).
+                        if sandbox_event_queue is not None:
+                            tool_output_task = asyncio.create_task(
+                                tool_service.execute_tool(
+                                    func_name, real_args, user_id, tool_context,
+                                    registry=registry,
+                                    token=token,
+                                    stream_callback=sandbox_callback,
+                                )
+                            )
+                            # Drain sandbox events while execute_tool runs.
+                            while not tool_output_task.done():
+                                try:
+                                    evt = await asyncio.wait_for(
+                                        sandbox_event_queue.get(), timeout=0.1,
+                                    )
+                                    yield evt["type"], evt
+                                except asyncio.TimeoutError:
+                                    continue
+                            # Drain any remaining queued events after task completes
+                            while not sandbox_event_queue.empty():
+                                evt = sandbox_event_queue.get_nowait()
+                                yield evt["type"], evt
+                            tool_output = await tool_output_task
+                        else:
+                            tool_output = await tool_service.execute_tool(
+                                func_name, real_args, user_id, tool_context,
+                                registry=registry,
+                                token=token,
+                                stream_callback=None,
+                            )
                         # tool_records keep the surrogate-form func_args
                         # (LLM-emitted) so persistence and downstream
                         # consumers see the LLM's actual emission.
@@ -296,10 +368,36 @@ async def stream_chat(
                                 tool_output, registry, redaction_service,
                             )
                     else:
-                        tool_output = await tool_service.execute_tool(
-                            func_name, func_args, user_id, tool_context,
-                            token=token,
-                        )
+                        # Phase 10 D-P10-05: use Task + queue drain for execute_code;
+                        # direct await for all other tools (sandbox_callback is None).
+                        if sandbox_event_queue is not None:
+                            tool_output_task = asyncio.create_task(
+                                tool_service.execute_tool(
+                                    func_name, func_args, user_id, tool_context,
+                                    token=token,
+                                    stream_callback=sandbox_callback,
+                                )
+                            )
+                            # Drain sandbox events while execute_tool runs.
+                            while not tool_output_task.done():
+                                try:
+                                    evt = await asyncio.wait_for(
+                                        sandbox_event_queue.get(), timeout=0.1,
+                                    )
+                                    yield evt["type"], evt
+                                except asyncio.TimeoutError:
+                                    continue
+                            # Drain any remaining queued events after task completes
+                            while not sandbox_event_queue.empty():
+                                evt = sandbox_event_queue.get_nowait()
+                                yield evt["type"], evt
+                            tool_output = await tool_output_task
+                        else:
+                            tool_output = await tool_service.execute_tool(
+                                func_name, func_args, user_id, tool_context,
+                                token=token,
+                                stream_callback=None,
+                            )
                     # ADR-0008 audit: record toggle state for every web_search
                     # dispatch (only when actually dispatched, not blocked).
                     if (
@@ -467,6 +565,11 @@ async def stream_chat(
                 ):
                     if event_type == "records":
                         tool_records = data
+                    elif event_type in ("code_stdout", "code_stderr"):
+                        # Phase 10 SANDBOX-03: stream sandbox lines live regardless of redaction_on.
+                        # Lines are already anonymized inside sandbox_stream_callback (alert #2).
+                        # Bypassing buffer here ensures real-time streaming UX for execute_code.
+                        yield f"data: {json.dumps(data)}\n\n"
                     elif redaction_on:
                         tool_loop_buffer.append(data)
                     else:
@@ -533,6 +636,11 @@ async def stream_chat(
                 ):
                     if event_type == "records":
                         tool_records = data
+                    elif event_type in ("code_stdout", "code_stderr"):
+                        # Phase 10 SANDBOX-03: stream sandbox lines live regardless of redaction_on.
+                        # Lines are already anonymized inside sandbox_stream_callback (alert #2).
+                        # Bypassing buffer here ensures real-time streaming UX for execute_code.
+                        yield f"data: {json.dumps(data)}\n\n"
                     elif redaction_on:
                         tool_loop_buffer.append(data)
                     else:
@@ -677,3 +785,194 @@ async def stream_chat(
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+# ---------------------------------------------------------------------------
+# Phase 10 test helper — module-level re-export of _run_tool_loop for unit tests.
+#
+# _run_tool_loop is defined as an inner async generator inside stream_chat so
+# it can close over body / user / sys_settings / web_search_effective.  Unit
+# tests cannot call it directly.  This module-level generator mirrors its
+# public interface exactly (same parameter names and defaults) but does NOT
+# depend on any outer-scope closure variables.  The caller supplies
+# ``tool_context`` directly and the web_search audit-log branch is skipped
+# (tests never assert on that side-effect).
+#
+# ONLY import / call this from test code.
+# ---------------------------------------------------------------------------
+
+async def _run_tool_loop_for_test(
+    messages,
+    tools,
+    max_iterations,
+    user_id,
+    tool_context,
+    *,
+    registry=None,
+    redaction_service=None,
+    redaction_on=False,
+    available_tool_names=None,
+    token=None,
+):
+    """Test-only async generator: mirrors _run_tool_loop without closure deps."""
+    tool_records = []
+    for _iteration in range(max_iterations):
+        if not tools:
+            break
+
+        if redaction_on and registry is not None:
+            payload = json.dumps(messages, ensure_ascii=False)
+            egress_result = egress_filter(payload, registry, None)
+            if egress_result.tripped:
+                raise EgressBlockedAbort("tool_loop egress blocked")
+
+        result = await openrouter_service.complete_with_tools(
+            messages, tools, model=tool_context.get("llm_model", "openai/gpt-4o-mini")
+        )
+
+        if not result["tool_calls"]:
+            break
+
+        for tc in result["tool_calls"]:
+            func_name = tc["function"]["name"]
+            try:
+                func_args = json.loads(tc["function"]["arguments"])
+            except json.JSONDecodeError:
+                func_args = {}
+
+            if redaction_on:
+                yield "tool_start", {"type": "tool_start", "tool": func_name}
+            else:
+                yield "tool_start", {"type": "tool_start", "tool": func_name, "input": func_args}
+
+            # Phase 10 D-P10-05/06: queue adapter for execute_code streaming.
+            sandbox_event_queue: asyncio.Queue | None = None
+            sandbox_callback = None
+            if func_name == "execute_code":
+                sandbox_event_queue = asyncio.Queue()
+
+                async def sandbox_stream_callback_test(event_type: str, line: str):
+                    emit_line = line
+                    if redaction_on and registry is not None:
+                        try:
+                            anon = await anonymize_tool_output(
+                                {"line": line}, registry, redaction_service,
+                            )
+                            if isinstance(anon, dict):
+                                emit_line = anon.get("line", line)
+                        except Exception as _exc:
+                            logger.warning(
+                                "sandbox stream anon failed err=%s — emitting skeleton", _exc,
+                            )
+                            emit_line = ""
+                    await sandbox_event_queue.put({
+                        "type": event_type,
+                        "line": emit_line,
+                        "tool_call_id": tc["id"],
+                    })
+
+                sandbox_callback = sandbox_stream_callback_test
+
+            try:
+                if (
+                    available_tool_names is not None
+                    and func_name not in available_tool_names
+                ):
+                    tool_output = {
+                        "blocked": True,
+                        "reason": f"Tool '{func_name}' is not available for this request.",
+                    }
+                elif redaction_on and registry is not None:
+                    if func_name == "web_search":
+                        real_args = func_args
+                    else:
+                        real_args = await deanonymize_tool_args(
+                            func_args, registry, redaction_service,
+                        )
+                    if sandbox_event_queue is not None:
+                        tool_output_task = asyncio.create_task(
+                            tool_service.execute_tool(
+                                func_name, real_args, user_id, tool_context,
+                                registry=registry,
+                                token=token,
+                                stream_callback=sandbox_callback,
+                            )
+                        )
+                        while not tool_output_task.done():
+                            try:
+                                evt = await asyncio.wait_for(
+                                    sandbox_event_queue.get(), timeout=0.1,
+                                )
+                                yield evt["type"], evt
+                            except asyncio.TimeoutError:
+                                continue
+                        while not sandbox_event_queue.empty():
+                            evt = sandbox_event_queue.get_nowait()
+                            yield evt["type"], evt
+                        tool_output = await tool_output_task
+                    else:
+                        tool_output = await tool_service.execute_tool(
+                            func_name, real_args, user_id, tool_context,
+                            registry=registry,
+                            token=token,
+                            stream_callback=None,
+                        )
+                    if func_name == "web_search":
+                        tool_output = filter_tool_output_by_registry(tool_output, registry)
+                    else:
+                        tool_output = await anonymize_tool_output(
+                            tool_output, registry, redaction_service,
+                        )
+                else:
+                    if sandbox_event_queue is not None:
+                        tool_output_task = asyncio.create_task(
+                            tool_service.execute_tool(
+                                func_name, func_args, user_id, tool_context,
+                                token=token,
+                                stream_callback=sandbox_callback,
+                            )
+                        )
+                        while not tool_output_task.done():
+                            try:
+                                evt = await asyncio.wait_for(
+                                    sandbox_event_queue.get(), timeout=0.1,
+                                )
+                                yield evt["type"], evt
+                            except asyncio.TimeoutError:
+                                continue
+                        while not sandbox_event_queue.empty():
+                            evt = sandbox_event_queue.get_nowait()
+                            yield evt["type"], evt
+                        tool_output = await tool_output_task
+                    else:
+                        tool_output = await tool_service.execute_tool(
+                            func_name, func_args, user_id, tool_context,
+                            token=token,
+                            stream_callback=None,
+                        )
+            except EgressBlockedAbort:
+                raise
+            except Exception as e:
+                tool_output = {"error": str(e)}
+                from app.models.tools import ToolCallRecord
+                tool_records.append(ToolCallRecord(
+                    tool=func_name, input=func_args, output={}, error=str(e)
+                ))
+
+            if redaction_on:
+                yield "tool_result", {"type": "tool_result", "tool": func_name}
+            else:
+                yield "tool_result", {"type": "tool_result", "tool": func_name, "output": tool_output}
+
+            messages.append({
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [tc],
+            })
+            messages.append({
+                "role": "tool",
+                "tool_call_id": tc["id"],
+                "content": json.dumps(tool_output),
+            })
+
+    yield "records", tool_records
