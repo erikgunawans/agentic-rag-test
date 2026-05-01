@@ -25,6 +25,9 @@ langfuse>=2.50.0,<5
 # Skill ZIP service (Plan 07-03 — ZIP export/import with SKILL.md frontmatter)
 PyYAML>=6.0,<7
 
+# Code Execution Sandbox (Phase 10 — llm-sandbox Docker backend, SANDBOX-01..06)
+llm-sandbox[docker]>=0.3.0
+
 # Test tooling (Plan 07 async pytest suite)
 pytest>=8.0.0
 pytest-asyncio>=0.24.0
