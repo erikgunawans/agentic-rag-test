@@ -1,9 +1,15 @@
+import { useEffect, useRef } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useChatContext } from '@/contexts/ChatContext'
 import { MessageView } from '@/components/chat/MessageView'
 import { MessageInput } from '@/components/chat/MessageInput'
 import { WelcomeScreen } from '@/components/chat/WelcomeScreen'
 
 export function ChatPage() {
+  const location = useLocation()
+  const navigate = useNavigate()
+  const consumedRef = useRef(false)
+
   const {
     activeThreadId,
     messages,
@@ -20,6 +26,18 @@ export function ChatPage() {
     handleForkAt,
     handleCancelFork,
   } = useChatContext()
+
+  // Consume location.state.prefill exactly once. Sources: SkillsPage "Create with AI" or "Try in Chat" buttons.
+  useEffect(() => {
+    const stateObj = location.state as { prefill?: string } | null
+    const prefill = stateObj?.prefill
+    if (prefill && !consumedRef.current) {
+      consumedRef.current = true
+      handleSendMessage(prefill)
+      // Clear the state so refresh / back-nav doesn't re-trigger.
+      navigate(location.pathname, { replace: true, state: null })
+    }
+  }, [location.state, location.pathname, handleSendMessage, navigate])
 
   if (!activeThreadId) {
     return <WelcomeScreen />
