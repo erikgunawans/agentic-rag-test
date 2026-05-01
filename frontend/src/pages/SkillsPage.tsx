@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   Plus, Pencil, Trash2, X, Menu, ChevronLeft, PanelLeftClose,
   Globe, Search, Sparkles, FileArchive, Loader2, Zap,
+  Save, Download, Share2, MessageSquare,
 } from 'lucide-react'
 import { useSidebar } from '@/hooks/useSidebar'
 import { useI18n } from '@/i18n/I18nContext'
@@ -35,10 +36,6 @@ export interface SkillFile {
 const inputBase = "w-full rounded-lg bg-secondary text-foreground px-3 py-2 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
 const inputClass = `${inputBase} border border-border`
 
-// Suppress unused variable warning — textareaClass is used by Plan 03 in the same file scope
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const _textareaClass = `${inputClass} min-h-[100px] resize-none`
-
 export function SkillsPage() {
   const { t } = useI18n()
   const { user } = useAuth()
@@ -62,6 +59,20 @@ export function SkillsPage() {
   // ---- Cross-cutting error banner state (consumed by Plan 03's editor) ----
   const [errorBanner, setErrorBanner] = useState<string | null>(null)
 
+  // ---- Form state ----
+  const [formName, setFormName] = useState('')
+  const [formDescription, setFormDescription] = useState('')
+  const [formInstructions, setFormInstructions] = useState('')
+  const [formLicense, setFormLicense] = useState('')
+  const [formCompatibility, setFormCompatibility] = useState('')
+  const [formEnabled, setFormEnabled] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [sharing, setSharing] = useState(false)
+
+  const textareaClass = `${inputClass} min-h-[100px] resize-none`
+  const instructionsClass = `${inputClass} min-h-[240px] resize-none font-mono`
+
   // ---- Fetch list (debounced) ----
   const fetchSkills = useCallback(async () => {
     setLoading(true)
@@ -84,6 +95,25 @@ export function SkillsPage() {
     const timer = setTimeout(fetchSkills, 300)
     return () => clearTimeout(timer)
   }, [fetchSkills])
+
+  // ---- Hydrate form when selectedSkill changes ----
+  useEffect(() => {
+    if (editMode === 'edit' && selectedSkill) {
+      setFormName(selectedSkill.name)
+      setFormDescription(selectedSkill.description)
+      setFormInstructions(selectedSkill.instructions || '')
+      setFormLicense(selectedSkill.license || '')
+      setFormCompatibility(selectedSkill.compatibility || '')
+      setFormEnabled(selectedSkill.enabled)
+    } else if (editMode === 'create') {
+      setFormName('')
+      setFormDescription('')
+      setFormInstructions('')
+      setFormLicense('')
+      setFormCompatibility('')
+      setFormEnabled(true)
+    }
+  }, [editMode, selectedSkill])
 
   // ---- Selection / ownership branch ----
   async function selectSkill(skill: Skill) {
@@ -121,6 +151,12 @@ export function SkillsPage() {
     setSelectedSkill(null)
     setSkillFiles([])
     setErrorBanner(null)
+    setFormName('')
+    setFormDescription('')
+    setFormInstructions('')
+    setFormLicense('')
+    setFormCompatibility('')
+    setFormEnabled(true)
   }
 
   // ---- Ownership branch flags (LOCKED from D-P9-11/12/13 + 07-CONTEXT D-P7-01) ----
@@ -149,6 +185,116 @@ export function SkillsPage() {
   function tryInChat(skill: Skill) {
     // Discretion-locked: substitute skill name into the prefill template.
     navigate('/', { state: { prefill: `Please use the ${skill.name} skill.` } })
+  }
+
+  // ---- Validation helpers ----
+  const NAME_RE = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/
+  const NAME_MAX = 64
+  const DESC_MAX = 1024
+
+  function validateForm(): string | null {
+    if (!formName.trim()) return t('skills.errorNameFormat')
+    if (formName.length > NAME_MAX) return t('skills.errorNameFormat')
+    if (!NAME_RE.test(formName)) return t('skills.errorNameFormat')
+    if (!formDescription.trim()) return t('skills.errorSave')
+    if (formDescription.length > DESC_MAX) return t('skills.errorSave')
+    if (!formInstructions.trim()) return t('skills.errorSave')
+    return null
+  }
+
+  async function handleSave() {
+    const err = validateForm()
+    if (err) { setErrorBanner(err); return }
+    setSaving(true)
+    setErrorBanner(null)
+    try {
+      const body = {
+        name: formName.trim(),
+        description: formDescription,
+        instructions: formInstructions,
+        enabled: formEnabled,
+        license: formLicense.trim() || null,
+        compatibility: formCompatibility.trim() || null,
+      }
+      let saved: Skill | null = null
+      if (editMode === 'create') {
+        const res = await apiFetch('/skills', { method: 'POST', body: JSON.stringify(body) })
+        const data = await res.json()
+        saved = (data.data ?? data) as Skill
+      } else if (editMode === 'edit' && selectedSkill) {
+        const res = await apiFetch(`/skills/${selectedSkill.id}`, { method: 'PATCH', body: JSON.stringify(body) })
+        const data = await res.json()
+        saved = (data.data ?? data) as Skill
+      }
+      await fetchSkills()
+      if (saved) {
+        setSelectedSkill(saved)
+        setEditMode('edit')
+      }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : ''
+      if (/already exists/i.test(msg)) {
+        setErrorBanner(t('skills.errorNameConflict'))
+      } else if (/lowercase|hyphen|format/i.test(msg)) {
+        setErrorBanner(t('skills.errorNameFormat'))
+      } else {
+        setErrorBanner(t('skills.errorSave'))
+      }
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleDelete() {
+    if (!selectedSkill) return
+    if (!confirm(t('skills.deleteConfirm'))) return
+    setDeleting(true)
+    setErrorBanner(null)
+    try {
+      await apiFetch(`/skills/${selectedSkill.id}`, { method: 'DELETE' })
+      await fetchSkills()
+      resetEditor()
+    } catch {
+      setErrorBanner(t('skills.errorDelete'))
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  async function handleShare(makeGlobal: boolean) {
+    if (!selectedSkill) return
+    if (!makeGlobal && !confirm(t('skills.unshareConfirm'))) return
+    setSharing(true)
+    setErrorBanner(null)
+    try {
+      const res = await apiFetch(`/skills/${selectedSkill.id}/share`, { method: 'PATCH', body: JSON.stringify({ global: makeGlobal }) })
+      const data = await res.json()
+      const updated = (data.data ?? data) as Skill
+      setSelectedSkill(updated)
+      await fetchSkills()
+    } catch {
+      setErrorBanner(t('skills.errorSave'))
+    } finally {
+      setSharing(false)
+    }
+  }
+
+  async function handleExport() {
+    if (!selectedSkill) return
+    try {
+      const res = await apiFetch(`/skills/${selectedSkill.id}/export`)
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${selectedSkill.name}.zip`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch {
+      setErrorBanner(t('skills.errorSave'))
+    }
   }
 
   // Hidden file input ref for "Import from File" Popover entry — consumed by Plan 04
@@ -267,7 +413,7 @@ export function SkillsPage() {
     )
   }
 
-  // ---- Editor placeholder (Plan 03 replaces this with the full form) ----
+  // ---- Full editor form ----
   function renderEditor() {
     if (editMode === null) {
       return (
@@ -281,57 +427,269 @@ export function SkillsPage() {
     if (detailLoading) {
       return <div className="shimmer h-[400px] rounded-md m-6" />
     }
-    // Plan 03 fills this branch. Until then, render a stub that shows the selected skill name
-    // so manual smoke tests confirm the click-to-select path works.
+
+    const requiredMark = <span className="text-red-600 dark:text-red-400" aria-hidden="true">*</span>
+    const overName = formName.length > NAME_MAX
+    const overDesc = formDescription.length > DESC_MAX
+
     return (
-      <div className="px-5 py-4 space-y-3" data-testid="skills-editor-slot">
+      <div className={`px-5 py-4 space-y-3 max-w-[900px] ${formDisabled ? 'opacity-60 pointer-events-none' : ''}`} aria-disabled={formDisabled || undefined}>
+        {/* Header with title + close button */}
         <div className="flex items-center justify-between">
           <h2 className="text-xs font-semibold">
             {editMode === 'create' ? t('skills.createManual') : selectedSkill?.name ?? ''}
           </h2>
-          <button onClick={resetEditor} className="text-muted-foreground hover:text-foreground" aria-label={t('skills.cancel')}>
+          <button
+            onClick={resetEditor}
+            className="text-muted-foreground hover:text-foreground"
+            aria-label={t('skills.cancel')}
+            style={{ pointerEvents: 'auto' }}
+          >
             <X className="h-3.5 w-3.5" />
           </button>
         </div>
-        <p className="text-[10px] text-muted-foreground">
-          {/* Plan 03 placeholder — replaced by the full editor form. Ownership flags are visible
-              for executor verification: isOwnPrivate / isOwnGlobal / isOtherGlobal. */}
-          {isOwnPrivate && 'own private'}
-          {isOwnGlobal && 'own global'}
-          {isOtherGlobal && 'other global'}
-        </p>
-        {errorBanner && (
-          <div
-            role="alert"
-            className="bg-destructive/10 text-destructive border border-destructive/30 text-xs px-3 py-2 rounded-md"
-          >
-            {errorBanner}
+
+        {/* Ownership banner */}
+        {isOwnGlobal && (
+          <div role="status" className="bg-primary/10 text-primary text-xs px-4 py-2 rounded-md border border-primary/20 flex items-center gap-2">
+            <Globe className="h-3 w-3 shrink-0" />
+            <span>{t('skills.bannerOwnerGlobal')}</span>
           </div>
         )}
-        {/* Try in Chat stub — Plan 03 moves this into the editor footer, but expose it here
-            so the tryInChat function is reachable and the compiler does not tree-shake it. */}
-        {selectedSkill && (
-          <Button
-            size="sm"
-            variant="outline"
-            className="text-xs"
-            onClick={() => tryInChat(selectedSkill)}
-          >
-            {t('skills.tryInChat')}
-          </Button>
+        {isOtherGlobal && (
+          <div role="status" className="bg-primary/10 text-primary text-xs px-4 py-2 rounded-md border border-primary/20 flex items-center gap-2">
+            <Globe className="h-3 w-3 shrink-0" />
+            <span>{t('skills.bannerGlobal')}</span>
+          </div>
         )}
+
+        {/* Inline error banner */}
+        {errorBanner && (
+          <div role="alert" className="bg-destructive/10 text-destructive border border-destructive/30 text-xs px-3 py-2 rounded-md flex items-start gap-2">
+            <span className="flex-1">{errorBanner}</span>
+            <button onClick={() => setErrorBanner(null)} aria-label={t('skills.cancel')} style={{ pointerEvents: 'auto' }}>
+              <X className="h-3 w-3" />
+            </button>
+          </div>
+        )}
+
+        {/* Name */}
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <label htmlFor="skill-name" className="text-[10px] font-medium">
+              {t('skills.fieldName')} {requiredMark}
+            </label>
+            <span className={`text-[9px] ${overName ? 'text-destructive' : 'text-muted-foreground'}`}>
+              {formName.length}/{NAME_MAX}
+            </span>
+          </div>
+          <input
+            id="skill-name"
+            aria-required="true"
+            aria-disabled={formDisabled || undefined}
+            disabled={formDisabled}
+            className={inputClass}
+            value={formName}
+            onChange={e => setFormName(e.target.value)}
+            placeholder={t('skills.placeholderName')}
+          />
+        </div>
+
+        {/* Description */}
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <label htmlFor="skill-description" className="text-[10px] font-medium">
+              {t('skills.fieldDescription')} {requiredMark}
+            </label>
+            <span className={`text-[9px] ${overDesc ? 'text-destructive' : 'text-muted-foreground'}`}>
+              {formDescription.length}/{DESC_MAX}
+            </span>
+          </div>
+          <textarea
+            id="skill-description"
+            aria-required="true"
+            aria-disabled={formDisabled || undefined}
+            disabled={formDisabled}
+            className={textareaClass}
+            value={formDescription}
+            onChange={e => setFormDescription(e.target.value)}
+            placeholder={t('skills.placeholderDescription')}
+          />
+        </div>
+
+        {/* Instructions (monospace, 240px min-h) */}
+        <div className="space-y-1.5">
+          <label htmlFor="skill-instructions" className="text-[10px] font-medium">
+            {t('skills.fieldInstructions')} {requiredMark}
+          </label>
+          <textarea
+            id="skill-instructions"
+            aria-required="true"
+            aria-disabled={formDisabled || undefined}
+            disabled={formDisabled}
+            className={instructionsClass}
+            value={formInstructions}
+            onChange={e => setFormInstructions(e.target.value)}
+            placeholder={t('skills.placeholderInstructions')}
+          />
+        </div>
+
+        {/* License + Compatibility (grid) */}
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1.5">
+            <label htmlFor="skill-license" className="text-[10px] font-medium">{t('skills.fieldLicense')}</label>
+            <input
+              id="skill-license"
+              aria-disabled={formDisabled || undefined}
+              disabled={formDisabled}
+              className={inputClass}
+              value={formLicense}
+              onChange={e => setFormLicense(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label htmlFor="skill-compat" className="text-[10px] font-medium">{t('skills.fieldCompatibility')}</label>
+            <input
+              id="skill-compat"
+              aria-disabled={formDisabled || undefined}
+              disabled={formDisabled}
+              className={inputClass}
+              value={formCompatibility}
+              onChange={e => setFormCompatibility(e.target.value)}
+            />
+          </div>
+        </div>
+
+        {/* Files section slot — Plan 04 fills this */}
+        <div className="space-y-1.5" data-testid="skills-files-section-slot">
+          <p className="text-[10px] font-medium">{t('skills.filesSection')}</p>
+          {/* Plan 04 renders file list + upload button here */}
+        </div>
+
+        {/* Footer: Enabled toggle (left) + action buttons (right) */}
+        <div className="flex items-center justify-between gap-2 pt-2 border-t border-border/50">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              role="switch"
+              aria-checked={formEnabled}
+              aria-disabled={formDisabled || undefined}
+              disabled={formDisabled}
+              onClick={() => !formDisabled && setFormEnabled(v => !v)}
+              className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full transition-colors ${formEnabled ? 'bg-primary' : 'bg-muted'} ${formDisabled ? 'cursor-not-allowed' : ''}`}
+              style={{ pointerEvents: 'auto' }}
+            >
+              <span className={`inline-block h-4 w-4 rounded-full bg-background shadow transform transition-transform ${formEnabled ? 'translate-x-[18px]' : 'translate-x-0.5'} mt-0.5`} />
+            </button>
+            <span className="text-xs">{t('skills.fieldEnabled')}</span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 justify-end">
+            {/* Save — only if not formDisabled (own private OR create mode) */}
+            {!formDisabled && (
+              <Button
+                size="sm"
+                className="text-xs"
+                onClick={handleSave}
+                disabled={saving || !formName.trim() || !formDescription.trim() || !formInstructions.trim() || overName || overDesc}
+                style={{ pointerEvents: 'auto' }}
+              >
+                {saving ? <><Loader2 className="animate-spin h-3 w-3 mr-1.5" />{t('skills.saving')}</> : <><Save className="h-3 w-3 mr-1.5" />{t('skills.save')}</>}
+              </Button>
+            )}
+
+            {/* Cancel — visible in create mode */}
+            {editMode === 'create' && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-xs"
+                onClick={resetEditor}
+                style={{ pointerEvents: 'auto' }}
+              >
+                {t('skills.cancel')}
+              </Button>
+            )}
+
+            {/* Delete — only on own private skills (NOT global, NOT create mode) */}
+            {isOwnPrivate && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-xs text-destructive hover:bg-destructive/10"
+                onClick={handleDelete}
+                disabled={deleting}
+                style={{ pointerEvents: 'auto' }}
+              >
+                {deleting ? <Loader2 className="animate-spin h-3 w-3 mr-1.5" /> : <Trash2 className="h-3 w-3 mr-1.5" />}
+                {t('skills.delete')}
+              </Button>
+            )}
+
+            {/* Share — only on own private skills */}
+            {isOwnPrivate && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-xs"
+                onClick={() => handleShare(true)}
+                disabled={sharing}
+                style={{ pointerEvents: 'auto' }}
+              >
+                {sharing ? <Loader2 className="animate-spin h-3 w-3 mr-1.5" /> : <Share2 className="h-3 w-3 mr-1.5" />}
+                {t('skills.share')}
+              </Button>
+            )}
+
+            {/* Unshare — only on own global skills */}
+            {isOwnGlobal && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-xs"
+                onClick={() => handleShare(false)}
+                disabled={sharing}
+                style={{ pointerEvents: 'auto' }}
+              >
+                {sharing ? <Loader2 className="animate-spin h-3 w-3 mr-1.5" /> : <Share2 className="h-3 w-3 mr-1.5" />}
+                {t('skills.unshare')}
+              </Button>
+            )}
+
+            {/* Export — visible whenever a skill is selected (own private, own global, other global) */}
+            {selectedSkill && editMode === 'edit' && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-xs"
+                onClick={handleExport}
+                style={{ pointerEvents: 'auto' }}
+              >
+                <Download className="h-3 w-3 mr-1.5" />
+                {t('skills.export')}
+              </Button>
+            )}
+
+            {/* Try in Chat — visible whenever a skill is selected */}
+            {selectedSkill && editMode === 'edit' && (
+              <Button
+                size="sm"
+                className="text-xs"
+                onClick={() => tryInChat(selectedSkill)}
+                style={{ pointerEvents: 'auto' }}
+              >
+                <MessageSquare className="h-3 w-3 mr-1.5" />
+                {t('skills.tryInChat')}
+              </Button>
+            )}
+          </div>
+        </div>
       </div>
     )
   }
 
-  // Suppress unused variable warning for skillFiles setter — consumed by Plan 03/04 via the
-  // exported setSkillFiles / skillFiles surface. Referencing here keeps tsc happy.
+  // Suppress unused variable warning for skillFiles setter — consumed by Plan 04
   void (skillFiles.length >= 0)
-  void (formDisabled)
-
-  // Suppress unused variable warning for Trash2, Loader2 — imported for use in Plan 03.
-  void Trash2
-  void Loader2
 
   return (
     <div className="flex h-full">
