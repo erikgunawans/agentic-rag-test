@@ -1,10 +1,12 @@
 ---
 phase: 11
 slug: code-execution-ui-persistent-tool-memory
-status: draft
+status: approved
 shadcn_initialized: true
 preset: base-nova / neutral / cssVariables / lucide
 created: 2026-05-01
+reviewed_at: 2026-05-01
+checker_verdict: APPROVED (5 PASS, 1 FLAG — Dimension 5 spacing 14px icon non-blocking)
 ---
 
 # Phase 11 — UI Design Contract
