@@ -16,7 +16,7 @@ Trust boundaries (see 10-06-PLAN.md threat model):
 from datetime import datetime
 import logging
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, ConfigDict
 
 from app.dependencies import get_current_user
@@ -143,3 +143,50 @@ async def list_code_executions(
         row["files"] = _refresh_signed_urls(row.get("files") or [])
         enriched.append(CodeExecutionResponse(**row).model_dump(mode="json"))
     return {"data": enriched, "count": len(enriched)}
+
+
+# ---------------------------------------------------------------------------
+# GET /code-executions/{execution_id} — single-row read (Phase 11 / D-P11-06)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/{execution_id}", response_model=CodeExecutionResponse)
+async def get_code_execution(
+    execution_id: str,
+    user: dict = Depends(get_current_user),
+) -> CodeExecutionResponse:
+    """Fetch a single code_executions row with refreshed signed URLs.
+
+    Phase 11 D-P11-06: backs the Code Execution Panel's file-download
+    button, which refreshes signed URLs on each download click because
+    the row may be hours/days old (D-P10-14: 1-hour signed URL TTL).
+
+    RLS (Phase 10 D-P10-15): user_id = auth.uid() OR super_admin.
+    Cross-user requests therefore return 404 (the row is invisible to
+    the caller — preferable to 403 because it does not confirm existence).
+
+    T-11-03-1: signed URL refresh runs only on rows already authorized
+    by RLS. Storage paths in row.files are user-scoped (D-P10-13:
+    {user_id}/{thread_id}/{execution_id}/{filename}).
+    """
+    client = get_supabase_authed_client(user["token"])
+    try:
+        result = (
+            client.table("code_executions")
+            .select("*")
+            .eq("id", execution_id)
+            .limit(1)
+            .execute()
+        )
+    except Exception as exc:
+        logger.error("code_executions get-by-id query failed: %s", exc)
+        raise HTTPException(status_code=500, detail="Internal error")
+
+    rows = result.data or []
+    if not rows:
+        # RLS-filtered or genuinely missing — both resolve to 404.
+        raise HTTPException(status_code=404, detail="Code execution not found")
+
+    row = rows[0]
+    row["files"] = _refresh_signed_urls(row.get("files") or [])
+    return CodeExecutionResponse(**row)
