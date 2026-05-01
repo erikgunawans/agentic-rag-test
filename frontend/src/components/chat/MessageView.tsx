@@ -48,6 +48,12 @@ interface MessageViewProps {
   toolResults?: ToolResultEvent[]
   activeAgent?: { agent: string; display_name: string } | null
   redactionStage?: 'anonymizing' | 'deanonymizing' | 'blocked' | null
+  // Phase 11 SANDBOX-07 D-P11-02: live SSE buffer for execute_code streaming.
+  // Plumbed from useChatState via ChatPage. Map is reset in 3 lifecycle sites
+  // (handleSelectThread, sendMessageToThread enter/finally) — stale entries
+  // for prior turns cannot collide with current panels because tool_call_id
+  // is a UUID and CodeExecutionPanel only consults Map keys it knows about.
+  sandboxStreams?: Map<string, { stdout: string[]; stderr: string[] }>
   onFork?: (messageId: string) => void
   onSwitchBranch?: (forkPointId: string, childId: string) => void
 }
@@ -61,6 +67,7 @@ export function MessageView({
   toolResults = [],
   activeAgent = null,
   redactionStage = null,
+  sandboxStreams,
   onFork,
   onSwitchBranch,
 }: MessageViewProps) {
@@ -98,7 +105,10 @@ export function MessageView({
                 <AgentBadge agent={msg.tool_calls.agent} />
               )}
               {msg.role === 'assistant' && msg.tool_calls?.calls && msg.tool_calls.calls.length > 0 && (
-                <ToolCallList toolCalls={msg.tool_calls.calls} />
+                <ToolCallList
+                  toolCalls={msg.tool_calls.calls}
+                  sandboxStreams={sandboxStreams}
+                />
               )}
               <div
                 className={`rounded-lg px-4 py-2 text-sm ${
