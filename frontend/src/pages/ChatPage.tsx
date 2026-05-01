@@ -21,6 +21,7 @@ export function ChatPage() {
     toolResults,
     activeAgent,
     redactionStage,
+    sandboxStreams,
     handleSendMessage,
     handleSendFirstMessage,
     handleSwitchBranch,
@@ -60,6 +61,7 @@ export function ChatPage() {
         toolResults={toolResults}
         activeAgent={activeAgent}
         redactionStage={redactionStage}
+        sandboxStreams={sandboxStreams}
         onFork={handleForkAt}
         onSwitchBranch={handleSwitchBranch}
       />

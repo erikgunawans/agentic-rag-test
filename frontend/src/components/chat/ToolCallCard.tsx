@@ -1,12 +1,14 @@
 import { useState } from 'react'
-import { Database, Search, Globe, FileText, ChevronDown, ChevronRight, Loader2 } from 'lucide-react'
+import { Database, Search, Globe, FileText, ChevronDown, ChevronRight, Loader2, Terminal } from 'lucide-react'
 import type { ToolCallRecord } from '@/lib/database.types'
 import { useI18n } from '@/i18n/I18nContext'
+import { CodeExecutionPanel } from './CodeExecutionPanel'
 
 const TOOL_CONFIG: Record<string, { icon: typeof Database; label: string }> = {
   search_documents: { icon: Search, label: 'Document Search' },
   query_database: { icon: Database, label: 'Database Query' },
   web_search: { icon: Globe, label: 'Web Search' },
+  execute_code: { icon: Terminal, label: 'Code Execution' },
 }
 
 function SourceBadge({ tool }: { tool: string }) {
@@ -118,19 +120,83 @@ export function ToolCallCard({ tool, input, output, isLoading }: ToolCallCardPro
 
 interface ToolCallListProps {
   toolCalls: ToolCallRecord[]
+  sandboxStreams?: Map<string, { stdout: string[]; stderr: string[] }>
 }
 
-export function ToolCallList({ toolCalls }: ToolCallListProps) {
+export function ToolCallList({ toolCalls, sandboxStreams }: ToolCallListProps) {
+  // D-P11-01 + D-P11-05: split execute_code calls (with tool_call_id) into a
+  // separate vertical-stack list rendered with `gap-6`. Other tools keep the
+  // existing `space-y-0.5` rhythm.
+  const sandboxCalls: ToolCallRecord[] = []
+  const otherCalls: ToolCallRecord[] = []
+  for (const tc of toolCalls) {
+    if (tc.tool === 'execute_code' && tc.tool_call_id) {
+      sandboxCalls.push(tc)
+    } else {
+      otherCalls.push(tc)
+    }
+  }
+
   return (
-    <div className="space-y-0.5">
-      {toolCalls.map((tc, i) => (
-        <ToolCallCard
-          key={i}
-          tool={tc.tool}
-          input={tc.input}
-          output={tc.output as Record<string, unknown>}
-        />
-      ))}
-    </div>
+    <>
+      {sandboxCalls.length > 0 && (
+        <div className="flex flex-col gap-6 mb-2">
+          {sandboxCalls.map((tc) => {
+            const tcid = tc.tool_call_id as string
+            const live = sandboxStreams?.get(tcid)
+            const out =
+              typeof tc.output === 'object' && tc.output !== null
+                ? (tc.output as Record<string, unknown>)
+                : {}
+            const persistedStdout = (out.stdout_lines as string[] | undefined)
+              ?? (typeof out.stdout === 'string' ? (out.stdout as string).split('\n') : [])
+            const persistedStderr = (out.stderr_lines as string[] | undefined)
+              ?? (typeof out.stderr === 'string' ? (out.stderr as string).split('\n') : [])
+            const stdoutLines = live?.stdout ?? persistedStdout ?? []
+            const stderrLines = live?.stderr ?? persistedStderr ?? []
+            const persistedStatus =
+              (tc.status as 'success' | 'error' | 'timeout' | null | undefined) ?? null
+            const status: 'pending' | 'running' | 'success' | 'error' | 'timeout' =
+              live ? 'running' : (persistedStatus ?? 'success')
+            const code = (tc.input as { code?: string })?.code ?? ''
+            const files =
+              (out.files as { filename: string; size_bytes: number; signed_url: string }[] | undefined)
+              ?? []
+            // Per backend/app/services/sandbox_service.py L284, the sandbox
+            // tool_output dict's canonical key is `execution_id`. There is no
+            // `id` key. Do NOT use a `?? out.id` fallback chain.
+            const executionId = out.execution_id as string | undefined
+            const executionMs = out.execution_ms as number | undefined
+            const errorType = out.error_type as string | undefined
+            return (
+              <CodeExecutionPanel
+                key={tcid}
+                toolCallId={tcid}
+                executionId={executionId}
+                code={code}
+                status={status}
+                executionMs={executionMs}
+                stdoutLines={stdoutLines}
+                stderrLines={stderrLines}
+                files={files}
+                errorType={errorType}
+              />
+            )
+          })}
+        </div>
+      )}
+      {otherCalls.length > 0 && (
+        <div className="space-y-0.5">
+          {otherCalls.map((tc, i) => (
+            <ToolCallCard
+              key={i}
+              tool={tc.tool}
+              input={tc.input}
+              output={tc.output as Record<string, unknown>}
+            />
+          ))}
+        </div>
+      )}
+    </>
   )
 }
