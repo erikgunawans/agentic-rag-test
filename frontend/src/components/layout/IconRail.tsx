@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
-import { Home, Folder, FilePlus, Library, GitCompare, ShieldCheck, ShieldAlert, Scale, ClipboardList, FileCheck, BookOpen, Plug, LayoutDashboard, Settings, PanelLeftClose, PanelLeftOpen, Clock } from 'lucide-react'
+import { Home, Folder, FilePlus, Library, GitCompare, ShieldCheck, ShieldAlert, Scale, ClipboardList, FileCheck, BookOpen, Plug, LayoutDashboard, Settings, PanelLeftClose, PanelLeftOpen, Clock, Zap } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import { useAuth } from '@/contexts/AuthContext'
@@ -24,6 +24,7 @@ interface NavGroup {
 
 const standaloneItems: NavItem[] = [
   { path: '/', icon: Home, labelKey: 'nav.chat', end: true },
+  { path: '/skills', icon: Zap, labelKey: 'nav.skills' },
   { path: '/dashboard', icon: LayoutDashboard, labelKey: 'nav.dashboard' },
   { path: '/bjr', icon: Scale, labelKey: 'nav.bjr' },
   { path: '/pdp', icon: ShieldAlert, labelKey: 'nav.pdp' },
