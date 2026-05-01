@@ -59,6 +59,93 @@ def compute_web_search_effective(
     return bool(user_default)
 
 
+# Phase 11 Plan 11-04 (D-P11-08): derive ToolCallRecord.status from outcome.
+# Module-level helper so it can be unit-tested without booting the FastAPI app
+# (mirrors the `_run_tool_loop_for_test` extraction pattern from Plan 10-05).
+def _derive_tool_status(
+    tool_name: str,
+    tool_output: dict | str | None,
+    *,
+    exception_caught: bool = False,
+) -> str:
+    """Derive ToolCallRecord.status from a tool execution outcome.
+
+    Sandbox `execute_code`:
+      - 'timeout' if `error_type == 'timeout'`
+      - 'error'   if `error_type` is truthy OR `exit_code` is non-None and != 0
+      - 'success' otherwise
+    Non-sandbox tools:
+      - 'error'   if exception caught
+      - 'success' otherwise
+    """
+    if exception_caught:
+        return "error"
+    if tool_name == "execute_code" and isinstance(tool_output, dict):
+        if tool_output.get("error_type") == "timeout":
+            return "timeout"
+        exit_code = tool_output.get("exit_code")
+        if tool_output.get("error_type") or (
+            exit_code is not None and exit_code != 0
+        ):
+            return "error"
+        return "success"
+    return "success"
+
+
+# Phase 11 Plan 11-04 (D-P11-03 / D-P11-07 / D-P11-10): expand a persisted
+# `messages` row into LLM-format items for history-load reconstruction.
+def _expand_history_row(row: dict) -> list[dict]:
+    """Expand a `messages` row into one or more LLM-format dicts.
+
+    Modern row (every entry in `tool_calls.calls[]` carries `tool_call_id`):
+      emits the OpenAI triplet —
+        - {role:"assistant", content:"", tool_calls:[…]}
+        - {role:"tool", tool_call_id, content} × N
+        - optional {role:"assistant", content} if `row.content` non-empty
+    Legacy row (any call missing `tool_call_id`, OR no tool_calls at all):
+      emits a single {role, content} item — flat fallback (D-P11-03).
+
+    Every emitted dict carries a 'content' key (empty string is valid)
+    so the redaction batch at chat.py ~L485 stays index-aligned (D-P11-10).
+    """
+    tc = row.get("tool_calls") or {}
+    calls = tc.get("calls") or []
+    if calls and all(c.get("tool_call_id") for c in calls):
+        items: list[dict] = [{
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": c["tool_call_id"],
+                    "type": "function",
+                    "function": {
+                        "name": c["tool"],
+                        "arguments": json.dumps(c.get("input") or {}),
+                    },
+                }
+                for c in calls
+            ],
+        }]
+        for c in calls:
+            output = c.get("output")
+            # Avoid double-encoding when output was already collapsed to a
+            # string by the Plan 11-01 truncation validator.
+            if isinstance(output, str):
+                content = output
+            else:
+                content = json.dumps(output, ensure_ascii=False)
+            items.append({
+                "role": "tool",
+                "tool_call_id": c["tool_call_id"],
+                "content": content,
+            })
+        if row.get("content"):
+            items.append({"role": "assistant", "content": row["content"]})
+        return items
+    # Legacy / no-tool-calls path — unchanged shape.
+    return [{"role": row.get("role"), "content": row.get("content") or ""}]
+
+
 router = APIRouter(prefix="/chat", tags=["chat"])
 openrouter_service = OpenRouterService()
 tool_service = ToolService()
@@ -107,12 +194,16 @@ async def stream_chat(
     if not thread_result.data:
         raise HTTPException(status_code=404, detail="Thread not found")
 
-    # Load chat history — branch-aware when parent_message_id is provided
+    # Load chat history — branch-aware when parent_message_id is provided.
+    # Phase 11 Plan 11-04 (MEM-01..03): both SELECT calls widened to include
+    # `tool_calls` JSONB so `_expand_history_row` can reconstruct the OpenAI
+    # tool-call triplet for rows whose calls carry `tool_call_id`. Legacy
+    # rows fall back to flat {role, content} per D-P11-03.
     if body.parent_message_id:
         # Branch mode: walk ancestor chain from the specified parent
         all_messages = (
             client.table("messages")
-            .select("id, role, content, parent_message_id")
+            .select("id, role, content, parent_message_id, tool_calls")
             .eq("thread_id", body.thread_id)
             .eq("user_id", user["id"])
             .execute()
@@ -126,17 +217,22 @@ async def stream_chat(
             chain.append(msg_map[current_id])
             current_id = msg_map[current_id].get("parent_message_id")
         chain.reverse()
-        history = [{"role": m["role"], "content": m["content"]} for m in chain]
+        history = []
+        for m in chain:
+            history.extend(_expand_history_row(m))
     else:
         # Flat mode: all messages in order (existing behavior)
-        history = (
+        flat_rows = (
             client.table("messages")
-            .select("role, content")
+            .select("role, content, tool_calls")
             .eq("thread_id", body.thread_id)
             .eq("user_id", user["id"])
             .order("created_at")
             .execute()
         ).data or []
+        history = []
+        for m in flat_rows:
+            history.extend(_expand_history_row(m))
 
     # Load system-level model config
     sys_settings = get_system_settings()
@@ -424,8 +520,15 @@ async def stream_chat(
                             )
                         except Exception:
                             pass  # audit is fire-and-forget per existing pattern
+                    # Phase 11 Plan 11-04 (D-P11-08): persist tool_call_id +
+                    # derived status so the next turn's history-load can
+                    # reconstruct the OpenAI tool-call triplet (MEM-01..03).
                     tool_records.append(ToolCallRecord(
-                        tool=func_name, input=func_args, output=tool_output
+                        tool=func_name,
+                        input=func_args,
+                        output=tool_output,
+                        tool_call_id=tc["id"],
+                        status=_derive_tool_status(func_name, tool_output),
                     ))
                 except EgressBlockedAbort:
                     # Bubble up to event_generator's outer handler — DO NOT
@@ -434,7 +537,14 @@ async def stream_chat(
                 except Exception as e:
                     tool_output = {"error": str(e)}
                     tool_records.append(ToolCallRecord(
-                        tool=func_name, input=func_args, output={}, error=str(e)
+                        tool=func_name,
+                        input=func_args,
+                        output={},
+                        error=str(e),
+                        tool_call_id=tc["id"],
+                        status=_derive_tool_status(
+                            func_name, None, exception_caught=True,
+                        ),
                     ))
 
                 # Phase 5 D-89: skeleton emit when redaction is ON
@@ -950,13 +1060,31 @@ async def _run_tool_loop_for_test(
                             token=token,
                             stream_callback=None,
                         )
+                # Phase 11 Plan 11-04 (MEM-01): persist successful multi-agent
+                # tool call. Pre-Phase-11 only the exception path below
+                # appended a record — the success path was a silent gap.
+                from app.models.tools import ToolCallRecord
+                tool_records.append(ToolCallRecord(
+                    tool=func_name,
+                    input=func_args,
+                    output=tool_output,
+                    tool_call_id=tc["id"],
+                    status=_derive_tool_status(func_name, tool_output),
+                ))
             except EgressBlockedAbort:
                 raise
             except Exception as e:
                 tool_output = {"error": str(e)}
                 from app.models.tools import ToolCallRecord
                 tool_records.append(ToolCallRecord(
-                    tool=func_name, input=func_args, output={}, error=str(e)
+                    tool=func_name,
+                    input=func_args,
+                    output={},
+                    error=str(e),
+                    tool_call_id=tc["id"],
+                    status=_derive_tool_status(
+                        func_name, None, exception_caught=True,
+                    ),
                 ))
 
             if redaction_on:
