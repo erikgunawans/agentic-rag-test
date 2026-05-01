@@ -376,7 +376,7 @@ export function SkillsPage() {
 
   async function handleDeleteFile(fileId: string, filename: string) {
     if (!selectedSkill) return
-    if (!confirm(t('skills.fileDeleteConfirm'))) return
+    if (!confirm(t('skills.fileDeleteConfirm', { filename }))) return
     try {
       await apiFetch(`/skills/${selectedSkill.id}/files/${fileId}`, { method: 'DELETE' })
       // Re-fetch file list
@@ -388,7 +388,6 @@ export function SkillsPage() {
     } catch {
       setErrorBanner(t('skills.errorUpload'))
     }
-    void filename  // suppress unused parameter warning
   }
 
   async function openPreview(file: SkillFile) {
@@ -1019,7 +1018,7 @@ export function SkillsPage() {
             <button
               onClick={togglePanel}
               className="flex items-center justify-center h-8 w-8 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors focus-ring"
-              aria-label={t('skills.cancel')}
+              aria-label={t('skills.collapsePanel')}
             >
               <PanelLeftClose className="h-4 w-4" />
             </button>

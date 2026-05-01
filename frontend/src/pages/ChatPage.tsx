@@ -22,22 +22,28 @@ export function ChatPage() {
     activeAgent,
     redactionStage,
     handleSendMessage,
+    handleSendFirstMessage,
     handleSwitchBranch,
     handleForkAt,
     handleCancelFork,
   } = useChatContext()
 
   // Consume location.state.prefill exactly once. Sources: SkillsPage "Create with AI" or "Try in Chat" buttons.
+  // Re-runs when activeThreadId changes so we don't discard prefill before the thread is ready.
   useEffect(() => {
     const stateObj = location.state as { prefill?: string } | null
     const prefill = stateObj?.prefill
     if (prefill && !consumedRef.current) {
       consumedRef.current = true
-      handleSendMessage(prefill)
+      if (activeThreadId) {
+        handleSendMessage(prefill)
+      } else {
+        handleSendFirstMessage(prefill)
+      }
       // Clear the state so refresh / back-nav doesn't re-trigger.
       navigate(location.pathname, { replace: true, state: null })
     }
-  }, [location.state, location.pathname, handleSendMessage, navigate])
+  }, [location.state, location.pathname, activeThreadId, handleSendMessage, handleSendFirstMessage, navigate])
 
   if (!activeThreadId) {
     return <WelcomeScreen />
