@@ -191,6 +191,8 @@ def build_llm_tools(
     for tool in _REGISTRY.values():
         if tool.loading != "immediate" and tool.name not in active_set:
             continue
+        if not tool.available:  # Phase 15 (D-P15-11): skip disconnected MCP server tools
+            continue
         if _is_disabled_by_toggle(
             tool,
             web_search_enabled=web_search_enabled,
@@ -240,7 +242,9 @@ async def build_catalog_block(
     tools = [
         t
         for t in _REGISTRY.values()
-        if t.name != "tool_search" and _passes_agent_filter(t, agent_allowed_tools)
+        if t.name != "tool_search"
+        and t.available  # Phase 15 (D-P15-11): skip unavailable MCP server tools
+        and _passes_agent_filter(t, agent_allowed_tools)
     ]
     if not tools:
         return ""
@@ -476,6 +480,65 @@ def _register_tool_search() -> None:
         loading="immediate",
         executor=_executor,
     )
+
+
+# ---------------------------------------------------------------------------
+# Phase 15 — MCP server availability management (D-P15-11).
+# ---------------------------------------------------------------------------
+
+
+def mark_server_unavailable(server_name: str) -> int:
+    """Mark all tools from `server_name` as unavailable (D-P15-11).
+
+    Iterates _REGISTRY and sets available=False on every tool whose name
+    starts with f"{server_name}__". Returns the count of tools marked.
+    Called by MCPClientManager when a server disconnects.
+
+    Uses model_copy(update={...}) for Pydantic v2 compatibility — ToolDefinition
+    uses ConfigDict without frozen=True so direct assignment also works, but
+    model_copy is the safer forward-compatible approach.
+    """
+    count = 0
+    prefix = f"{server_name}__"
+    for name, tool in list(_REGISTRY.items()):
+        if name.startswith(prefix):
+            try:
+                tool.available = False
+            except Exception:
+                # Pydantic v2 frozen model fallback
+                _REGISTRY[name] = tool.model_copy(update={"available": False})
+            count += 1
+    if count:
+        logger.info(
+            "tool_registry: marked %d tools unavailable for server=%s",
+            count,
+            server_name,
+        )
+    return count
+
+
+def mark_server_available(server_name: str) -> int:
+    """Mark all tools from `server_name` as available again (D-P15-12).
+
+    Called by MCPClientManager after a successful reconnect.
+    Returns the count of tools re-enabled.
+    """
+    count = 0
+    prefix = f"{server_name}__"
+    for name, tool in list(_REGISTRY.items()):
+        if name.startswith(prefix):
+            try:
+                tool.available = True
+            except Exception:
+                _REGISTRY[name] = tool.model_copy(update={"available": True})
+            count += 1
+    if count:
+        logger.info(
+            "tool_registry: marked %d tools available for server=%s",
+            count,
+            server_name,
+        )
+    return count
 
 
 # Run self-registration at module load. The chat.py flag-off path never imports

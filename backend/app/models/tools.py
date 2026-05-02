@@ -127,6 +127,7 @@ class ToolCallSummary(BaseModel):
 
 class ToolDefinition(BaseModel):
     """Phase 13 (TOOL-04, TOOL-06): registry entry for native, skill, or MCP tools.
+    Phase 15 (MCP-04, MCP-05): adds `available` field for server-disconnection tracking.
 
     D-P13-01: native tools register via adapter wrap (executor delegates to ToolService.execute_tool).
     D-P13-02: skills register as first-class tools with schema={} (parameterless).
@@ -145,3 +146,7 @@ class ToolDefinition(BaseModel):
     source: Literal["native", "skill", "mcp"]
     loading: Literal["immediate", "deferred"]
     executor: Callable[..., Awaitable[dict | str]]
+    # Phase 15 (D-P15-11): availability flag for MCP server disconnect tracking.
+    # Default True: all existing native/skill tools are always available.
+    # MCPClientManager.mark_server_unavailable() flips this to False on disconnect.
+    available: bool = True
