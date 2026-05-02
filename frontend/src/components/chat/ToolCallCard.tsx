@@ -3,6 +3,7 @@ import { Database, Search, Globe, FileText, ChevronDown, ChevronRight, Loader2, 
 import type { ToolCallRecord } from '@/lib/database.types'
 import { useI18n } from '@/i18n/I18nContext'
 import { CodeExecutionPanel } from './CodeExecutionPanel'
+import { SubAgentPanel, hasSubAgentState, type SubAgentState } from './SubAgentPanel'
 
 const TOOL_CONFIG: Record<string, { icon: typeof Database; label: string }> = {
   search_documents: { icon: Search, label: 'Document Search' },
@@ -127,10 +128,16 @@ export function ToolCallList({ toolCalls, sandboxStreams }: ToolCallListProps) {
   // D-P11-01 + D-P11-05: split execute_code calls (with tool_call_id) into a
   // separate vertical-stack list rendered with `gap-6`. Other tools keep the
   // existing `space-y-0.5` rhythm.
+  // Phase 12 / D-P12-15: ALSO branch on sub_agent_state presence — calls that
+  // carry persisted sub-agent run state render via SubAgentPanel for
+  // history-reload (HIST-02, HIST-05).
   const sandboxCalls: ToolCallRecord[] = []
+  const subAgentCalls: ToolCallRecord[] = []
   const otherCalls: ToolCallRecord[] = []
   for (const tc of toolCalls) {
-    if (tc.tool === 'execute_code' && tc.tool_call_id) {
+    if (hasSubAgentState(tc)) {
+      subAgentCalls.push(tc)
+    } else if (tc.tool === 'execute_code' && tc.tool_call_id) {
       sandboxCalls.push(tc)
     } else {
       otherCalls.push(tc)
@@ -139,35 +146,66 @@ export function ToolCallList({ toolCalls, sandboxStreams }: ToolCallListProps) {
 
   return (
     <>
+      {subAgentCalls.length > 0 && (
+        <div className="flex flex-col gap-2 mb-2">
+          {subAgentCalls.map((tc) => (
+            <SubAgentPanel
+              key={tc.tool_call_id ?? `${tc.tool}-${JSON.stringify(tc.input)}`}
+              state={tc.sub_agent_state as unknown as SubAgentState}
+            />
+          ))}
+        </div>
+      )}
       {sandboxCalls.length > 0 && (
         <div className="flex flex-col gap-6 mb-2">
           {sandboxCalls.map((tc) => {
             const tcid = tc.tool_call_id as string
             const live = sandboxStreams?.get(tcid)
+            // Phase 12 / HIST-03 / D-P12-14: prefer code_execution_state when
+            // present (richer post-history-reload state), fall back to output
+            // for legacy / live data.
+            const ces =
+              typeof tc.code_execution_state === 'object' && tc.code_execution_state !== null
+                ? (tc.code_execution_state as Record<string, unknown>)
+                : null
             const out =
               typeof tc.output === 'object' && tc.output !== null
                 ? (tc.output as Record<string, unknown>)
                 : {}
-            const persistedStdout = (out.stdout_lines as string[] | undefined)
-              ?? (typeof out.stdout === 'string' ? (out.stdout as string).split('\n') : [])
-            const persistedStderr = (out.stderr_lines as string[] | undefined)
-              ?? (typeof out.stderr === 'string' ? (out.stderr as string).split('\n') : [])
+            const persistedStdout =
+              ces && typeof ces.stdout === 'string'
+                ? (ces.stdout as string).split('\n')
+                : (out.stdout_lines as string[] | undefined)
+                  ?? (typeof out.stdout === 'string' ? (out.stdout as string).split('\n') : [])
+            const persistedStderr =
+              ces && typeof ces.stderr === 'string'
+                ? (ces.stderr as string).split('\n')
+                : (out.stderr_lines as string[] | undefined)
+                  ?? (typeof out.stderr === 'string' ? (out.stderr as string).split('\n') : [])
             const stdoutLines = live?.stdout ?? persistedStdout ?? []
             const stderrLines = live?.stderr ?? persistedStderr ?? []
             const persistedStatus =
               (tc.status as 'success' | 'error' | 'timeout' | null | undefined) ?? null
             const status: 'pending' | 'running' | 'success' | 'error' | 'timeout' =
               live ? 'running' : (persistedStatus ?? 'success')
-            const code = (tc.input as { code?: string })?.code ?? ''
+            const code =
+              (ces?.code as string | undefined)
+              ?? (tc.input as { code?: string })?.code
+              ?? ''
             const files =
-              (out.files as { filename: string; size_bytes: number; signed_url: string }[] | undefined)
+              (ces?.files as { filename: string; size_bytes: number; signed_url: string }[] | undefined)
+              ?? (out.files as { filename: string; size_bytes: number; signed_url: string }[] | undefined)
               ?? []
             // Per backend/app/services/sandbox_service.py L284, the sandbox
             // tool_output dict's canonical key is `execution_id`. There is no
             // `id` key. Do NOT use a `?? out.id` fallback chain.
             const executionId = out.execution_id as string | undefined
-            const executionMs = out.execution_ms as number | undefined
-            const errorType = out.error_type as string | undefined
+            const executionMs =
+              (ces?.execution_ms as number | undefined)
+              ?? (out.execution_ms as number | undefined)
+            const errorType =
+              (ces?.error_type as string | undefined)
+              ?? (out.error_type as string | undefined)
             return (
               <CodeExecutionPanel
                 key={tcid}
