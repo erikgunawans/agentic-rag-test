@@ -66,7 +66,7 @@ Last activity: 2026-05-02 -- Phase 17 execution started
 - Knowledge graph at `graphify-out/` (1,211 nodes, 192 communities; god-nodes: `HybridRetrievalService`, `ToolService`)
 - Workflow config: `granularity=standard`, `parallel=true`, `model_profile=balanced`, `research=skip`, `plan_check=on`, `verifier=on`
 - Active deployments: Frontend on Vercel (`main` branch), Backend on Railway, Supabase project `qedhulpfezucnfadlfiz`
-- Migrations applied to production: 001–037 (037 was REDACT-01 deny-list column from v1.2)
+- Migrations applied to production: 001–038 (038 added `agent_todos` table + `messages.deep_mode` column for Phase 17; verified by 6 passing integration tests on 2026-05-03)
 - v1.3 contract / invariants:
   - Privacy invariant preserved — all new agent + harness LLM payloads route through `backend/app/services/redaction/egress.py`
   - Frontend agent-loop state machine NOT introduced — all loop control stays in backend (KV-cache friendliness, single source of truth)
