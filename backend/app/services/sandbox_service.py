@@ -30,6 +30,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import re
 import tempfile
 import uuid
 from dataclasses import dataclass
@@ -52,6 +53,34 @@ _SESSION_IDLE_TTL_MINUTES = 30       # D-P10-10: idle sessions evicted after 30m
 _SIGNED_URL_TTL_SECONDS = 3600       # D-P10-14: 1-hour signed URL TTL
 _OUTPUT_DIR = "/sandbox/output"      # Sandbox container output directory
 
+# ── Security: dangerous import scanner (Phase 14 / BRIDGE-07, D-P14-06) ─────
+# PRD §Security: "existing security policy blocks dangerous imports".
+# This scanner is called at the top of execute() before container.run().
+# Pattern covers: subprocess, raw sockets, __import__ with dangerous names.
+# Does NOT flag urllib.request or urllib.parse (used by bridge ToolClient).
+_DANGEROUS_IMPORT_PATTERNS = re.compile(
+    r"import\s+subprocess"
+    r"|from\s+subprocess\s+import"
+    r"|import\s+socket"
+    r"|from\s+socket\s+import"
+    r"|__import__\s*\(\s*['\"]subprocess"
+    r"|__import__\s*\(\s*['\"]socket",
+    re.IGNORECASE,
+)
+
+
+def _check_dangerous_imports(code: str) -> str | None:
+    """Scan submitted code for dangerous import patterns.
+
+    Returns the matched pattern string if found, else None.
+    Called at the top of SandboxService.execute() before container.run().
+
+    Safe: urllib.request, urllib.parse (used by bridge ToolClient stubs).
+    Blocked: subprocess, socket, __import__ with those names.
+    """
+    m = _DANGEROUS_IMPORT_PATTERNS.search(code)
+    return m.group(0) if m else None
+
 
 @dataclass
 class SandboxSession:
@@ -60,6 +89,7 @@ class SandboxSession:
     container: object       # llm-sandbox BaseSession instance (opened)
     last_used: datetime
     thread_id: str
+    bridge_token: str | None = None  # Phase 14 D-P14-03: ephemeral bridge token UUID
 
 
 class SandboxService:
@@ -101,6 +131,12 @@ class SandboxService:
                     sess = self._sessions.pop(tid, None)
                     if sess is None:
                         continue
+                    # Phase 14 D-P14-03: revoke bridge token when session is evicted
+                    try:
+                        from app.services.sandbox_bridge_service import revoke_token
+                        revoke_token(tid)
+                    except Exception as exc:
+                        logger.warning("bridge revoke_token failed tid=%s err=%s", tid, exc)
                     try:
                         sess.container.close()
                     except Exception as exc:
@@ -113,7 +149,7 @@ class SandboxService:
                 logger.error("sandbox cleanup loop error: %s", exc, exc_info=True)
                 # Loop continues — never let cleanup bring down the service.
 
-    async def _get_or_create_session(self, thread_id: str) -> SandboxSession:
+    async def _get_or_create_session(self, thread_id: str, user_id: str = "") -> SandboxSession:
         """D-P10-04: one container per thread, lazy-create on first call.
 
         Uses asyncio.Lock to prevent race conditions when two concurrent requests
@@ -123,42 +159,68 @@ class SandboxService:
             sess = self._sessions.get(thread_id)
             if sess is not None:
                 return sess
-            container = self._create_container()
+            container, bridge_token = self._create_container(thread_id, user_id)
             sess = SandboxSession(
                 container=container,
                 last_used=datetime.utcnow(),
                 thread_id=thread_id,
+                bridge_token=bridge_token,  # Phase 14 D-P14-03
             )
             self._sessions[thread_id] = sess
             return sess
 
-    def _create_container(self) -> object:
+    def _create_container(self, thread_id: str = "", user_id: str = "") -> tuple[object, str | None]:
         """Construct and open an llm-sandbox session bound to settings.sandbox_image.
 
         D-P10-02: honors DOCKER_HOST env var for Railway socket mount.
         D-P10-01: Docker backend, Python language.
+        Phase 14 D-P14-02/D-P14-05: injects BRIDGE_URL + BRIDGE_TOKEN into container
+        environment when both SANDBOX_ENABLED and TOOL_REGISTRY_ENABLED are True.
 
         Note on security posture (T-10-12): llm-sandbox creates an isolated Docker
         container. Backend env vars are NOT inherited by the sandbox container —
         the user's code cannot access secrets (D-P10-01 architectural decision).
+
+        Returns:
+            (container, bridge_token): container is the opened llm-sandbox session;
+            bridge_token is the UUID string if bridge is active, else None.
         """
         settings = get_settings()
         # D-P10-02: set DOCKER_HOST so docker-py picks up the correct socket
         os.environ.setdefault("DOCKER_HOST", settings.sandbox_docker_host)
 
+        # D-P14-05: bridge only active when BOTH flags are True
+        bridge_active = settings.sandbox_enabled and settings.tool_registry_enabled
+        env: dict[str, str] = {}
+        bridge_token: str | None = None
+
+        if bridge_active and thread_id:
+            # Lazy import (TOOL-05): only imported when flag is on
+            from app.services.sandbox_bridge_service import create_bridge_token
+            bridge_token = create_bridge_token(thread_id, user_id)
+            bridge_url = f"http://host.docker.internal:{settings.bridge_port}"
+            env = {"BRIDGE_URL": bridge_url, "BRIDGE_TOKEN": bridge_token}
+            logger.debug(
+                "_create_container: bridge active bridge_url=%s thread_id=%s",
+                bridge_url,
+                thread_id,
+            )
+
         # llm-sandbox v0.3.39: SandboxSession is a factory alias for create_session().
         # Use `keep_template=True` so the container is kept alive after each run()
         # call, enabling variable persistence (D-P10-04 / SANDBOX-02).
+        # environment= param injects env vars into the container (bridge token/URL).
         container = SandboxSession(
             backend=SandboxBackend.DOCKER,
             lang=SupportedLanguage.PYTHON,
             image=settings.sandbox_image,
             keep_template=True,    # preserve container between run() calls
             verbose=False,
+            **({"environment": env} if env else {}),
         )
         # Explicitly open the session so it's ready for run() calls.
         container.open()
-        return container
+        return container, bridge_token
 
     # ── Execution ────────────────────────────────────────────────────────────
 
@@ -191,8 +253,29 @@ class SandboxService:
                 "execution_id": str,           # UUID for code_executions row + storage path
             }
         """
+        # Phase 14 / BRIDGE-07 (D-P14-06): dangerous import scan before any execution.
+        dangerous_match = _check_dangerous_imports(code)
+        if dangerous_match:
+            logger.warning(
+                "sandbox_execute: dangerous import blocked pattern=%r thread_id=%s",
+                dangerous_match,
+                thread_id,
+            )
+            return {
+                "error": "security_violation",
+                "pattern": dangerous_match,
+                "message": f"Dangerous import blocked: {dangerous_match!r}",
+                "stdout": "",
+                "stderr": f"SecurityError: import of '{dangerous_match}' is not allowed in the sandbox.",
+                "exit_code": -1,
+                "error_type": "security_violation",
+                "execution_ms": 0,
+                "files": [],
+                "execution_id": str(uuid.uuid4()),
+            }
+
         await self._ensure_cleanup_task()
-        session = await self._get_or_create_session(thread_id)
+        session = await self._get_or_create_session(thread_id=thread_id, user_id=user_id)
         session.last_used = datetime.utcnow()
 
         execution_id = str(uuid.uuid4())
