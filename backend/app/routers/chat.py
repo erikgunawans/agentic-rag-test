@@ -128,9 +128,26 @@ def _expand_history_row(row: dict) -> list[dict]:
         }]
         for c in calls:
             output = c.get("output")
-            # Avoid double-encoding when output was already collapsed to a
-            # string by the Plan 11-01 truncation validator.
-            if isinstance(output, str):
+            # Phase 12 / HIST-06 / D-P12-16: when persisted call carries
+            # sub_agent_state or code_execution_state, embed them into the
+            # OpenAI {role:"tool", content} payload so the LLM's follow-up
+            # reasoning has the same context it saw live.
+            sub_agent_state = c.get("sub_agent_state")
+            code_execution_state = c.get("code_execution_state")
+            if sub_agent_state is not None or code_execution_state is not None:
+                tool_payload: dict = {}
+                if isinstance(output, dict):
+                    tool_payload.update(output)
+                elif output is not None:
+                    tool_payload["output"] = output
+                if sub_agent_state is not None:
+                    tool_payload["sub_agent_state"] = sub_agent_state
+                if code_execution_state is not None:
+                    tool_payload["code_execution_state"] = code_execution_state
+                content = json.dumps(tool_payload, ensure_ascii=False)
+            elif isinstance(output, str):
+                # Avoid double-encoding when output was already collapsed to
+                # a string by the Plan 11-01 truncation validator.
                 content = output
             else:
                 content = json.dumps(output, ensure_ascii=False)
@@ -144,6 +161,45 @@ def _expand_history_row(row: dict) -> list[dict]:
         return items
     # Legacy / no-tool-calls path — unchanged shape.
     return [{"role": row.get("role"), "content": row.get("content") or ""}]
+
+
+def _persist_round_message(
+    client,
+    *,
+    thread_id: str,
+    user_id: str,
+    parent_message_id: str,
+    content: str,
+    tool_records: list[ToolCallRecord],
+    agent_name: str | None,
+) -> str:
+    """Phase 12 / HIST-01 / D-P12-11 / D-P12-12: insert ONE assistant
+    messages row for a single agentic round.
+
+    Each round's row carries that round's tool_records only — NOT the
+    cumulative array. Returns the new message_id; this becomes the next
+    round's parent_message_id, building the natural created_at-ordered
+    chain that the frontend reconstructs into an interleaved transcript.
+
+    Empty rounds (no content AND no tool_records AND no agent_name) are
+    a no-op — return parent_message_id unchanged.
+    """
+    if not content and not tool_records and not agent_name:
+        return parent_message_id
+    insert_data = {
+        "thread_id": thread_id,
+        "user_id": user_id,
+        "role": "assistant",
+        "content": content,
+        "parent_message_id": parent_message_id,
+    }
+    if tool_records or agent_name:
+        insert_data["tool_calls"] = ToolCallSummary(
+            agent=agent_name,
+            calls=tool_records,
+        ).model_dump()
+    result = client.table("messages").insert(insert_data).execute()
+    return result.data[0]["id"]
 
 
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -295,6 +351,12 @@ async def stream_chat(
             (``{type, tool}`` with NO input/output) per D-89.
 
         When OFF: behavior is byte-identical to the Phase 0 baseline.
+
+        Phase 12 (HIST-01 / CTX-01 / D-P12-11/12) — yields one
+        ``("round", {"content", "tool_records", "usage"})`` event per LLM
+        iteration that produced tool_calls. The outer caller persists
+        each round and chains parent_message_id forward, and accumulates
+        usage across rounds for the terminal SSE event.
         """
         tool_records = []
         for _iteration in range(max_iterations):
@@ -319,8 +381,17 @@ async def stream_chat(
                 messages, tools, model=llm_model
             )
 
+            # Phase 12 / CTX-01 / CTX-06: surface usage from every round even
+            # when this iteration produced no tool_calls (terminal text round).
+            # The outer event_generator accumulates this for the SSE usage event.
             if not result["tool_calls"]:
+                yield "round_usage", {"usage": result.get("usage")}
                 break
+
+            # Phase 12 / HIST-01 / D-P12-12: track which tool_records were
+            # added in THIS iteration so the per-round messages row carries
+            # only this round's calls (not the cumulative array).
+            iteration_start_idx = len(tool_records)
 
             for tc in result["tool_calls"]:
                 func_name = tc["function"]["name"]
@@ -569,13 +640,49 @@ async def stream_chat(
                     "content": json.dumps(tool_output),
                 })
 
-        # Expose collected records for persistence
+            # Phase 12 / HIST-01 / D-P12-11/D-P12-12: yield this round's
+            # records + content + usage so the outer caller can persist
+            # ONE messages row per agentic round (not the cumulative array).
+            iteration_tool_records = tool_records[iteration_start_idx:]
+            yield "round", {
+                "content": result.get("content") or "",
+                "tool_records": iteration_tool_records,
+                "usage": result.get("usage"),
+            }
+
+        # Expose collected records for persistence (legacy — retained for
+        # any consumer; outer event_generator now drives persistence via
+        # the per-round "round" events).
         yield "records", tool_records
 
     async def event_generator():
         tool_records = []
         full_response = ""
         agent_name = None
+
+        # Phase 12 / HIST-01 / D-P12-12: per-round persistence chains via
+        # parent_message_id; each round produces its own messages row.
+        current_parent_id = user_msg_id
+        # Phase 12 / CTX-01 / D-P12-01: usage tracking across all LLM rounds.
+        # last_prompt_tokens uses the LAST round's snapshot (most accurate);
+        # cumulative_completion_tokens sums every round's completion.
+        last_prompt_tokens: int | None = None
+        cumulative_completion_tokens = 0
+        any_usage_seen = False
+
+        def _accumulate_usage(usage: dict | None) -> None:
+            """CTX-01: accumulate usage from one round (helper to keep both
+            tool-loop and stream_response sites symmetric)."""
+            nonlocal last_prompt_tokens, cumulative_completion_tokens, any_usage_seen
+            if usage is None:
+                return
+            any_usage_seen = True
+            prompt = usage.get("prompt_tokens")
+            completion = usage.get("completion_tokens")
+            if prompt is not None:
+                last_prompt_tokens = prompt
+            if completion is not None:
+                cumulative_completion_tokens += completion
 
         # Phase 5 D-83/D-84/D-86/D-93: per-turn redaction setup chokepoint.
         # When OFF: identity passthrough — anonymized_history is the loaded
@@ -675,6 +782,24 @@ async def stream_chat(
                 ):
                     if event_type == "records":
                         tool_records = data
+                    elif event_type == "round":
+                        # Phase 12 / HIST-01 / D-P12-12: persist this round
+                        # immediately; chain parent_message_id forward.
+                        new_parent = _persist_round_message(
+                            client,
+                            thread_id=body.thread_id,
+                            user_id=user["id"],
+                            parent_message_id=current_parent_id,
+                            content=data["content"],
+                            tool_records=data["tool_records"],
+                            agent_name=agent_name,
+                        )
+                        current_parent_id = new_parent
+                        _accumulate_usage(data.get("usage"))
+                    elif event_type == "round_usage":
+                        # Phase 12 / CTX-01: terminal-text-only round produced
+                        # no tool_calls but may carry usage data.
+                        _accumulate_usage(data.get("usage"))
                     elif event_type in ("code_stdout", "code_stderr"):
                         # Phase 10 SANDBOX-03: stream sandbox lines live regardless of redaction_on.
                         # Lines are already anonymized inside sandbox_stream_callback (alert #2).
@@ -707,6 +832,9 @@ async def stream_chat(
                         full_response += chunk["delta"]
                         if not redaction_on:
                             yield f"data: {json.dumps({'type': 'delta', 'delta': chunk['delta'], 'done': False})}\n\n"
+                    else:
+                        # Phase 12 / CTX-01: capture usage from terminal chunk if present.
+                        _accumulate_usage(chunk.get("usage"))
 
             else:
                 # --- Single-agent path (Module 7 behavior) ---
@@ -746,6 +874,24 @@ async def stream_chat(
                 ):
                     if event_type == "records":
                         tool_records = data
+                    elif event_type == "round":
+                        # Phase 12 / HIST-01 / D-P12-12: persist this round
+                        # immediately; chain parent_message_id forward.
+                        new_parent = _persist_round_message(
+                            client,
+                            thread_id=body.thread_id,
+                            user_id=user["id"],
+                            parent_message_id=current_parent_id,
+                            content=data["content"],
+                            tool_records=data["tool_records"],
+                            agent_name=agent_name,
+                        )
+                        current_parent_id = new_parent
+                        _accumulate_usage(data.get("usage"))
+                    elif event_type == "round_usage":
+                        # Phase 12 / CTX-01: terminal-text-only round produced
+                        # no tool_calls but may carry usage data.
+                        _accumulate_usage(data.get("usage"))
                     elif event_type in ("code_stdout", "code_stderr"):
                         # Phase 10 SANDBOX-03: stream sandbox lines live regardless of redaction_on.
                         # Lines are already anonymized inside sandbox_stream_callback (alert #2).
@@ -778,6 +924,9 @@ async def stream_chat(
                         full_response += chunk["delta"]
                         if not redaction_on:
                             yield f"data: {json.dumps({'type': 'delta', 'delta': chunk['delta'], 'done': False})}\n\n"
+                    else:
+                        # Phase 12 / CTX-01: capture usage from terminal chunk if present.
+                        _accumulate_usage(chunk.get("usage"))
 
         except EgressBlockedAbort:
             yield f"data: {json.dumps({'type': 'redaction_status', 'stage': 'blocked'})}\n\n"
@@ -812,21 +961,31 @@ async def stream_chat(
         if agent_name:
             yield f"data: {json.dumps({'type': 'agent_done', 'agent': agent_name})}\n\n"
 
-        # Persist assistant message after streaming completes (chained to user message)
+        # Phase 12 / HIST-01 / D-P12-12: persist the FINAL round — the
+        # user-visible streamed text. tool_records=[] because tool calls (if
+        # any) were already persisted in earlier rounds via the "round" event
+        # handler above. parent_message_id chains from the last round (or the
+        # user message id when this exchange had no tool rounds).
         if full_response:
-            insert_data = {
-                "thread_id": body.thread_id,
-                "user_id": user["id"],
-                "role": "assistant",
-                "content": full_response,
-                "parent_message_id": user_msg_id,
-            }
-            if tool_records or agent_name:
-                insert_data["tool_calls"] = ToolCallSummary(
-                    agent=agent_name,
-                    calls=tool_records,
-                ).model_dump()
-            client.table("messages").insert(insert_data).execute()
+            # Edge case: legacy callers (no rounds yielded) still need a
+            # tool_records-bearing final row for backwards-compatible
+            # history reconstruction. When current_parent_id is still
+            # user_msg_id (no rounds happened) AND tool_records is non-empty
+            # (defensive — shouldn't happen post-Phase-12), include them.
+            final_records = (
+                tool_records
+                if (current_parent_id == user_msg_id and tool_records)
+                else []
+            )
+            current_parent_id = _persist_round_message(
+                client,
+                thread_id=body.thread_id,
+                user_id=user["id"],
+                parent_message_id=current_parent_id,
+                content=full_response,
+                tool_records=final_records,
+                agent_name=agent_name,
+            )
 
         # Auto-generate thread title on first exchange
         if full_response:
@@ -888,6 +1047,13 @@ async def stream_chat(
                         body.thread_id, type(_fb_exc).__name__,
                     )
 
+        # Phase 12 / CTX-02 / D-P12-01: emit one terminal usage event when
+        # any round captured usage. CTX-06 graceful no-op when no provider
+        # emitted usage data — terminal {done:true} fires unchanged.
+        if any_usage_seen and last_prompt_tokens is not None:
+            total_tokens = last_prompt_tokens + cumulative_completion_tokens
+            yield f"data: {json.dumps({'type': 'usage', 'prompt_tokens': last_prompt_tokens, 'completion_tokens': cumulative_completion_tokens, 'total_tokens': total_tokens})}\n\n"
+
         yield f"data: {json.dumps({'type': 'delta', 'delta': '', 'done': True})}\n\n"
 
     return StreamingResponse(
@@ -940,8 +1106,13 @@ async def _run_tool_loop_for_test(
             messages, tools, model=tool_context.get("llm_model", "openai/gpt-4o-mini")
         )
 
+        # Phase 12 / CTX-01: surface usage even when this round had no tool_calls.
         if not result["tool_calls"]:
+            yield "round_usage", {"usage": result.get("usage")}
             break
+
+        # Phase 12 / HIST-01 / D-P12-12: track this iteration's records slice.
+        iteration_start_idx = len(tool_records)
 
         for tc in result["tool_calls"]:
             func_name = tc["function"]["name"]
@@ -1102,5 +1273,13 @@ async def _run_tool_loop_for_test(
                 "tool_call_id": tc["id"],
                 "content": json.dumps(tool_output),
             })
+
+        # Phase 12 / HIST-01 / D-P12-12: yield this round's records + content + usage.
+        iteration_tool_records = tool_records[iteration_start_idx:]
+        yield "round", {
+            "content": result.get("content") or "",
+            "tool_records": iteration_tool_records,
+            "usage": result.get("usage"),
+        }
 
     yield "records", tool_records
