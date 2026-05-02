@@ -3,14 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Advanced Tool Calling & Agent Intelligence
 status: planning
-last_updated: "2026-05-02T15:06:00.000Z"
-last_activity: 2026-05-02
+last_updated: "2026-05-02T09:10:34.510Z"
+last_activity: 2026-05-02 — Roadmap for v1.2 written; 34/34 requirements mapped to 5 phases (12–16)
 progress:
   total_phases: 5
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
-  percent: 0
 ---
 
 # State: LexCore
@@ -24,10 +23,10 @@ See: `.planning/PROJECT.md` (updated 2026-05-02 — v1.2 milestone started)
 
 ## Current Position
 
-Phase: Roadmap created (Phases 12–16 defined, no plans yet)
+Phase: Roadmap created (Phases 12–16 defined, no plans yet); Phase 16 CONTEXT.md captured
 Plan: —
-Status: Ready to plan Phase 12 (or any wave-A phase: 12 / 13 / 16 are dependency-free)
-Last activity: 2026-05-02 — Roadmap for v1.2 written; 34/34 requirements mapped to 5 phases (12–16)
+Status: Ready to plan Phase 12 (or any wave-A phase: 12 / 13 / 16 are dependency-free); Phase 16 has CONTEXT.md ready for `/gsd-plan-phase 16`
+Last activity: 2026-05-02 — Roadmap for v1.2 written; 34/34 requirements mapped to 5 phases (12–16); Phase 16 discuss-phase complete (auto-mode)
 
 ## Roadmap Snapshot (v1.2)
 
@@ -37,11 +36,12 @@ Last activity: 2026-05-02 — Roadmap for v1.2 written; 34/34 requirements mappe
 | 13 | Unified Tool Registry & `tool_search` | TOOL×6 (6) | — | Not started |
 | 14 | Sandbox HTTP Bridge (Code Mode) | BRIDGE×7 (7) | Phase 13 | Not started |
 | 15 | MCP Client Integration | MCP×6 (6) | Phase 13 | Not started |
-| 16 | v1.1 Backlog Cleanup | REDACT-01 + TEST-01 + UI-01 (3) | — | Not started |
+| 16 | v1.1 Backlog Cleanup | REDACT-01 + TEST-01 + UI-01 (3) | — | Context gathered (2026-05-02) |
 
 **Coverage:** 34/34 v1.2 requirements mapped, no orphans.
 
 **Suggested parallel waves** (`workflow.parallel=true`):
+
 - Wave A: Phase 12 ‖ Phase 13 ‖ Phase 16
 - Wave B: Phase 14 ‖ Phase 15 (after Phase 13)
 
