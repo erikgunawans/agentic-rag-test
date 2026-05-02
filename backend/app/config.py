@@ -89,6 +89,10 @@ class Settings(BaseSettings):
     sandbox_docker_host: str = "unix:///var/run/docker.sock"
     # D-P10-12: per-call execution timeout (seconds). Distinct from 30-min session TTL.
     sandbox_max_exec_seconds: int = 30
+    # Phase 14 (BRIDGE-01, D-P14-01): host port the bridge FastAPI app listens on.
+    # Sandbox containers connect to host.docker.internal:{bridge_port}.
+    # Env var: BRIDGE_PORT. Default matches PRD §Infrastructure.
+    bridge_port: int = 8002
 
     # Deployment
     frontend_url: str = "http://localhost:5173"
