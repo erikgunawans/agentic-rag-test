@@ -28,7 +28,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import shlex
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any
 
@@ -269,6 +269,13 @@ class MCPClientManager:
             )
             return False
         except Exception as e:
+            # WR-01: clean up stdio context if opened but connect failed, to avoid
+            # accumulating dead subprocess handles across repeated failed reconnects.
+            if cfg.name in self._open_contexts:
+                try:
+                    await self._open_contexts.pop(cfg.name).__aexit__(None, None, None)
+                except Exception:
+                    pass
             logger.warning(
                 "mcp_client_manager: failed to connect to server=%s: %s",
                 cfg.name,
