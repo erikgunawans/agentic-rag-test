@@ -27,13 +27,24 @@ function SelectValue({ className, ...props }: SelectPrimitive.Value.Props) {
 }
 
 function SelectTrigger({
+  asChild,
   className,
   size = "default",
   children,
   ...props
 }: SelectPrimitive.Trigger.Props & {
+  asChild?: boolean
   size?: "sm" | "default"
 }) {
+  if (asChild) {
+    return (
+      <SelectPrimitive.Trigger
+        data-slot="select-trigger"
+        render={children as React.ReactElement}
+        {...props}
+      />
+    )
+  }
   return (
     <SelectPrimitive.Trigger
       data-slot="select-trigger"
