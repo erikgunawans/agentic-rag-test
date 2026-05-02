@@ -22,8 +22,8 @@ key-decisions:
   - "Use canonical out.execution_id key (no `?? out.id` fallback) per backend/app/services/sandbox_service.py L284 — the sandbox tool_output dict has no `id` key."
   - "Add ChatPage.tsx as a third modified file (not in original plan <files>) because the prop-drill pattern requires ChatPage to destructure sandboxStreams from useChatContext() and pass it to MessageView."
 requirements-completed: [SANDBOX-07]
-duration: 14 min
-completed: 2026-05-01
+duration: 14 min (auto tasks); +overnight to UAT approval
+completed: 2026-05-02 (UAT approved by user)
 ---
 
 # Phase 11 Plan 07: ToolCallList Routing + sandboxStreams Plumbing Summary
@@ -132,9 +132,11 @@ Anti-grep guards (per plan's verify gates):
 
 ## Task 4 Checkpoint Handoff
 
-**Status:** AWAITING UAT — orchestrator must drive the 12-step verification with the human user.
+**Status:** APPROVED 2026-05-02 — user replied `approved` after the orchestrator presented the 12-step UAT script in the running browser session (frontend `:5174`, backend `:8000` `/health = ok`).
 
-**Plan 11-07 SUMMARY will be re-committed by the orchestrator after UAT confirms or surfaces issues.**
+All 12 verification steps passed. SANDBOX-07 + MEM-01..03 acceptance criteria are confirmed end-to-end through real execute_code rounds and a page-refresh persistence check.
+
+**Plan 11-07 SUMMARY re-committed with the UAT outcome by the orchestrator.**
 
 ### Prereqs for the orchestrator to verify before driving UAT
 

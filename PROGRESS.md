@@ -1,6 +1,135 @@
 # Progress
 
-PJAA CLM Platform (LexCore) **v0.3.0.1 — gap-closure patch on top of v0.3.0.0 ship (2026-04-28)**. PII Redaction milestone v1.0 (Phases 1-5) live in production with 3 post-ship gap-closures (Plans 05-07/05-08/05-09) verified. Phase 5 UAT: 3 PASS / 1 SKIPPED / 0 ISSUES. chat.py: 517 LOC full privacy integration. 22 routers, 19 services, 32 migrations. Backend (Railway) + Frontend (Vercel) both healthy. 1-week health check scheduled (`trig_01A1ZRy1m5TaCcvwiPZdXHx9`, fires 2026-05-05T02:00Z).
+PJAA CLM Platform (LexCore) — **Milestone v1.1 "Agent Skills & Code Execution" COMPLETE 2026-05-02 (5/5 phases, 26/26 plans).** Phase 11 (Code Execution UI & Persistent Tool Memory) UAT APPROVED + verified PASS-WITH-CAVEATS at HEAD `0170739`. 35 migrations, 23 routers, 20 services. ~314 unit tests pass. Ready to ship to production (`/deploy-lexcore` — remember to flip `SANDBOX_ENABLED=true` and publish `lexcore-sandbox:latest` or the panel never renders) and to run `/gsd-complete-milestone` for archival. v0.4.0.0 still the shipped version (next ship will bump). Fix B (PII deny list) remains queued.
+
+## Checkpoint 2026-05-02b (Phase 11 + Milestone v1.1 COMPLETE — UAT approved, verified)
+
+- **Session:** Drove the 12-step Plan 11-07 Task 4 UAT in a live local browser; user replied `approved`. Spawned `gsd-verifier` for goal-backward verification — verdict PASS-WITH-CAVEATS (4/4 requirements satisfied, 5/5 ROADMAP success criteria, 28/28 spot-checks). Marked Phase 11 + Milestone v1.1 complete in STATE.md, ROADMAP.md, and wrote phase-level `SUMMARY.md`.
+- **Branch:** master (`0170739` for code; closeout commit pending)
+- **Done:**
+  - **UAT approved 2026-05-02** — all 12 steps walked end-to-end at `http://localhost:5174/` (port 5174 because 5173 was occupied) against backend `:8000`. Steps 1-6 confirmed streaming + completion render; step 7 confirmed page-refresh persistence (MEM-01); steps 8-9 confirmed follow-up Fibonacci answer from memory with no `code_stdout`/`code_stderr` SSE events on the new turn (MEM-02/03 via DevTools Network); steps 10-12 confirmed legacy compat + multi-call gap-6 stacking + error path.
+  - **`gsd-verifier` ran goal-backward** — wrote `.planning/phases/11-code-execution-ui-persistent-tool-memory/VERIFICATION.md`. Verdict: PASS-WITH-CAVEATS. Walked SANDBOX-07 → CodeExecutionPanel.tsx:214-302 + ToolCallCard.tsx:130-186 + useChatState.ts:211-233 + translations.ts:666-682, 1346-1362; MEM-01 → tools.py:13-60 + chat.py:530, 544, 1071, 1084 (silent multi-agent success-path bug fixed at chat.py:1067-1073); MEM-02 → chat.py:97-146 (`_expand_history_row`); MEM-03 → UAT step 9 evidence. 6 risks flagged as operational, not technical (Railway sandbox readiness, multi-worker IPython sessions, signed-URL UX, PII redaction batch alignment, missing CodeExecutionPanel tests, legacy fallback corpus).
+  - **Plan 11-07 SUMMARY re-committed** — Task 4 status `AWAITING UAT` → `APPROVED 2026-05-02`.
+  - **Phase-level `SUMMARY.md` written** — `.planning/phases/11-code-execution-ui-persistent-tool-memory/SUMMARY.md` consolidates the 7 plans, requirements → code citations, decisions D-P11-01..D-P11-11, the silent-bug story, anti-grep guards, UAT outcome, risks, and milestone closeout call-to-action.
+  - **STATE.md** — `state.complete-phase` SDK call ran: status `executing → completed`; `completed_phases: 4 → 5`; `completed_plans: 19 → 26`; `percent: 73 → 100`. "Current focus" updated to "Milestone v1.1 — ALL 5 PHASES COMPLETE". Current Position rewritten with UAT approval marker.
+  - **ROADMAP.md** — Phase 11 row marked `✅ COMPLETED 2026-05-02` with 5/5 success criteria checkmarked; all 7 plan checkboxes flipped `[ ] → [x]`.
+- **Files changed (closeout):** `.planning/STATE.md`, `.planning/ROADMAP.md`, `.planning/phases/11-code-execution-ui-persistent-tool-memory/11-07-SUMMARY.md`, `.planning/phases/11-code-execution-ui-persistent-tool-memory/SUMMARY.md` (new), `.planning/phases/11-code-execution-ui-persistent-tool-memory/VERIFICATION.md` (new), `PROGRESS.md`, `~/.claude/projects/.../memory/project_state.md`, `~/.claude/projects/.../memory/MEMORY.md`
+- **Tests (final):** ~314 unit tests pass; backend `from app.main import app` imports cleanly; frontend `tsc --noEmit` clean across full type chain `SSEEvent → useChatState → MessageView → ToolCallList → CodeExecutionPanel`.
+- **Risks parked for the deploy / next milestone:**
+  - **Production sandbox readiness** — flip `SANDBOX_ENABLED=true` in Railway env + publish `lexcore-sandbox:latest` image + verify Docker daemon reachable, or the panel will never render in prod.
+  - **Multi-worker IPython sessions** don't survive Railway replica scaling (pre-existing Phase 10 concern).
+  - **No frontend component tests for CodeExecutionPanel** — 360-line component leans on UAT + tsc; `CodeExecutionPanel.test.tsx` would be a sensible follow-up.
+  - **Signed-URL download UX** — generic 2-second toast on failure; no 404 vs 500 vs network distinction.
+- **Next:** Pick one path:
+  1. **Ship v1.1 to production** — `/deploy-lexcore` runs the full pipeline (Vercel from `main`, Railway via `railway up`). Bump VERSION before tag.
+  2. **Archive milestone v1.1 first** — `/gsd-complete-milestone` moves ROADMAP/REQUIREMENTS to `.planning/milestones/v1.1-*` and resets workspace for the next milestone.
+  3. **Plan v1.2** — start with `/gsd-new-milestone` once the user has the next milestone's scope locked.
+
+## Checkpoint 2026-05-02 (Phase 11 — all 7 plans executed; human UAT pending)
+
+- **Session:** Drove `/gsd-execute-phase 11` end-to-end through all 4 waves; 7 plans coded, tested, merged onto master. Stopped at the blocking human-UAT checkpoint (Plan 11-07 Task 4) and started dev servers for the user to drive the 12-step verification.
+- **Branch:** master (`0170739` — Merge Plan 11-07 Tasks 1-3)
+- **Done — Wave 1 (parallel, 3 plans):**
+  - **11-01** (`9c440ac`, `679aa4f`, `fa89cd2`, merge `e2086fb`) — `ToolCallRecord` extended with `tool_call_id`, `status`, and a Pydantic `field_validator("output", mode="before")` that head-truncates serialized output to 50,000 bytes with the literal `… [truncated, N bytes]` marker (D-P11-04, D-P11-11). 11/11 unit tests added in `backend/tests/models/test_tool_call_record.py`.
+  - **11-02** (`d03c38b`, `1e770e4`, auto-merged) — `frontend/src/lib/database.types.ts` widened with `CodeStdoutEvent` / `CodeStderrEvent` SSE-event interfaces (Phase 10's wire shape) + `tool_call_id?` and `status?` fields on `ToolCallRecord`.
+  - **11-03** (`27363d1`, `0bb97ce`, `492ec82`, merge `6668fe8`) — New `GET /code-executions/{execution_id}` endpoint in `backend/app/routers/code_execution.py` for signed-URL refresh per D-P11-06. Reuses `_refresh_signed_urls` and `get_supabase_authed_client`. Cross-user isolation via RLS → 404 (no info leak). 4 integration tests added.
+- **Done — Wave 2 (parallel, 2 plans):**
+  - **11-04** (`3c20de5`, `6944c9f`, `1c396db`, merge `6b32c96`) — Three coordinated splices in `backend/app/routers/chat.py`: (A) history-load reconstructs `ToolCallRecord` from `msg.tool_calls.calls[]` JSON, (B) **silent-bug fix** — multi-agent success path was never persisting `ToolCallRecord` (only the exception path appended); MEM-01 gap closed, (C) single-agent path populates `tool_call_id=tc["id"]` and `status` per D-P11-08. 13 new unit tests in `test_chat_history_reconstruction.py`. Phase-10 sandbox-streaming regression (8/8) green.
+  - **11-05** (`62efb5a`, `c2f9855`, merge `a4ec460`) — `useChatState` hook gains `sandboxStreams: Map<tool_call_id, {stdout[], stderr[]}>` plus SSE handlers for `code_stdout` / `code_stderr`. Map cleared at 3 lifecycle sites (thread switch, send, post-stream finally) so stale entries don't leak across turns.
+- **Done — Wave 3 (1 plan):**
+  - **11-06** (`bbac641`, `5bab150`, `b6f14c5`, auto-merged) — New `frontend/src/components/chat/CodeExecutionPanel.tsx` (359 lines) per UI-SPEC §Component Inventory: code preview toggle, status pill, live execution timer, dark terminal block (green stdout / red stderr), file-download cards (refreshes signed URLs via the 11-03 endpoint). 17 `sandbox.*` i18n keys × 2 locales (`id` + `en`) added to `translations.ts`. Anti-grep `! grep -q "backdrop-blur"` passes (panel is persistent in-message — glass would violate design system).
+- **Done — Wave 4 (1 plan, code only — UAT blocking):**
+  - **11-07 Tasks 1-3** (`64b17da`, `8f1f715`, `76e3cce`, merge `0170739`) — `ToolCallList` becomes a router: execute_code calls *with* `tool_call_id` route to `CodeExecutionPanel` in a `flex flex-col gap-6 mb-2` panel section; everything else (incl. legacy execute_code without `tool_call_id`) renders via the existing `ToolCallCard` with the new `TOOL_CONFIG.execute_code = {icon: Terminal, label: 'Code Execution'}`. `MessageView` plumbs `sandboxStreams` from `useChatState` (via `ChatPage` prop drill — out-of-plan file added per Rule-2 deviation, documented in 11-07-SUMMARY). Sub-change B chosen: **unconditional pass-through** (no `streamingMessageId` flag exists in MessageView; UUID keys + 3-site Map reset make stale entries safe). Anti-grep gates pass: `out.execution_id` present, `out.id` fallback NOT reintroduced. 32/32 backend regression tests still green.
+- **Stopped at:** Plan 11-07 Task 4 — `<task type="checkpoint:human-verify" gate="blocking">`. Backend `uvicorn :8000` and frontend `vite :5174` (5173 was occupied) are running; backend `/health = ok`. 12-step UAT script presented to user — covers: streaming render (steps 1-3), completion render (4-6), persistence on refresh (7), follow-up memory reference without re-execution (8-9), legacy compatibility (10), multi-call gap-6 stacking (11), error path (12).
+- **Files changed (cumulative across all 7 plans):**
+  - `backend/app/models/tools.py`, `backend/app/routers/chat.py`, `backend/app/routers/code_execution.py`
+  - `backend/tests/models/test_tool_call_record.py` (new), `backend/tests/api/test_code_executions_get_by_id.py` (new), `backend/tests/routers/test_chat_history_reconstruction.py` (new), `backend/tests/models/__init__.py` (new)
+  - `frontend/src/lib/database.types.ts`, `frontend/src/hooks/useChatState.ts`, `frontend/src/i18n/translations.ts`, `frontend/src/components/chat/MessageView.tsx`, `frontend/src/components/chat/ToolCallCard.tsx`, `frontend/src/pages/ChatPage.tsx`
+  - `frontend/src/components/chat/CodeExecutionPanel.tsx` (new, 359 lines)
+  - 7 SUMMARY.md files in `.planning/phases/11-code-execution-ui-persistent-tool-memory/`
+- **Tests:** ~314 total (28 new this session) — all green pre-UAT. Phase 10 + Phase 1 regression suites unchanged (8/8 sandbox streaming, prior tool-call record tests all still pass). Frontend `tsc --noEmit` clean across the type chain `SSEEvent → useChatState → MessageView → ToolCallList → CodeExecutionPanel`.
+- **Deviations recorded across SUMMARYs (all Rule-3 environmental, not design):**
+  - Worktrees frequently branched from stale base — fixed via `git reset --hard master` or `git rebase master` per agent
+  - Worktrees miss `.env` — agents sourced `backend/.env` from main repo at test-invocation time (precedent set by 11-01)
+  - 11-07 added `ChatPage.tsx` to satisfy the prop-drill pattern (Rule-2 missing-wiring)
+  - Single Rule-3 cosmetic comment edit on `CodeExecutionPanel.tsx` to satisfy a literal `! grep -q "backdrop-blur"` gate
+- **Next:** Drive the 12-step UAT in the running browser (frontend `:5174`, backend `:8000`, login `test@test.com`). When the user replies `approved`: re-commit Plan 11-07 SUMMARY with the UAT outcome, run `gsd-verifier` for goal-backward verification of SANDBOX-07 + MEM-01..03, mark Phase 11 complete in `STATE.md` (`gsd-sdk query state.complete-phase`), and write the phase-level SUMMARY. After that, milestone v1.1 (Agent Skills & Code Execution) is done and ready to ship — Vercel deploys from `main`, Railway needs `railway up`.
+
+## Checkpoint 2026-05-01 (Phase 08 UAT complete + Phase 07 export bug fixed)
+
+- **Session:** Cross-phase UAT audit, one code bug fixed, Phase 08 all 4 live UAT items verified.
+- **Branch:** master (`faa5403`)
+- **Done:**
+  - **UAT audit:** Ran `/gsd-audit-uat` across all phases. Found 2 files with `human_needed` status (06/07) + Phase 08 HUMAN-UAT.md with 4 pending items. SDK missed Phase 08 items due to frontmatter format difference — caught by direct file read.
+  - **Phase 07 export bug fixed** (`faa5403`) — `skill_zip_service.build_skill_zip` used `file_info["relative_path"]` but `skill_files` DB rows store `filename`. Any export of a skill with attached files raised `KeyError` at runtime. Fix: `file_info.get("relative_path") or file_info["filename"]`. Prefers structured path when present (forward-compatible), falls back to DB column.
+  - **2 regression tests added** — `TestBuildSkillZipDbStyleFiles`: (1) DB-style `filename`-only dicts build correctly; (2) `relative_path` preferred over `filename` when both present. 34/34 zip unit tests pass.
+  - **Phase 08 UAT — all 4 items green:**
+    - E2E chat: `tool_start` + `tool_result` SSE events confirmed for `load_skill` against local backend
+    - File upload/download/delete: 7 API tests passed (TestUploadSkillFile, TestDeleteSkillFile, TestReadSkillFileContent)
+    - 10 MB 413 enforcement: HTTP 413 confirmed before any storage write (`{"detail":"skill file exceeds 10 MB limit"}`)
+    - Cross-user RLS: upload/delete on non-owned skills correctly blocked (403/404)
+  - **08-HUMAN-UAT.md updated** — status changed from `partial` → `passed`, all 4 results recorded.
+  - **07-VERIFICATION.md updated** — `relative_path` bug marked FIXED with regression test reference.
+  - **Phase 06 cosmetic items (bare except, nested pass)** — confirmed already fixed in current `chat.py` (as `except Exception as _title_exc:` and `logger.warning` on nested fallback). No action needed.
+  - **`enabled=False` PATCH bug (Phase 07 anti-pattern)** — confirmed already fixed: current code uses `body.model_dump(exclude_none=True)`. Stale finding.
+- **Files changed:** `backend/app/services/skill_zip_service.py` (1-line fix), `backend/tests/api/test_skill_zip_service.py` (+38 lines, 2 tests), `.planning/phases/07-skills-database-api-foundation/07-VERIFICATION.md`, `.planning/phases/08-llm-tool-integration-discovery/08-HUMAN-UAT.md`
+- **Tests:** 286 unit tests pass (unchanged). 34/34 zip service tests pass (was 32 + 2 new).
+- **Still outstanding:** Phase 06 PERF-02 latency — needs CI/faster hardware (test skips at 1939ms on dev machine). Non-blocking.
+- **Next:** Phase 9 — Skills Frontend. Start with `/gsd-discuss-phase 9`.
+
+## Checkpoint 2026-04-29 (Phase 7 Complete — Skills Database & API Foundation)
+
+- **Session:** Executed all 5 Phase 7 plans (4 waves), ran code review, applied 6 fixes, marked phase complete.
+- **Branch:** master (`3219acd`)
+- **Done:**
+  - **07-01** (`662654f`, `6d94c11`) — Migration 034: `public.skills` table, composite ownership model (`user_id` + `created_by`), 4 RLS policies, `skills_handle_updated_at` trigger, 3 indexes, `skill-creator` global seed (UUID `00000000-0000-0000-0000-000000000007`). Closes SKILL-10.
+  - **07-02** (`210c5d1`, merge `6c8adf4`) — Migration 035: `skill_files` table with dual-CHECK path constraints (regex + skill-id binding), private `skills-files` Supabase Storage bucket, 3 table RLS + 3 Storage RLS policies. Storage RLS bug fixed during 07-05 (bare `name` in EXISTS resolved to `s.name` instead of `objects.name`).
+  - **07-03** (`4ac3b54`, `4116729`, `cc8433a`) — `skill_zip_service.py`: ZIP build+parse utility (stdlib + PyYAML), 3-layout auto-detection, ZIP-bomb defense (50 MB total + 10 MB per-file), 32 unit tests all pass. PyYAML added to requirements.txt.
+  - **07-04** (`e04b2d6`, `17e2546`) — `backend/app/routers/skills.py`: 8 endpoints (POST, GET, GET/{id}, PATCH/{id}, DELETE/{id}, PATCH/{id}/share, GET/{id}/export, POST/import). `SkillsUploadSizeMiddleware` (50 MB ASGI cap). Router registered in `main.py`. Closes SKILL-01/03/04/05/06 + EXPORT-01/02/03.
+  - **07-05** (`d1d0d52`, `7472ff8`) — `test_skills.py`: 29 integration tests across 23 test classes, all passing against live Supabase. Applied migrations 034+035 to production. Fixed storage RLS path reference bug inline.
+  - **Post-verification fixes** (`4e0120e`) — 3 bugs fixed: export `relative_path` KeyError (DB `filename` → `relative_path` conversion added in router), `PATCH enabled=False` silently dropped (changed to `model_dump(exclude_none=True)`), DB columns leaking into exported SKILL.md frontmatter (replaced catch-all with explicit allow-list).
+  - **Code review** (`2ab97fb`) — 10 findings (2 critical, 5 warning, 3 info).
+  - **Review fixes** (6 commits `b542da9`–`551a589`) — CR-1 (ZipFile context manager), CR-2 (chunked 413 response), WR-1 (BadZipFile → 422), WR-3 (trailing-slash bypass), WR-4 (enforceable RLS test assert), WR-5 (% and _ wildcard sanitisation). WR-2 already fixed in 4e0120e (skipped).
+  - **Phase 7 marked complete** (`9cb8daa`) — ROADMAP, STATE, PROJECT.md updated. HUMAN-UAT.md + VERIFICATION.md committed.
+- **Files created:** `supabase/migrations/034_skills_table_and_seed.sql`, `supabase/migrations/035_skill_files_table_and_bucket.sql`, `backend/app/services/skill_zip_service.py`, `backend/app/routers/skills.py`, `backend/app/middleware/skills_upload_size.py`, `backend/app/middleware/__init__.py`, `backend/tests/api/test_skill_zip_service.py`, `backend/tests/api/test_skills.py`
+- **Files modified:** `backend/app/main.py`, `backend/requirements.txt`
+- **Tests:** 32 unit tests (skill_zip_service) + 29 integration tests (skills API) — all pass. Backend import check clean.
+- **Next:** Phase 8 — LLM Tool Integration & Discovery (inject skills catalog into system prompt, implement `load_skill`/`save_skill`/`read_skill_file` tools, skill file upload endpoint). Start with `/gsd-discuss-phase 8`.
+
+## Checkpoint 2026-04-28 (v0.4.0.0 SHIPPED — Web Search Toggle ADR-0008 + Fix A blocked-state UI)
+
+- **Session:** Big arc — wrote 8 standalone ADRs from blueprint, planned + executed ADR-0008 web search toggle through 14 subagent-driven tasks, shipped to production, then debugged + fixed the user-visible bug ("no answer when web search ON") via Fix A.
+- **Branch:** master (`ebdc71f`), pushed to origin/master + origin/main + Vercel `--prod`.
+- **Done — ADR documentation work (uncommitted):**
+  - **8 standalone ADRs in `docs/adr/`** (UNTRACKED — not yet `git add`-ed): adr-0001-raw-sdk-no-langchain.md, adr-0002-single-row-system-settings.md, adr-0003-sse-over-websocket-chat.md, adr-0004-pii-surrogate-architecture.md, adr-0005-tests-against-production-api.md, adr-0006-hybrid-vercel-main-deployment.md, adr-0007-model-cot-observability.md (Proposed), adr-0008-internal-first-retrieval.md (Accepted post-ship).
+  - **Project_Architecture_Blueprint.md** (UNTRACKED) — 15-section blueprint generated from graphify knowledge graph (2,035 nodes / 3,739 edges), Section 13 cross-references all 8 ADRs.
+  - **Decision: ADR-001 stays Accepted** for CoT observability — uses OpenRouter native `reasoning` param + LangSmith tracing, no LangChain. LangGraph deferred until BJR multi-agent triggers fire (T1-T5 documented in ADR-0007).
+- **Done — Web Search Toggle implementation (14 tasks, all committed):**
+  - **T1 Migration `033_web_search_toggle.sql`** (`cf5d301`) — `system_settings.web_search_enabled BOOL DEFAULT TRUE` + `user_preferences.web_search_default BOOL DEFAULT FALSE`. Path correction during execution: migrations live at `supabase/migrations/` (repo root), NOT `backend/supabase/migrations/`.
+  - **T2 admin field** (`74210e5`) + **T3 user-pref field** (`24543b6`) — Pydantic models updated.
+  - **T4 `compute_web_search_effective(L1, L2, L3)`** (`4c0a253`) — pure helper with 10-case parametrized truth-table test. `system AND (override if not None else user_default)`.
+  - **T5 tool-service gating** (`6190cb0`) — `get_available_tools(*, web_search_enabled=True)` keyword-only kwarg, excludes `web_search` when False. Existing tavily_api_key check preserved.
+  - **T6 classifier tool-awareness** (`ec93e87`) — `classify_intent(available_tool_names=...)`, constraint block injected into CLASSIFICATION_PROMPT, defense-in-depth override via `OrchestratorResult.model_copy(update=...)` if LLM picks ineligible agent. **Correction:** agent registry keys are `research`/`general`, NOT `research_agent`/`general_agent`. OpenRouter mock target is `complete_with_tools`.
+  - **T7 chat router wiring** (`15bf0a0`) — `web_search` field on `SendMessageRequest`, effective toggle computed in `event_generator`, passed to `get_available_tools` + `classify_intent`, `_run_tool_loop` skips `deanonymize_tool_args` for web_search (Tavily gets surrogates), defense-in-depth dispatch gate, `log_action(action="web_search_dispatch", details={...})` audit per call. `available_tool_names` threaded as kwarg through `_run_tool_loop`. 210/210 unit tests still green.
+  - **T8 API integration tests** (`cec175e`) — 3 tests against production: toggle-off suppresses dispatch, toggle-on allows dispatch, omitted field uses user default. Adapted to existing sync `authed_client` fixture; created real threads via POST /threads (synthetic IDs return 404). Custom `httpx.Client(timeout=Timeout(read=120s))` for cold-path streaming. Railway `railway up --detach` deployed before run; verified by fresh `Application startup complete` in logs.
+  - **T9 chat composer toggle** (`b3db9b3`) — Globe-icon toggle in `InputActionBar` (lucide-react `Globe`), props threaded to BOTH `MessageInput` AND `WelcomeInput` consumers, `useChatState.webSearchEnabled` state with sticky-per-thread reset on `activeThreadId` change, `web_search` field added to chat POST body. ChatContext consumer is `useChatContext` (not `useChat`).
+  - **T10 admin UI toggle** (`ed21d8e`) — `web_search_enabled` toggle in `AdminSettingsPage.tsx` Tools section. Correction: AdminSettingsPage does NOT duplicate content panels — only navigation is duplicated. CLAUDE.md "BOTH panels" gotcha applies to `DocumentCreationPage`, not this page. Verified by grep `pii_redaction_enabled` → 1 occurrence.
+  - **T11 user settings toggle** (`71899f8`) — `web_search_default` checkbox in `SettingsPage.tsx`, fetched on mount, persisted via PATCH `/preferences`, `isDirty` flag updated.
+  - **T12 citation source badges** (`c570301`) — `SourceBadge` in `ToolCallCard` (NOT MessageView): blue Globe for web_search, zinc FileText for internal sources. Uses `useI18n()` from `@/i18n/I18nContext`.
+  - **T13 i18n keys** (`549472e`) — 8 keys × 2 locales (16 total): `admin.tools.webSearch{Enabled,Desc}`, `chat.webSearch{Toggle,Tooltip}`, `chat.source.{web,internal}`, `settings.webSearchDefault{,Desc}`. Flat dot-notation matching existing structure.
+  - **T14 ship** (`3de9b85`) — CHANGELOG 0.4.0.0 entry, ADR-0008 status flipped Proposed → Accepted, master + main pushed, `npx vercel --prod --yes` (LOAD-BEARING — push alone does NOT trigger Vercel for this project).
+- **Done — Fix A (post-ship bug fix, blocked-state UI surfacing):**
+  - **Bug reproduced via Playwright:** "What is the latest news on Indonesian contract law in 2026?" with web_search ON returned no visible answer. SSE intercept showed exactly 4 events: `redaction_status:anonymizing` → `agent_start:general` → `redaction_status:blocked` → `delta:'',done:true`. Stream completed cleanly; UI showed nothing.
+  - **Root cause:** `redactionStage = 'blocked'` was set in `useChatState` but **NO chat component subscribed to it**. The egress filter (in `backend/app/services/redaction/egress.py`, 122 LOC) correctly fired because Presidio tokenized "Indonesian" as LOCATION → registry → all subsequent outbound payloads matched (the platform's own system prompt contains "Indonesian" — false-positive class). Pre-existing UX gap, exposed by web search because Tavily replies pack many entities.
+  - **Fix A** (`ebdc71f`) — i18n `redactionBlockedTitle`/`redactionBlockedBody` (camelCase, matched `redactionAnonymizing`/`redactionDeanonymizing`), `MessageView.tsx` accepts `redactionStage` prop and renders amber `ShieldAlert` card with `role="alert" aria-live="polite"` when blocked, `ChatPage.tsx` threads it through, `useChatState.ts` preserves `'blocked'` through `finally` cleanup. Existing `setRedactionStage(null)` at start of `sendMessageToThread` (line 134) clears it on next send. Vercel `READY`, Playwright re-test confirmed amber card renders correctly.
+- **Files changed (this session, all committed):** `supabase/migrations/033_web_search_toggle.sql` + 14 backend/frontend files modified across `backend/app/{routers,services}/` + `frontend/src/{hooks,contexts,components,pages,i18n}/`. Plus 4 new test files: `backend/tests/unit/test_compute_web_search_effective.py`, `backend/tests/unit/test_tool_service_web_search_gating.py`, `backend/tests/unit/test_agent_service_tool_awareness.py`, `tests/api/test_web_search_toggle.py`.
+- **Files untracked (NOT yet committed):** `Project_Architecture_Blueprint.md`, `docs/adr/adr-000{1..7}-*.md` (ADR-0008 IS committed via T14). Also `.planning/graphs/` (graphify output) and `.planning/config.json` (modified — `graphify.enabled=true` set this session).
+- **Tests:** 210+ pytest pass (Task 6 added 2, Task 7 confirmed 210/210 still green). 3/3 new API integration tests pass against production. Frontend `tsc --noEmit` clean, `npm run lint` shows only 10 pre-existing errors in `DocumentsPage.tsx`/`ThemeContext.tsx` — none introduced by this work.
+- **Deploy:** Backend Railway `15bf0a0` live (build `b1c72424-8453-47b8-99dd-c4af39213b46`). Frontend Vercel deploy `dpl_28mGg9Qbb86SBqPDzqf5WCZ6T3ct` plus a follow-up Fix-A deploy, both READY. `https://frontend-one-rho-88.vercel.app` returns 200, `/health` returns `{"status":"ok"}`.
+- **Production audit log working:** Each `web_search` dispatch persists `audit_logs.action='web_search_dispatch'` with `details: {system_enabled, user_default, message_override, effective, redaction_on}` JSON.
+- **VERSION file discrepancy:** CHANGELOG entry at top is `[0.4.0.0] — 2026-04-28` but `cat VERSION` returns `0.3.0.1`. The CHANGELOG was bumped manually in commit `3de9b85` but the VERSION file was NOT updated. Worth bumping in a follow-up.
+- **graphify knowledge graph built:** 2,035 nodes, 3,739 edges, 209 communities. Lives at `.planning/graphs/`. Used to generate the blueprint. Stays as untracked working-tree state.
+- **Next:** **Fix B — implement domain-term deny list at PII detection layer.** User approved my recommendation: tightly-scoped allowlist (Indonesia/Indonesian, Bahasa, OJK/BI/KPK/BPK/Mahkamah Agung, UU PDP/BJR/KUHP/KUHAP/UU ITE/UUPK). Cities deliberately excluded (false-negative on real address > false-positive on bare city). Implementation site: `backend/app/services/redaction/detection.py` — filter Presidio analyzer results post-detection. Plus a unit test asserting "Indonesian" doesn't enter registry while "Pak Budi" still does. ADR-0009 (or addendum to 0004) optional. **Other queued items:** toggle-reset wrinkle (5-line fix in `useChatState.ts`), VERSION bump to 0.4.0.0, commit the untracked ADR docs + blueprint, Phase 6 (cross-process advisory lock per D-31).
 
 ## Checkpoint 2026-04-28 (Phase 5 gap-closure 05-09 — frontend PII toggle)
 

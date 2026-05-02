@@ -123,29 +123,29 @@ Plans:
 
 ---
 
-#### Phase 11: Code Execution UI & Persistent Tool Memory
+#### Phase 11: Code Execution UI & Persistent Tool Memory ✅ COMPLETED 2026-05-02
 
 **Goal:** Surface sandbox results in the chat UI with a streaming Code Execution Panel, and persist tool call results across conversation turns so the LLM can reference prior data.
 
-**Requirements:** SANDBOX-07, MEM-01, MEM-02, MEM-03
+**Requirements:** SANDBOX-07, MEM-01, MEM-02, MEM-03 — all PASS per `.planning/phases/11-code-execution-ui-persistent-tool-memory/VERIFICATION.md` (4/4 requirements satisfied; 5/5 success criteria verified). Human UAT approved 2026-05-02.
 
 **Success criteria:**
-1. Code Execution Panel renders inline in chat with streaming stdout/stderr during execution
-2. Generated files appear as download cards with filename, size, and download link
-3. Tool call results are stored in `messages.tool_calls` JSONB after each execution
-4. Loading conversation history reconstructs tool-call → result → assistant text message sequence
-5. LLM can answer follow-up questions using data from earlier tool calls without re-executing
+1. ✅ Code Execution Panel renders inline in chat with streaming stdout/stderr during execution
+2. ✅ Generated files appear as download cards with filename, size, and download link
+3. ✅ Tool call results are stored in `messages.tool_calls` JSONB after each execution
+4. ✅ Loading conversation history reconstructs tool-call → result → assistant text message sequence
+5. ✅ LLM can answer follow-up questions using data from earlier tool calls without re-executing
 
-**Plans:** 7 plans
+**Plans:** 7 plans (all complete)
 
 Plans:
-- [ ] 11-01-PLAN.md — backend/app/models/tools.py: extend ToolCallRecord with tool_call_id, status, and 50 KB head-truncate Pydantic field_validator + 11 unit tests
-- [ ] 11-02-PLAN.md — frontend/src/lib/database.types.ts: add CodeStdoutEvent + CodeStderrEvent to SSEEvent union; widen ToolCallRecord with tool_call_id?, status?
-- [ ] 11-03-PLAN.md — backend/app/routers/code_execution.py: add GET /code-executions/{execution_id} with RLS-via-404 + 4 integration tests
-- [ ] 11-04-PLAN.md — backend/app/routers/chat.py: history SELECT widening + _expand_history_row + _derive_tool_status + 4 ToolCallRecord ctor sites carry tool_call_id/status (incl. NEW multi-agent success path) + 13 tests
-- [ ] 11-05-PLAN.md — frontend/src/hooks/useChatState.ts: sandboxStreams Map state + code_stdout/code_stderr handlers + 3 lifecycle resets + return-shape exposure
-- [ ] 11-06-PLAN.md — frontend/src/components/chat/CodeExecutionPanel.tsx (NEW) per UI-SPEC §Component Inventory + 17 sandbox.* i18n keys (id + en)
-- [ ] 11-07-PLAN.md — frontend/src/components/chat/ToolCallCard.tsx + MessageView.tsx: ToolCallList switch + sandboxStreams plumb + human UAT checkpoint
+- [x] 11-01-PLAN.md — backend/app/models/tools.py: extend ToolCallRecord with tool_call_id, status, and 50 KB head-truncate Pydantic field_validator + 11 unit tests
+- [x] 11-02-PLAN.md — frontend/src/lib/database.types.ts: add CodeStdoutEvent + CodeStderrEvent to SSEEvent union; widen ToolCallRecord with tool_call_id?, status?
+- [x] 11-03-PLAN.md — backend/app/routers/code_execution.py: add GET /code-executions/{execution_id} with RLS-via-404 + 4 integration tests
+- [x] 11-04-PLAN.md — backend/app/routers/chat.py: history SELECT widening + _expand_history_row + _derive_tool_status + 4 ToolCallRecord ctor sites carry tool_call_id/status (incl. NEW multi-agent success path) + 13 tests
+- [x] 11-05-PLAN.md — frontend/src/hooks/useChatState.ts: sandboxStreams Map state + code_stdout/code_stderr handlers + 3 lifecycle resets + return-shape exposure
+- [x] 11-06-PLAN.md — frontend/src/components/chat/CodeExecutionPanel.tsx (NEW) per UI-SPEC §Component Inventory + 17 sandbox.* i18n keys (id + en)
+- [x] 11-07-PLAN.md — frontend/src/components/chat/ToolCallCard.tsx + MessageView.tsx: ToolCallList switch + sandboxStreams plumb + human UAT checkpoint (UAT APPROVED 2026-05-02)
 
 ## Completed Phases (Pre-GSD)
 
