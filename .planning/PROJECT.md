@@ -69,20 +69,25 @@ Indonesian legal teams can manage the full contract lifecycle — chat with docu
 - ✓ **PERF-01, PERF-03, PERF-04** — v1.0: Lazy singletons at startup; asyncio-lock race-protection; graceful LLM-failure degradation
 - ✓* **PERF-02** — v1.0: <500ms anonymization target — 2000ms hard gate passed; 500ms unconfirmed on dev hardware (pending server-class run)
 
-## Current Milestone: v1.1 Agent Skills & Code Execution
+## Current State (Post-v1.1 ship — 2026-05-02)
 
-**Goal:** Transform LexCore's chat interface into a customizable AI agent platform where users create and manage reusable skills, attach resource files, execute sandboxed Python code, and maintain persistent tool memory across conversation turns.
+**Shipped version:** v0.5.0.0 (tag `v0.5.0.0`, commit `e90cf41`)
+**Live deployments:** Frontend on Vercel (deploy `frontend-6m8hh45oy`, 16s build), backend on Railway (`/health = ok`), Supabase project `qedhulpfezucnfadlfiz` (migrations 001–036 applied)
+**Smoke test at ship:** 5/5 passed (Health, Dashboard, BJR, PDP, Snapshots)
+**Monitoring:** A scheduled remote routine (`trig_011oZn7P8e68pyxbLp6dJ7JF`) fires 2026-05-16 to verify Phase 11's prod data path end-to-end (SANDBOX_ENABLED env contract + history reconstruction + signed-URL refresh).
 
-**Target features:**
-- Agent Skills — CRUD + discovery (lightweight catalog in system prompt, on-demand loading via `load_skill`/`save_skill` LLM tools), private/global ownership model, 3 creation paths (AI-guided, manual form, import from ZIP), Skills tab in navigation
-- Skill Building-Block Files — file attachments per skill stored in Supabase Storage, on-demand LLM reading via `read_skill_file` tool, file preview panel in skill editor
-- Code Execution Sandbox — sandboxed Docker Python execution (llm-sandbox), IPython session persistence per thread (TTL 30min), SSE streaming output, generated-file download via signed URLs, `SANDBOX_ENABLED` feature flag
-- Skills Open Standard — ZIP import/export in agentskills.io-compatible format (SKILL.md frontmatter), bulk import support, naming conflict reporting
-- Persistent Tool Memory — tool results stored in messages JSONB `tool_calls` column, reconstructed on conversation history load, no schema migration required
+**v1.1 outcome:** Milestone shipped 26/26 plans across 5 phases (7–11). Skills system, Code Execution Sandbox, persistent tool memory all live in production. Phase 11 verified PASS-WITH-CAVEATS (operational caveats only — Railway sandbox readiness, multi-worker session semantics, missing CodeExecutionPanel component tests). UAT approved 2026-05-02.
 
-### Active
+## Next Milestone: TBD
 
-<!-- Fresh scope for v1.1 milestone — will be populated after requirements scoping -->
+No active milestone. Run `/gsd-new-milestone` to scope v1.2.
+
+**Candidate items already approved or queued (v1.2 backlog pool — not yet committed scope):**
+- Fix B (PII deny list) — domain-term deny list at PII detection layer (`backend/app/services/redaction/detection.py`). Approved during v1.0 close, never implemented.
+- Async-lock cross-process upgrade (D-31) — replace per-process `asyncio.Lock` with `pg_advisory_xact_lock(hashtext(thread_id))` once horizontal scale-out is needed.
+- PERF-02 — confirm 500ms anonymization target on server-class hardware (test skips at 1939ms on dev).
+- Frontend component tests for `CodeExecutionPanel.tsx` (UAT-only coverage today).
+- base-ui `asChild` shim sweep — popover.tsx fix shipped during v1.1 close; remaining wrappers (select, dropdown-menu, dialog) likely need the same shim. Caught only by `tsc -b` (project-references build mode).
 
 ### Out of Scope
 
@@ -166,6 +171,8 @@ This document evolves at phase transitions and milestone boundaries.
 *Last updated: 2026-04-25 — milestone v1.0 PII Redaction System started (`/gsd-new-milestone`)*
 
 *Last updated: 2026-04-29 — **Milestone v1.0 PII Redaction System COMPLETE** ✅ — All 54 v1.0 REQ-IDs shipped (53 full + PERF-02 partial pending hardware). 6 phases, 44 plans, 352 tests, 5 migrations (029–033). Privacy invariant end-to-end: no real PII reaches cloud-LLM payloads. Active requirements moved to Validated. Key Decisions updated.*
+
+*Last updated: 2026-05-02 — **Milestone v1.1 Agent Skills & Code Execution COMPLETE** ✅ — All 26 v1.1 REQ-IDs shipped. 5 phases (7–11), 26 plans, ~314 tests, 3 migrations (034–036). Skills system + Code Execution Sandbox + Persistent Tool Memory all live in prod as v0.5.0.0. Privacy invariant preserved (sandbox stdout/stderr anonymized through registry-based filter before reaching cloud LLM). Phase 11 verified PASS-WITH-CAVEATS (operational caveats only). Production smoke 5/5 green. Full archive: `.planning/milestones/v1.1-ROADMAP.md` and `.planning/milestones/v1.1-REQUIREMENTS.md`. No active milestone — `/gsd-new-milestone` to scope v1.2.*
 
 *Last updated: 2026-04-29 — Milestone v1.1 Agent Skills & Code Execution started (`/gsd-new-milestone`)*
 
