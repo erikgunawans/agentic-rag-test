@@ -13,23 +13,23 @@
 
 ### Deep Mode Foundation (DEEP-*)
 
-- [ ] **DEEP-01**: User can toggle "Deep Mode" per-message via a button next to Send (per-message, not per-thread)
-- [ ] **DEEP-02**: System branches to extended agent loop when `deep_mode=true` — extended system prompt (planning/workspace/delegation/ask-user instructions), deep-mode tools loaded, `MAX_DEEP_ROUNDS=50` iteration cap
-- [ ] **DEEP-03**: System leaves standard chat behavior unchanged when Deep Mode is OFF (zero token overhead, no extra tools, no extended prompt)
-- [ ] **DEEP-04**: System persists `deep_mode` boolean per message record (`messages.deep_mode`) for UI history reconstruction
-- [ ] **DEEP-05**: System keeps deep-mode system prompt KV-cache friendly (deterministic sections, no timestamps, todo state flows through tools not prompt)
-- [ ] **DEEP-06**: System enforces loop-exhaustion fallback at `MAX_DEEP_ROUNDS` — forces agent to summarize and deliver
-- [ ] **DEEP-07**: User can interrupt deep-mode execution at any time; all completed work persists
+- [x] **DEEP-01**: User can toggle "Deep Mode" per-message via a button next to Send (per-message, not per-thread)
+- [x] **DEEP-02**: System branches to extended agent loop when `deep_mode=true` — extended system prompt (planning/workspace/delegation/ask-user instructions), deep-mode tools loaded, `MAX_DEEP_ROUNDS=50` iteration cap
+- [x] **DEEP-03**: System leaves standard chat behavior unchanged when Deep Mode is OFF (zero token overhead, no extra tools, no extended prompt)
+- [x] **DEEP-04**: System persists `deep_mode` boolean per message record (`messages.deep_mode`) for UI history reconstruction
+- [x] **DEEP-05**: System keeps deep-mode system prompt KV-cache friendly (deterministic sections, no timestamps, todo state flows through tools not prompt)
+- [x] **DEEP-06**: System enforces loop-exhaustion fallback at `MAX_DEEP_ROUNDS` — forces agent to summarize and deliver
+- [x] **DEEP-07**: User can interrupt deep-mode execution at any time; all completed work persists
 
 ### Planning System / Todos (TODO-*)
 
-- [ ] **TODO-01**: System persists per-thread todo list in `agent_todos` table (FK `thread_id`, content, status pending/in_progress/completed, position, RLS)
-- [ ] **TODO-02**: Agent can call `write_todos` (full-replacement) and `read_todos` (returns current list) LLM tools
-- [ ] **TODO-03**: System emits `todos_updated` SSE event on every `write_todos` / `read_todos` call
-- [ ] **TODO-04**: System prompt instructs agent to call `read_todos` after each step (recitation pattern to prevent drift)
-- [ ] **TODO-05**: Agent can adaptively replan — add, remove, rewrite tasks mid-execution
-- [ ] **TODO-06**: User sees a Plan Panel sidebar with real-time todo status updates (pending / in-progress / completed visual differentiation)
-- [ ] **TODO-07**: User sees last-known todo state when reloading a thread with deep-mode history
+- [x] **TODO-01**: System persists per-thread todo list in `agent_todos` table (FK `thread_id`, content, status pending/in_progress/completed, position, RLS)
+- [x] **TODO-02**: Agent can call `write_todos` (full-replacement) and `read_todos` (returns current list) LLM tools
+- [x] **TODO-03**: System emits `todos_updated` SSE event on every `write_todos` / `read_todos` call
+- [x] **TODO-04**: System prompt instructs agent to call `read_todos` after each step (recitation pattern to prevent drift)
+- [x] **TODO-05**: Agent can adaptively replan — add, remove, rewrite tasks mid-execution
+- [x] **TODO-06**: User sees a Plan Panel sidebar with real-time todo status updates (pending / in-progress / completed visual differentiation)
+- [x] **TODO-07**: User sees last-known todo state when reloading a thread with deep-mode history
 
 ### Agent Workspace / Virtual Filesystem (WS-*)
 
@@ -155,14 +155,14 @@
 
 ### Migrations & Data Model (MIG-*)
 
-- [ ] **MIG-01**: Migration adds `agent_todos` table with RLS (thread-ownership scope)
+- [x] **MIG-01**: Migration adds `agent_todos` table with RLS (thread-ownership scope)
 - [ ] **MIG-02**: Migration adds `workspace_files` table with RLS, unique `(thread_id, file_path)` constraint
 - [ ] **MIG-03**: Migration adds `harness_runs` table with RLS, unique active run per thread
-- [ ] **MIG-04**: Migration adds `messages.deep_mode` boolean and `messages.harness_mode` text columns
+- [x] **MIG-04**: Migration adds `messages.deep_mode` boolean and `messages.harness_mode` text columns
 
 ### Security & Privacy (SEC-*)
 
-- [ ] **SEC-01**: All new tables (`agent_todos`, `workspace_files`, `harness_runs`) enforce RLS — users only see their own threads' data
+- [x] **SEC-01**: All new tables (`agent_todos`, `workspace_files`, `harness_runs`) enforce RLS — users only see their own threads' data
 - [ ] **SEC-02**: Sub-agents operate within parent user's auth context (no privilege escalation)
 - [ ] **SEC-03**: Model provider API keys remain server-side only (no exposure to sandbox or sub-agents)
 - [ ] **SEC-04**: All new agent paths route LLM payloads through existing PII redaction egress filter — privacy invariant preserved (no real PII to cloud LLM)
@@ -175,9 +175,9 @@
 
 ### Configuration (CONF-*)
 
-- [ ] **CONF-01**: `MAX_DEEP_ROUNDS` env var (default 50) controls deep-mode loop iteration limit
-- [ ] **CONF-02**: `MAX_TOOL_ROUNDS` env var (default 25) preserved for standard mode
-- [ ] **CONF-03**: `MAX_SUB_AGENT_ROUNDS` env var (default 15) controls sub-agent rounds
+- [x] **CONF-01**: `MAX_DEEP_ROUNDS` env var (default 50) controls deep-mode loop iteration limit
+- [x] **CONF-02**: `MAX_TOOL_ROUNDS` env var (default 25) preserved for standard mode
+- [x] **CONF-03**: `MAX_SUB_AGENT_ROUNDS` env var (default 15) controls sub-agent rounds
 
 ---
 
