@@ -33,6 +33,10 @@ export interface Message {
   tool_calls?: { agent?: string | null; calls: ToolCallRecord[] } | null
   parent_message_id?: string | null
   created_at: string
+  // Phase 17 / DEEP-04 / MIG-04: persisted from migration 038 (messages.deep_mode boolean).
+  // True when this assistant message was generated via the deep-mode loop.
+  // Frontend reads this to render the Deep Mode badge in MessageView.tsx.
+  deep_mode?: boolean
 }
 
 export interface DeltaEvent {
@@ -166,6 +170,8 @@ export interface DocumentFolder {
 
 // Phase 12 / CTX-03: response shape of GET /settings/public (no auth).
 // Backend source: app.config.settings.llm_context_window (env-var-driven).
+// Phase 17 / DEEP-03: deep_mode_enabled added — feature flag for Deep Mode toggle visibility.
 export interface PublicSettings {
   context_window: number
+  deep_mode_enabled: boolean
 }

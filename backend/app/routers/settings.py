@@ -21,7 +21,7 @@ router = APIRouter(prefix="/settings", tags=["settings"])
 
 
 @router.get("/public")
-async def get_public_settings() -> dict[str, int]:
+async def get_public_settings() -> dict:
     """Return non-sensitive deployment configuration the frontend needs.
 
     No auth required (D-P12-05). Future fields added here MUST remain
@@ -30,6 +30,12 @@ async def get_public_settings() -> dict[str, int]:
     Currently returns:
         - context_window: total token capacity of the configured LLM, used
           as the denominator in the chat input's context-window indicator.
+        - deep_mode_enabled: Phase 17 / DEEP-03 feature flag. When False, the
+          Deep Mode toggle is hidden in the UI and the endpoint rejects
+          deep_mode=true payloads (server-side gate in Plan 17-04).
     """
     settings = get_settings()
-    return {"context_window": settings.llm_context_window}
+    return {
+        "context_window": settings.llm_context_window,
+        "deep_mode_enabled": settings.deep_mode_enabled,
+    }

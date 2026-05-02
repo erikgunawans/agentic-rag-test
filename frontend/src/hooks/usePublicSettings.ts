@@ -17,6 +17,7 @@ const API_BASE_URL = ((import.meta.env.VITE_API_BASE_URL as string | undefined) 
 
 interface PublicSettingsState {
   contextWindow: number | null
+  deepModeEnabled: boolean
   error: Error | null
 }
 
@@ -34,13 +35,14 @@ async function fetchPublicSettings(): Promise<PublicSettingsState> {
       // Explicitly NOT 'Authorization: Bearer ...' — endpoint is unauth.
     })
     if (!resp.ok) {
-      return { contextWindow: null, error: new Error(`HTTP ${resp.status}`) }
+      return { contextWindow: null, deepModeEnabled: false, error: new Error(`HTTP ${resp.status}`) }
     }
     const body = (await resp.json()) as PublicSettings
-    return { contextWindow: body.context_window, error: null }
+    return { contextWindow: body.context_window, deepModeEnabled: body.deep_mode_enabled ?? false, error: null }
   } catch (err) {
     return {
       contextWindow: null,
+      deepModeEnabled: false,
       error: err instanceof Error ? err : new Error(String(err)),
     }
   }
@@ -50,7 +52,7 @@ export function usePublicSettings(): PublicSettingsState {
   // Initialize from module-level cache when available — no effect-driven
   // setState needed for the synchronous-cache-hit path.
   const [state, setState] = useState<PublicSettingsState>(
-    () => cachedState ?? { contextWindow: null, error: null }
+    () => cachedState ?? { contextWindow: null, deepModeEnabled: false, error: null }
   )
 
   useEffect(() => {
