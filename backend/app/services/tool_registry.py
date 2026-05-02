@@ -702,4 +702,7 @@ def _register_phase17_todos() -> None:
     )
 
 
-_register_phase17_todos()
+from app.config import get_settings as _get_settings_17
+if _get_settings_17().tool_registry_enabled:
+    _register_phase17_todos()
+del _get_settings_17

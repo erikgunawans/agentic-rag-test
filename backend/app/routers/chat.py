@@ -1297,7 +1297,8 @@ async def _run_tool_loop_for_test(
             sandbox_callback = None
             if func_name == "execute_code":
                 # Phase 14 / BRIDGE-06 (D-P14-07): emit code_mode_start once per stream
-                if _bridge_active and not _bridge_event_sent:
+                # _bridge_active is a closure-local of event_generator; always False here
+                if False and not _bridge_event_sent:
                     _bridge_event_sent = True
                     _bridge_tools_b: list[str] = []
                     try:
