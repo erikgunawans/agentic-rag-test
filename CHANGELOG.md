@@ -2,6 +2,37 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.0.0] — 2026-05-02
+
+**Milestone v1.1 "Agent Skills & Code Execution" shipped to production.** Five phases delivered: skills DB+API, LLM tool integration, skills frontend, code execution sandbox backend, and code execution UI with persistent tool memory. 26 plans, ~314 unit tests, 0 migrations added in Phase 11 (pure persistence-shape + UI work; ToolCallRecord widening is JSON-shape only).
+
+### Added
+- **Skills system end-to-end (Phases 7–9)** — `public.skills` + `skill_files` tables (migrations 034, 035), private `skills-files` Supabase Storage bucket, 8 router endpoints (POST/GET/PATCH/DELETE/share/export/import) with composite ownership (`user_id` + `created_by`) and RLS, ZIP build+parse utility with bomb defense (50 MB total + 10 MB per-file), 3 LLM tools (`load_skill`, `save_skill`, `read_skill_file`), `build_skill_catalog_block()` injection at both single-agent + multi-agent prompt sites, and a full Skills frontend page with editor, file management, ownership matrix, and chat prefill.
+- **Code Execution Sandbox backend (Phase 10)** — `code_executions` table + `sandbox-outputs` Supabase Storage bucket (migration 036), `SandboxService` (llm-sandbox wrapper, session-per-thread, TTL cleanup, file upload), `execute_code` tool registered in `ToolService` (gated on `SANDBOX_ENABLED`), queue-adapter SSE streaming for `code_stdout`/`code_stderr` events with PII anonymization, and a `GET /code-executions` list endpoint with signed URL refresh.
+- **Code Execution Panel + Persistent Tool Memory (Phase 11)** — new `CodeExecutionPanel.tsx` (359 lines): Python badge, status pill, live execution timer, dark terminal block (green stdout / red stderr), file-download cards. `ToolCallList` becomes a router: `execute_code` calls with `tool_call_id` route to the panel; legacy/other tools keep the existing `ToolCallCard` (new `TOOL_CONFIG.execute_code = {icon: Terminal, label: 'Code Execution'}`). 17 `sandbox.*` i18n keys × ID + EN. New `GET /code-executions/{execution_id}` endpoint refreshes signed URLs on stale download cards.
+- **Persistent tool memory across thread reload (MEM-01..03)** — `ToolCallRecord` extended with `tool_call_id`, `status`, and a Pydantic `field_validator` that head-truncates serialized output to 50KB with a literal `… [truncated, N bytes]` marker. `chat.py` history reconstruction (`_expand_history_row` at L97) emits the OpenAI tool-message triplet shape on reload, so the LLM can reference earlier `execute_code` results without re-executing them. `useChatState` exposes `sandboxStreams: Map<tool_call_id, {stdout[], stderr[]}>` for live SSE buffering, cleared at 3 lifecycle sites (thread switch, send, post-stream finally).
+
+### Fixed
+- **Silent multi-agent persistence bug** — chat.py's multi-agent branch was only persisting `ToolCallRecord` on the exception path. Successful tool calls in multi-agent mode were never appended, meaning successful `execute_code` runs in multi-agent mode would not be reconstructable on subsequent history loads. Plan 11-04 Splice E.2 added the matching success-path append at chat.py:1067-1073.
+- **Phase 07 export `relative_path` KeyError** (`faa5403`, pre-bump) — `skill_zip_service.build_skill_zip` used `file_info["relative_path"]` but `skill_files` DB rows store `filename`. Any export of a skill with attached files raised `KeyError` at runtime. Fix: `file_info.get("relative_path") or file_info["filename"]`.
+- **Popover `asChild` shim** — `SkillsPage.tsx:563` used `<PopoverTrigger asChild>` but the popover wrapper had no `asChild→render` shim like `tooltip.tsx`. Local `tsc --noEmit` missed it; Vercel's `tsc -b` (project-references build mode) caught it. Added a 4-line shim mirroring the tooltip pattern.
+
+### Changed
+- `ToolCallList` props now accept an optional `sandboxStreams` Map for live SSE buffering during streaming — passed unconditionally from `useChatState` via `ChatPage` → `MessageView` → `ToolCallList` (UUID keys + 3-site Map reset make stale entries safe).
+- ToolCallRecord legacy compatibility — `tool_call_id` and `status` are optional+nullable so pre-Phase-11 records still typecheck.
+
+### Audited
+- Every `code_execution` dispatch is recorded in `audit_logs` per Phase 10 design.
+- All Phase 11 deliverables verified PASS-WITH-CAVEATS by goal-backward audit (`.planning/phases/11-code-execution-ui-persistent-tool-memory/VERIFICATION.md`): 4/4 requirements satisfied, 5/5 ROADMAP success criteria, 28/28 spot-checks. UAT approved 2026-05-02.
+
+### Notes
+- **Operational prerequisite for Phase 11:** Railway env must have `SANDBOX_ENABLED=true` set AND the `lexcore-sandbox:latest` image must be published with a reachable Docker daemon, or the Code Execution Panel never renders even though all data-path code is correct.
+- **Pre-existing tech debt cleared during deploy** — 6 ESLint errors (3 react-refresh on UserAvatar/button, 1 no-empty in DocumentCreationPage, 2 set-state-in-effect in DocumentsPage) cleared with surgical `eslint-disable` comments matching the shadcn convention. No behavior changes.
+- **Phase 06 PERF-02** — 500ms anonymization target still pending CI/faster-hardware run (test skips at 1939ms on dev hardware). Non-blocking.
+- **Fix B (PII deny list)** — domain-term deny list at `backend/app/services/redaction/detection.py` remains queued.
+- **Async-lock cross-process upgrade (D-31)** — per-process `asyncio.Lock` for PERF-03 breaks under multi-worker / horizontally-scaled Railway instances. Replace with `pg_advisory_xact_lock(hashtext(thread_id))` when scale-out is needed. Deferred to a future milestone.
+- A one-time remote routine (`trig_011oZn7P8e68pyxbLp6dJ7JF`) is scheduled for 2026-05-16 to verify the Phase 11 prod data path end-to-end (catches the SANDBOX_ENABLED env footgun, history reconstruction regression, and signed-URL refresh regression).
+
 ## [0.4.0.0] — 2026-04-28
 
 ### Added
