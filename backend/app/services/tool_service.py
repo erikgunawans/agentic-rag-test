@@ -1204,6 +1204,16 @@ class ToolService:
                 "message": "thread_id is required in context (chat.py must set context['thread_id']).",
             }
 
+        # Phase 14 / BRIDGE-04 (D-P14-04): prepend stub import so LLM-generated code
+        # can call platform tools as typed Python functions via the bridge.
+        # `from stubs import *` is a no-op if /sandbox/stubs.py doesn't exist (e.g.,
+        # bridge is inactive or container restarted), so this is safe to always add
+        # when bridge is potentially active.
+        _exec_settings = get_settings()
+        _bridge_active = _exec_settings.sandbox_enabled and _exec_settings.tool_registry_enabled
+        if _bridge_active and not code.startswith("from stubs import"):
+            code = "from stubs import *\n" + code
+
         # Run in sandbox
         try:
             result = await get_sandbox_service().execute(

@@ -457,6 +457,16 @@ async def stream_chat(
                 sandbox_event_queue: asyncio.Queue | None = None
                 sandbox_callback = None
                 if func_name == "execute_code":
+                    # Phase 14 / BRIDGE-06 (D-P14-07): emit code_mode_start once per stream
+                    if _bridge_active and not _bridge_event_sent:
+                        _bridge_event_sent = True
+                        _bridge_tools: list[str] = []
+                        try:
+                            from app.services import tool_registry as _tr
+                            _bridge_tools = [n for n in _tr._REGISTRY if n != "tool_search"]
+                        except Exception:
+                            pass
+                        yield f"data: {json.dumps({'type': 'code_mode_start', 'tools': _bridge_tools})}\n\n"
                     sandbox_event_queue = asyncio.Queue()
 
                     async def sandbox_stream_callback(event_type: str, line: str):
@@ -708,6 +718,11 @@ async def stream_chat(
         if settings.tool_registry_enabled:
             from app.services import tool_registry  # lazy — flag-off never imports
             _registry_active_set = tool_registry.make_active_set()
+
+        # Phase 14 / BRIDGE-06 (D-P14-07): track whether code_mode_start has been emitted.
+        # Emitted at most once per SSE stream — before the FIRST execute_code call when bridge active.
+        _bridge_event_sent = False
+        _bridge_active = settings.sandbox_enabled and settings.tool_registry_enabled
 
         # Phase 12 / HIST-01 / D-P12-12: per-round persistence chains via
         # parent_message_id; each round produces its own messages row.
@@ -1240,6 +1255,16 @@ async def _run_tool_loop_for_test(
             sandbox_event_queue: asyncio.Queue | None = None
             sandbox_callback = None
             if func_name == "execute_code":
+                # Phase 14 / BRIDGE-06 (D-P14-07): emit code_mode_start once per stream
+                if _bridge_active and not _bridge_event_sent:
+                    _bridge_event_sent = True
+                    _bridge_tools_b: list[str] = []
+                    try:
+                        from app.services import tool_registry as _tr_b
+                        _bridge_tools_b = [n for n in _tr_b._REGISTRY if n != "tool_search"]
+                    except Exception:
+                        pass
+                    yield f"data: {json.dumps({'type': 'code_mode_start', 'tools': _bridge_tools_b})}\n\n"
                 sandbox_event_queue = asyncio.Queue()
 
                 async def sandbox_stream_callback_test(event_type: str, line: str):

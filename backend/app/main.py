@@ -95,6 +95,13 @@ app.include_router(skills.router)
 app.include_router(code_execution.router)
 app.include_router(public_settings_router.router)  # Phase 12 / CTX-03
 
+# Phase 14 / BRIDGE-02, D-P14-05: bridge router mounted only when BOTH flags are active.
+# Lazy import inside the if-block ensures the bridge module is NEVER imported when
+# flags are off, preserving the TOOL-05 byte-identical fallback invariant.
+if settings.sandbox_enabled and settings.tool_registry_enabled:
+    from app.routers import bridge as bridge_router_module
+    app.include_router(bridge_router_module.router)
+
 
 @app.get("/health")
 async def health():
