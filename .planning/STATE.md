@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Advanced Tool Calling & Agent Intelligence
 status: executing
-last_updated: "2026-05-02T16:58:41.106Z"
-last_activity: 2026-05-02 -- Phase 15 planning complete
+last_updated: "2026-05-03T00:00:00.000Z"
+last_activity: 2026-05-03 -- Wave B complete (Phase 14 + Phase 15 both executed; 5/5 plans each; all requirements BRIDGE-01..07 + MCP-01..06 covered)
 progress:
   total_phases: 5
-  completed_phases: 2
-  total_plans: 22
-  completed_plans: 13
-  percent: 59
+  completed_phases: 4
+  total_plans: 26
+  completed_plans: 25
+  percent: 96
 ---
 
 # State: LexCore
@@ -20,15 +20,16 @@ progress:
 See: `.planning/PROJECT.md` (updated 2026-05-02 — v1.2 milestone started)
 
 **Core value:** Indonesian legal teams can manage the full contract lifecycle with confidence that AI outputs are accurate, citable, and traceable, and that sensitive client PII never leaves the control boundary.
-**Current focus:** Phase 14 — sandbox-http-bridge-code-mode
+**Current focus:** Milestone v1.2 Wave B COMPLETE — Phases 14 + 15 executed
 
 ## Current Position
 
-Phase: 14 (sandbox-http-bridge-code-mode) — CONTEXT GATHERED (--auto mode; 9 decisions locked; ready for `/gsd-plan-phase 14 --auto`)
-Plan: 0 of TBD (not started)
-Status: Ready to execute
-Resume: `.planning/phases/14-sandbox-http-bridge-code-mode/14-CONTEXT.md`
-Last activity: 2026-05-02 -- Phase 15 planning complete
+Phase: 15 (mcp-client-integration) — EXECUTED + VERIFIED (PASSED, 26/26 must-haves, MCP-01..06)
+Phase: 14 (sandbox-http-bridge-code-mode) — EXECUTED (5/5 plans, BRIDGE-01..07, 18 tests green)
+Plan: 5 of 5 (both phases complete)
+Status: v1.2 milestone all 5 phases complete — ready for /gsd-complete-milestone
+Resume: `.planning/phases/15-mcp-client-integration/15-VERIFICATION.md`
+Last activity: 2026-05-02 -- Phase 14 execution started
 
 ## Roadmap Snapshot (v1.2)
 
