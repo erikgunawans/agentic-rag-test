@@ -78,13 +78,13 @@ Full archive: `.planning/milestones/v1.1-ROADMAP.md`
   3. With `TOOL_REGISTRY_ENABLED=false` (default), chat behavior is byte-identical to v1.1 — the legacy `build_rag_tools()` path is taken and no registry code runs in the request hot path.
   4. Native tools (the existing 14) register at app startup as `source="native"`, `loading="immediate"`; skill tools register on database load as `source="skill"`, `loading="deferred"`; both appear in the catalog and are callable end-to-end through the registry.
   5. A single `register(name, description, schema, source, loading, executor)` API accepts all three sources, and `dict[str, ToolDefinition]` lookups are O(1) for dispatch.
-**Plans:** 5 plans
+**Plans:** 5/5 plans complete
 Plans:
-- [ ] 13-01-tool-registry-foundation-PLAN.md — ToolDefinition + register() + build_catalog_block + active-set primitives + config flag
-- [ ] 13-02-native-tool-adapter-wrap-PLAN.md — Wrap 14 natives via TOOL_DEFINITIONS adapter (D-P13-01)
-- [ ] 13-03-skills-as-first-class-tools-PLAN.md — register_user_skills helper (D-P13-02 skill = first-class tool)
-- [ ] 13-04-tool-search-meta-tool-active-set-PLAN.md — tool_search matcher + ranking + regex safety (D-P13-04, D-P13-05)
-- [ ] 13-05-chat-wiring-multi-agent-filter-PLAN.md — chat.py three flag-gated splices + should_filter_tool + byte-identical snapshot (D-P13-06, TOOL-05)
+- [x] 13-01-tool-registry-foundation-PLAN.md — ToolDefinition + register() + build_catalog_block + active-set primitives + config flag
+- [x] 13-02-native-tool-adapter-wrap-PLAN.md — Wrap 14 natives via TOOL_DEFINITIONS adapter (D-P13-01)
+- [x] 13-03-skills-as-first-class-tools-PLAN.md — register_user_skills helper (D-P13-02 skill = first-class tool)
+- [x] 13-04-tool-search-meta-tool-active-set-PLAN.md — tool_search matcher + ranking + regex safety (D-P13-04, D-P13-05)
+- [x] 13-05-chat-wiring-multi-agent-filter-PLAN.md — chat.py three flag-gated splices + should_filter_tool + byte-identical snapshot (D-P13-06, TOOL-05)
 
 ### Phase 14: Sandbox HTTP Bridge (Code Mode)
 
@@ -143,7 +143,7 @@ The following capabilities shipped before GSD initialization. Tracked as the Val
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 12. Chat UX — Context Window & Interleaved History | 0/0 | Not started | — |
-| 13. Unified Tool Registry & `tool_search` | 0/0 | Not started | — |
+| 13. Unified Tool Registry & `tool_search` | 5/5 | Complete   | 2026-05-02 |
 | 14. Sandbox HTTP Bridge (Code Mode) | 0/0 | Not started | — |
 | 15. MCP Client Integration | 0/0 | Not started | — |
 | 16. v1.1 Backlog Cleanup | 0/0 | Not started | — |
