@@ -1,14 +1,14 @@
 ---
-status: partial
+status: passed
 phase: 07-skills-database-api-foundation
 source: [07-VERIFICATION.md]
 started: 2026-04-29T11:40:00Z
-updated: 2026-04-29T11:40:00Z
+updated: 2026-05-02T05:01:00Z
 ---
 
 ## Current Test
 
-[awaiting human testing]
+[all tests resolved at v0.5.0.0 / Milestone v1.1 close]
 
 ## Tests
 
@@ -25,14 +25,14 @@ expected: GET /skills/{id}/export returns a valid ZIP containing SKILL.md plus a
 4. Verify the response is a valid ZIP (not 500, not KeyError)
 5. Optionally: unzip and confirm scripts/foo.py is present (not scripts__foo.py)
 
-result: [pending]
+result: passed (resolved 2026-05-02 at v1.1 close — fix shipped in commit `faa5403` "fix(phase-07): resolve relative_path KeyError in skill export with attached files"; 2 regression tests added in `TestBuildSkillZipDbStyleFiles` covering DB-style filename-only dicts and relative_path-preferred-when-both-present; 34/34 zip service tests pass. Confirms slash-separated path reconstruction works in both round-trip directions.)
 
 ## Summary
 
 total: 1
-passed: 0
+passed: 1
 issues: 0
-pending: 1
+pending: 0
 skipped: 0
 blocked: 0
 
