@@ -197,17 +197,18 @@ def test_get_todos_empty_thread():
 
 
 def test_get_todos_unauthorized_no_token():
-    """GET /threads/{id}/todos without Authorization header → 401.
+    """GET /threads/{id}/todos without Authorization header → 403.
 
-    Fails before endpoint is added (404 — RED).
+    Note: The existing get_current_user dependency returns 403 "Not authenticated"
+    (not 401) — this matches project convention (see test_admin_settings_auth.py).
     """
-    # Use a random UUID — we expect 401 before any DB access
+    # Use a random UUID — we expect 403 before any DB access
     fake_thread_id = str(uuid.uuid4())
 
     response = client.get(f"/threads/{fake_thread_id}/todos")
 
-    assert response.status_code == 401, (
-        f"Expected 401 when no token provided, got {response.status_code}: {response.text}"
+    assert response.status_code == 403, (
+        f"Expected 403 when no token provided, got {response.status_code}: {response.text}"
     )
 
 

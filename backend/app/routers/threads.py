@@ -2,7 +2,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from app.dependencies import get_current_user
-from app.database import get_supabase_client
+from app.database import get_supabase_authed_client, get_supabase_client
 from app.services.audit_service import log_action
 from app.services.openai_service import OpenAIService
 
@@ -111,3 +111,26 @@ async def delete_thread(
         resource_id=thread_id,
     )
     return {"ok": True}
+
+
+@router.get("/{thread_id}/todos")
+async def get_thread_todos(
+    thread_id: str,
+    user: dict = Depends(get_current_user),
+):
+    """
+    Phase 17 / TODO-07 — Hydrate Plan Panel on thread reload.
+
+    Read-only: the LLM is the sole writer via the write_todos tool (D-27).
+    RLS-scoped via get_supabase_authed_client: User A cannot read User B's todos.
+    Returns {"todos": [...]} ordered by position ASC, shape matches todos_updated SSE (D-17).
+    """
+    authed = get_supabase_authed_client(user["token"])
+    result = (
+        authed.table("agent_todos")
+        .select("id, content, status, position")
+        .eq("thread_id", thread_id)
+        .order("position")
+        .execute()
+    )
+    return {"todos": result.data or []}
