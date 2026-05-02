@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Advanced Tool Calling & Agent Intelligence
-status: Phase 13 ready to ship; user controls cross-phase transitions while Wave A runs in parallel
-last_updated: "2026-05-02T16:49:25.179Z"
-last_activity: 2026-05-02 -- Phase 13 all 5 plans executed, 78 tests passing, byte-id invariant verified
+status: executing
+last_updated: "2026-05-02T16:52:00.000Z"
+last_activity: 2026-05-02 -- Phase 14 context gathered (--auto mode; 9 decisions D-P14-01..09 locked; ready for plan-phase)
 progress:
   total_phases: 5
   completed_phases: 2
@@ -20,15 +20,15 @@ progress:
 See: `.planning/PROJECT.md` (updated 2026-05-02 — v1.2 milestone started)
 
 **Core value:** Indonesian legal teams can manage the full contract lifecycle with confidence that AI outputs are accurate, citable, and traceable, and that sensitive client PII never leaves the control boundary.
-**Current focus:** Phase 13 — unified-tool-registry-tool-search-meta-tool
+**Current focus:** Phase 14 — sandbox-http-bridge-code-mode
 
 ## Current Position
 
-Phase: 13 (unified-tool-registry-tool-search-meta-tool) — EXECUTED + VERIFIED (`--no-transition` flag set; awaiting user gating before phase-completion)
-Plan: 5 of 5 (all complete)
-Status: Phase 13 ready to ship; user controls cross-phase transitions while Wave A runs in parallel
-Resume: `.planning/phases/13-unified-tool-registry-tool-search-meta-tool/13-VERIFICATION.md` — verifier verdict PASS
-Last activity: 2026-05-02 -- Phase 13 all 5 plans executed, 78 tests passing, byte-id invariant verified
+Phase: 14 (sandbox-http-bridge-code-mode) — CONTEXT GATHERED (--auto mode; 9 decisions locked; ready for `/gsd-plan-phase 14 --auto`)
+Plan: 0 of TBD (not started)
+Status: Phase 14 context complete; Phase 13 EXECUTED + VERIFIED (awaiting user gating before phase-completion)
+Resume: `.planning/phases/14-sandbox-http-bridge-code-mode/14-CONTEXT.md`
+Last activity: 2026-05-02 -- Phase 14 context gathered (--auto; 9 decisions D-P14-01..09 locked: bridge port, network isolation, session token lifecycle, stub injection, feature flag interaction, dangerous import scan, code_mode_start SSE, ToolClient module, bridge router auth)
 
 ## Roadmap Snapshot (v1.2)
 
@@ -36,7 +36,7 @@ Last activity: 2026-05-02 -- Phase 13 all 5 plans executed, 78 tests passing, by
 |-------|------|------|------------|--------|
 | 12 | Chat UX — Context Window & Interleaved History | CTX×6 + HIST×6 (12) | — | Planned (7 plans, 7 of 7 executed, 2026-05-02) |
 | 13 | Unified Tool Registry & `tool_search` | TOOL×6 (6) | — | Planned (5 plans, 2026-05-02) |
-| 14 | Sandbox HTTP Bridge (Code Mode) | BRIDGE×7 (7) | Phase 13 | Not started |
+| 14 | Sandbox HTTP Bridge (Code Mode) | BRIDGE×7 (7) | Phase 13 | Context gathered (9 decisions, 2026-05-02); ready to plan |
 | 15 | MCP Client Integration | MCP×6 (6) | Phase 13 | Not started |
 | 16 | v1.1 Backlog Cleanup | REDACT-01 + TEST-01 + UI-01 (3) | — | Wave 1 executed 2026-05-02 (3/3 plans committed; 16-01 supabase db push pending manual step) |
 
@@ -90,3 +90,5 @@ Items carried forward at milestone closes (v1.0 → v1.1 → next):
 *v1.2 roadmap created: 2026-05-02 — 5 phases (12–16), 34 requirements (CTX×6, HIST×6, TOOL×6, BRIDGE×7, MCP×6, REDACT×1, TEST×1, UI×1), 100% coverage. Ready to plan first wave.*
 
 *Wave A discuss-phase complete: 2026-05-02 — Phase 12 (Chat UX) + Phase 16 (v1.1 cleanup) auto-mode in parallel background subagents (5 + 5 gray areas auto-decided); Phase 13 (Tool Registry) interactive in main session (4 gray areas, 6 decisions D-P13-01..06 locked: adapter wrap, skill = first-class tool, single unified catalog, tool_search meta-callout, two-param search schema, multi-agent registry filter). Wave A ready for `/gsd-plan-phase 12 / 13 / 16` in any order.*
+
+*Phase 14 discuss-phase complete: 2026-05-02 — Sandbox HTTP Bridge context gathered in --auto mode. 9 decisions locked (D-P14-01..09): fixed configurable bridge port 8002 via BRIDGE_PORT, env-var-based network isolation (Docker network hardening deferred), thread-scoped token tied to 30-min sandbox session TTL, one-time stub file write to /sandbox/stubs.py via execute_command, dual-flag gate (SANDBOX_ENABLED + TOOL_REGISTRY_ENABLED both required), _check_dangerous_imports() in sandbox_service.py, code_mode_start SSE event, ToolClient via stdlib urllib.request in backend/sandbox/Dockerfile, two-layer JWT + session-token auth on bridge router.*
