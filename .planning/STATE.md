@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Agent Harness & Domain-Specific Workflows
-status: planning
-last_updated: "2026-05-03T02:02:00.000Z"
-last_activity: 2026-05-03
+status: executing
+last_updated: "2026-05-02T21:48:07.540Z"
+last_activity: 2026-05-02 -- Phase 17 execution started
 progress:
   total_phases: 6
   completed_phases: 0
-  total_plans: 0
+  total_plans: 15
   completed_plans: 0
   percent: 0
 ---
@@ -20,14 +20,14 @@ progress:
 See: `.planning/PROJECT.md` (updated 2026-05-03 — v1.3 milestone started)
 
 **Core value:** Indonesian legal teams can manage the full contract lifecycle with confidence that AI outputs are accurate, citable, and traceable, and that sensitive client PII never leaves the control boundary.
-**Current focus:** Milestone v1.3 — ROADMAP created (Phases 17–22), ready to discuss-phase Wave A (17 ‖ 18)
+**Current focus:** Phase 17 — deep-mode-foundation-planning-todos-plan-panel
 
 ## Current Position
 
-Phase: Not started (roadmap drafted; ready to plan)
-Plan: —
-Status: Roadmap drafted, awaiting `/gsd-discuss-phase` for Wave A
-Last activity: 2026-05-03 — v1.3 ROADMAP.md authored, 111/111 requirements mapped
+Phase: 17 (deep-mode-foundation-planning-todos-plan-panel) — EXECUTING
+Plan: 1 of 7
+Status: Executing Phase 17
+Last activity: 2026-05-02 -- Phase 17 execution started
 
 ## Roadmap Snapshot (v1.3)
 
@@ -51,6 +51,7 @@ Last activity: 2026-05-03 — v1.3 ROADMAP.md authored, 111/111 requirements map
 - **Wave E**: Phase 22 (capstone domain harness + DOCX)
 
 **4 new migrations expected** (will be 038–041 if numbering preserved):
+
 - 038: `agent_todos` (Phase 17)
 - 039: `workspace_files` (Phase 18)
 - 040: `harness_runs` (Phase 20)
@@ -88,6 +89,7 @@ Items carried forward at milestone closes (v1.0 → v1.1 → v1.2 → next):
 | v1.2 | Deploy | Deploy v1.2 features to production (flip `TOOL_REGISTRY_ENABLED=true` + `SANDBOX_ENABLED=true` in Railway env, deploy Docker image, run smoke tests) | Pending operator |
 
 PRD-flagged post-MVP items (explicit in v1.3 REQUIREMENTS.md "Future Requirements"):
+
 - Context auto-compaction / summarization for very-long sessions
 - Human-in-the-loop tool approval for sensitive operations
 - Agent memory across sessions (persistent per-user instructions)
