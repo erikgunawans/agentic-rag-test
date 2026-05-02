@@ -8,6 +8,7 @@ from app.routers import settings as public_settings_router  # Phase 12 / CTX-03 
 from app.middleware.skills_upload_size import SkillsUploadSizeMiddleware
 from app.services.tracing_service import configure_tracing
 from app.services.redaction_service import get_redaction_service
+from app.services.mcp_client_manager import get_mcp_client_manager
 from app.database import get_supabase_client
 
 logger = logging.getLogger(__name__)
@@ -27,6 +28,16 @@ async def lifespan(app: FastAPI):
         logger.warning(
             "get_redaction_service() warm-up failed", exc_info=True
         )
+    # Phase 15 (MCP-01..06 / D-P15-01): start MCP client manager if configured.
+    # Non-critical: failure logs a warning and boot continues (MCP is additive).
+    # Gate: only runs when TOOL_REGISTRY_ENABLED=true AND MCP_SERVERS is non-empty.
+    if settings.tool_registry_enabled and settings.mcp_servers.strip():
+        try:
+            await get_mcp_client_manager().startup()
+        except Exception:
+            logger.warning(
+                "MCPClientManager startup failed — MCP tools unavailable", exc_info=True
+            )
     # Recover any docs stalled in 'processing' from a previous crash
     try:
         get_supabase_client().table("documents").update(
@@ -35,6 +46,12 @@ async def lifespan(app: FastAPI):
     except Exception:
         pass
     yield
+    # Phase 15 (D-P15-02): clean up MCP connections on shutdown.
+    if settings.tool_registry_enabled and settings.mcp_servers.strip():
+        try:
+            await get_mcp_client_manager().shutdown()
+        except Exception:
+            logger.warning("MCPClientManager shutdown failed", exc_info=True)
 
 
 app = FastAPI(title="RAG Masterclass API", lifespan=lifespan)

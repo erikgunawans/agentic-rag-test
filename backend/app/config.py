@@ -83,6 +83,12 @@ class Settings(BaseSettings):
     # Default OFF — when False, chat.py + tool_service.py skip importing the registry
     # entirely (TOOL-05 byte-identical fallback). Env var: TOOL_REGISTRY_ENABLED.
     tool_registry_enabled: bool = False
+    # Phase 15 (MCP-01): MCP server connection config.
+    # Format: 'name:command:args' (split on first 2 colons; args is shlex-split).
+    # Multiple servers: comma-separated. Empty = no MCP servers, zero startup cost (MCP-05).
+    # Example: 'github:npx:-y @modelcontextprotocol/server-github'
+    # Example (multi): 'github:npx:-y @modelcontextprotocol/server-github,postgres:python:server.py'
+    mcp_servers: str = ""
     # D-P10-03: Docker Hub image (rebuild + push when packages change).
     sandbox_image: str = "lexcore-sandbox:latest"
     # D-P10-02: Railway socket-mount pattern. Override per-env if running rootless / DinD.
