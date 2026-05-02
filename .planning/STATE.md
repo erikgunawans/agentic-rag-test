@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Advanced Tool Calling & Agent Intelligence
 status: planning
-last_updated: "2026-05-02T09:10:34.510Z"
-last_activity: 2026-05-02 — Roadmap for v1.2 written; 34/34 requirements mapped to 5 phases (12–16)
+last_updated: "2026-05-02T09:11:05.020Z"
+last_activity: 2026-05-02 — Roadmap for v1.2 written; 34/34 requirements mapped to 5 phases (12–16); Phase 16 discuss-phase complete (auto-mode)
 progress:
   total_phases: 5
   completed_phases: 0
@@ -23,10 +23,10 @@ See: `.planning/PROJECT.md` (updated 2026-05-02 — v1.2 milestone started)
 
 ## Current Position
 
-Phase: Roadmap created (Phases 12–16 defined, no plans yet); Phase 16 CONTEXT.md captured
+Phase: Roadmap created (Phases 12–16 defined, no plans yet); Phase 12 + Phase 16 CONTEXT.md captured
 Plan: —
-Status: Ready to plan Phase 12 (or any wave-A phase: 12 / 13 / 16 are dependency-free); Phase 16 has CONTEXT.md ready for `/gsd-plan-phase 16`
-Last activity: 2026-05-02 — Roadmap for v1.2 written; 34/34 requirements mapped to 5 phases (12–16); Phase 16 discuss-phase complete (auto-mode)
+Status: Ready to plan Wave-A phases 12 / 16 (CONTEXT.md ready); Phase 13 still needs discuss
+Last activity: 2026-05-02 — Roadmap for v1.2 written; 34/34 requirements mapped to 5 phases (12–16); Phase 12 + Phase 16 discuss-phase complete (auto-mode)
 
 ## Roadmap Snapshot (v1.2)
 
