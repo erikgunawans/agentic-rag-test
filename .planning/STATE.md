@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.2
-milestone_name: Advanced Tool Calling & Agent Intelligence
-status: completed
-last_updated: "2026-05-02T17:37:03.680Z"
+milestone: v1.3
+milestone_name: Agent Harness & Domain-Specific Workflows
+status: planning
+last_updated: "2026-05-02T18:57:40.536Z"
 last_activity: 2026-05-02
 progress:
-  total_phases: 5
-  completed_phases: 5
-  total_plans: 26
-  completed_plans: 28
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # State: LexCore
@@ -24,12 +24,10 @@ See: `.planning/PROJECT.md` (updated 2026-05-02 — v1.2 milestone started)
 
 ## Current Position
 
-Phase: 15 (mcp-client-integration) — EXECUTED + VERIFIED (PASSED, 26/26 must-haves, MCP-01..06)
-Phase: 14 (sandbox-http-bridge-code-mode) — EXECUTED (5/5 plans, BRIDGE-01..07, 18 tests green)
-Plan: 5 of 5 (both phases complete)
-Status: v1.2 milestone all 5 phases complete — ready for /gsd-complete-milestone
-Resume: `.planning/phases/15-mcp-client-integration/15-VERIFICATION.md`
-Last activity: 2026-05-02
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-05-02 — Milestone v1.3 started
 
 ## Roadmap Snapshot (v1.2)
 

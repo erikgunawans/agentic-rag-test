@@ -8,6 +8,20 @@ LexCore is an Indonesian legal AI platform for Contract Lifecycle Management (CL
 
 Indonesian legal teams can manage the full contract lifecycle — chat with documents, draft contracts, run compliance checks, route approvals, audit decisions — with confidence that AI outputs are accurate, citable, and traceable, and that sensitive client PII never leaves the control boundary.
 
+## Current Milestone: v1.3 Agent Harness & Domain-Specific Workflows
+
+**Goal:** Transform LexCore from chat-with-tools into a full autonomous agent platform with two harness layers — a soft LLM-driven harness (Deep Mode) and a hard system-driven domain harness — delivering a Contract Review Harness as the first domain implementation.
+
+**Target features:**
+- General-Purpose Agent Harness (Deep Mode): per-message toggle, planning todos, virtual workspace filesystem, sub-agent task delegation, ask-user mid-task clarification, error handling, session persistence
+- Domain-Specific Harness Engine: backend state machine with 5 phase types (programmatic / llm_single / llm_agent / llm_batch_agents / llm_human_input), `harness_runs` table, gatekeeper LLM, post-harness response LLM, human-in-the-loop context gathering, batched parallel sub-agents, file upload (DOCX/PDF), Plan Panel locked variant
+- Contract Review Harness (first domain implementation): 8-phase deterministic workflow (intake → classification → context → playbook RAG → clause extraction → risk analysis batched → redline batched → executive summary + DOCX deliverable)
+- Cross-cutting: 3 new tables (`agent_todos`, `workspace_files`, `harness_runs`) with RLS; `messages` modified with `deep_mode` boolean + `harness_mode` text; privacy invariant preserved across all new code paths
+
+**Source PRD:** `docs/PRD-Agent-Harness.md`
+
+**Phase numbering:** Continues from v1.2 (last phase 16) → v1.3 starts at Phase 17.
+
 ## Requirements
 
 ### Validated
@@ -195,6 +209,8 @@ This document evolves at phase transitions and milestone boundaries.
 *Last updated: 2026-05-02 — **Milestone v1.2 Advanced Tool Calling & Agent Intelligence started** (`/gsd-new-milestone`). Source PRD: `docs/superpowers/PRD-advanced-tool-calling.md`. Scope: 5 PRD features (Context Window Indicator, Interleaved History Rendering, Tool Registry + Search, Sandbox HTTP Bridge, MCP Client) + 3 bundled v1.1 backlog items (Fix B PII deny list, CodeExecutionPanel tests, base-ui asChild shim sweep). Phase numbering continues from 11 → starts at Phase 12. All tool-calling features ship dark behind `TOOL_REGISTRY_ENABLED` and `SANDBOX_ENABLED` flags.*
 
 *Last updated: 2026-05-03 — **Milestone v1.2 Advanced Tool Calling & Agent Intelligence COMPLETE** ✅ — All 34 v1.2 REQ-IDs shipped (CTX×6, HIST×6, TOOL×6, BRIDGE×7, MCP×6, REDACT×1, TEST×1, UI×1). 5 phases (12–16), 25 plans, Wave A (12‖13‖16) + Wave B (14‖15) parallel execution. Phase 15 verified PASS (26/26 must-haves). Vitest bootstrapped. NoneType RAG bug fixed. Migration 037 live. All v1.2 requirements moved to Validated. Full archive: `.planning/milestones/v1.2-ROADMAP.md` and `.planning/milestones/v1.2-REQUIREMENTS.md`. Next: `/gsd-new-milestone` to scope v1.3.*
+
+*Last updated: 2026-05-03 — **Milestone v1.3 Agent Harness & Domain-Specific Workflows started** (`/gsd-new-milestone docs/PRD-Agent-Harness.md`). Source PRD: `docs/PRD-Agent-Harness.md`. Scope: General-Purpose Deep Mode harness (7 features), Domain-Specific Harness Engine (7 features), Contract Review Harness as first domain implementation (8-phase workflow + DOCX deliverable). Phase numbering continues from 16 → starts at Phase 17. Research skipped (PRD highly prescriptive). Privacy invariant preserved — all new agent paths route through existing redaction pipeline.*
 
 *Last updated: 2026-04-29 — Milestone v1.1 Agent Skills & Code Execution started (`/gsd-new-milestone`)*
 
