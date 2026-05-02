@@ -368,3 +368,4 @@ class HybridRetrievalService:
                         )
                 except Exception as e:
                     logger.warning("Neighbor expansion failed for chunk %s: %s", chunk_idx, e)
+        return results
