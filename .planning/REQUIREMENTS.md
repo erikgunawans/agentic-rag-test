@@ -98,19 +98,19 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| TOOL-01..06 | TBD | Pending |
-| BRIDGE-01..07 | TBD | Pending |
-| MCP-01..06 | TBD | Pending |
-| CTX-01..06 | TBD | Pending |
-| HIST-01..06 | TBD | Pending |
-| REDACT-01 | TBD | Pending |
-| TEST-01 | TBD | Pending |
-| UI-01 | TBD | Pending |
+| CTX-01..06 | Phase 12 | Pending |
+| HIST-01..06 | Phase 12 | Pending |
+| TOOL-01..06 | Phase 13 | Pending |
+| BRIDGE-01..07 | Phase 14 | Pending |
+| MCP-01..06 | Phase 15 | Pending |
+| REDACT-01 | Phase 16 | Pending |
+| TEST-01 | Phase 16 | Pending |
+| UI-01 | Phase 16 | Pending |
 
 **Coverage:**
 - v1.2 requirements: **34 total** (CTX×6, HIST×6, TOOL×6, BRIDGE×7, MCP×6, REDACT×1, TEST×1, UI×1)
-- Mapped to phases: 0 (filled by roadmapper)
-- Unmapped: 34 ⏳ pending roadmap
+- Mapped to phases: **34** (12 → CTX+HIST, 13 → TOOL, 14 → BRIDGE, 15 → MCP, 16 → REDACT+TEST+UI)
+- Unmapped: **0** ✓
 
 ## Dependency Hints from PRD
 
