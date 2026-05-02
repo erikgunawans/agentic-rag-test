@@ -215,13 +215,137 @@ These are explicit Post-MVP items from the PRD — captured here for visibility,
 
 ## Traceability
 
-*Filled in by the roadmapper when ROADMAP.md is created.*
+*Filled in by the roadmapper 2026-05-03 from `.planning/ROADMAP.md`. 111/111 v1.3 requirements mapped, no orphans, no duplicates.*
 
-| Phase | Phase Name | Requirements Mapped |
-|-------|------------|---------------------|
-| 17 | TBD | TBD |
-| ... | ... | ... |
+### Per-phase summary
+
+| Phase | Phase Name | Requirements Mapped | Count |
+|-------|------------|---------------------|-------|
+| 17 | Deep Mode Foundation + Planning Todos + Plan Panel | DEEP-01..07, TODO-01..07, MIG-01, MIG-04, SEC-01, CONF-01..03 | 20 |
+| 18 | Workspace Virtual Filesystem | WS-01..11, MIG-02 | 12 |
+| 19 | Sub-Agent Delegation + Ask User + Status & Recovery | TASK-01..07, ASK-01..04, STATUS-01..06 | 17 |
+| 20 | Harness Engine Core + Gatekeeper + Post + Upload + Locked Panel | HARN-01..10, MIG-03, GATE-01..05, POST-01..05, PANEL-01..04, UPL-01..04, SEC-02..04, OBS-01..03 | 35 |
+| 21 | Batched Parallel Sub-Agents + Human-in-the-Loop | BATCH-01..07, HIL-01..04 | 11 |
+| 22 | Contract Review Harness + DOCX Deliverable | CR-01..08, DOCX-01..08 | 16 |
+| **Total** | | | **111** |
+
+### Per-requirement detail
+
+| REQ-ID | Phase |
+|--------|-------|
+| DEEP-01 | 17 |
+| DEEP-02 | 17 |
+| DEEP-03 | 17 |
+| DEEP-04 | 17 |
+| DEEP-05 | 17 |
+| DEEP-06 | 17 |
+| DEEP-07 | 17 |
+| TODO-01 | 17 |
+| TODO-02 | 17 |
+| TODO-03 | 17 |
+| TODO-04 | 17 |
+| TODO-05 | 17 |
+| TODO-06 | 17 |
+| TODO-07 | 17 |
+| WS-01 | 18 |
+| WS-02 | 18 |
+| WS-03 | 18 |
+| WS-04 | 18 |
+| WS-05 | 18 |
+| WS-06 | 18 |
+| WS-07 | 18 |
+| WS-08 | 18 |
+| WS-09 | 18 |
+| WS-10 | 18 |
+| WS-11 | 18 |
+| TASK-01 | 19 |
+| TASK-02 | 19 |
+| TASK-03 | 19 |
+| TASK-04 | 19 |
+| TASK-05 | 19 |
+| TASK-06 | 19 |
+| TASK-07 | 19 |
+| ASK-01 | 19 |
+| ASK-02 | 19 |
+| ASK-03 | 19 |
+| ASK-04 | 19 |
+| STATUS-01 | 19 |
+| STATUS-02 | 19 |
+| STATUS-03 | 19 |
+| STATUS-04 | 19 |
+| STATUS-05 | 19 |
+| STATUS-06 | 19 |
+| HARN-01 | 20 |
+| HARN-02 | 20 |
+| HARN-03 | 20 |
+| HARN-04 | 20 |
+| HARN-05 | 20 |
+| HARN-06 | 20 |
+| HARN-07 | 20 |
+| HARN-08 | 20 |
+| HARN-09 | 20 |
+| HARN-10 | 20 |
+| GATE-01 | 20 |
+| GATE-02 | 20 |
+| GATE-03 | 20 |
+| GATE-04 | 20 |
+| GATE-05 | 20 |
+| POST-01 | 20 |
+| POST-02 | 20 |
+| POST-03 | 20 |
+| POST-04 | 20 |
+| POST-05 | 20 |
+| HIL-01 | 21 |
+| HIL-02 | 21 |
+| HIL-03 | 21 |
+| HIL-04 | 21 |
+| BATCH-01 | 21 |
+| BATCH-02 | 21 |
+| BATCH-03 | 21 |
+| BATCH-04 | 21 |
+| BATCH-05 | 21 |
+| BATCH-06 | 21 |
+| BATCH-07 | 21 |
+| UPL-01 | 20 |
+| UPL-02 | 20 |
+| UPL-03 | 20 |
+| UPL-04 | 20 |
+| PANEL-01 | 20 |
+| PANEL-02 | 20 |
+| PANEL-03 | 20 |
+| PANEL-04 | 20 |
+| CR-01 | 22 |
+| CR-02 | 22 |
+| CR-03 | 22 |
+| CR-04 | 22 |
+| CR-05 | 22 |
+| CR-06 | 22 |
+| CR-07 | 22 |
+| CR-08 | 22 |
+| DOCX-01 | 22 |
+| DOCX-02 | 22 |
+| DOCX-03 | 22 |
+| DOCX-04 | 22 |
+| DOCX-05 | 22 |
+| DOCX-06 | 22 |
+| DOCX-07 | 22 |
+| DOCX-08 | 22 |
+| MIG-01 | 17 |
+| MIG-02 | 18 |
+| MIG-03 | 20 |
+| MIG-04 | 17 |
+| SEC-01 | 17 |
+| SEC-02 | 20 |
+| SEC-03 | 20 |
+| SEC-04 | 20 |
+| OBS-01 | 20 |
+| OBS-02 | 20 |
+| OBS-03 | 20 |
+| CONF-01 | 17 |
+| CONF-02 | 17 |
+| CONF-03 | 17 |
 
 ---
 
 *Initialized 2026-05-03 from `docs/PRD-Agent-Harness.md` via `/gsd-new-milestone`.*
+*Traceability filled 2026-05-03 by gsd-roadmapper — 111/111 coverage, 6 phases (17–22).*

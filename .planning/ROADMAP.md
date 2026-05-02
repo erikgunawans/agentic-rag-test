@@ -9,8 +9,20 @@
 - ✅ **v1.0 PII Redaction System** — Phases 1–6 (shipped 2026-04-29)
 - ✅ **v1.1 Agent Skills & Code Execution** — Phases 7–11 (shipped 2026-05-02 as v0.5.0.0)
 - ✅ **v1.2 Advanced Tool Calling & Agent Intelligence** — Phases 12–16 (shipped 2026-05-03)
+- 🚧 **v1.3 Agent Harness & Domain-Specific Workflows** — Phases 17–22 (started 2026-05-03)
 
 ## Phases
+
+### v1.3 Agent Harness & Domain-Specific Workflows (Phases 17–22)
+
+- [ ] **Phase 17: Deep Mode Foundation + Planning Todos + Plan Panel** — Per-message Deep Mode toggle, extended agent loop, agent_todos table + RLS, write_todos/read_todos tools, Plan Panel UI, deep_mode persistence on messages
+- [ ] **Phase 18: Workspace Virtual Filesystem** — workspace_files table + RLS, write_file/read_file/edit_file/list_files tools, REST endpoints, Workspace Panel UI, sandbox file integration
+- [ ] **Phase 19: Sub-Agent Delegation + Ask User + Status & Recovery** — task tool with isolated context, ask_user mid-task clarification, agent status indicators, error append-only recovery, resume-after-pause
+- [ ] **Phase 20: Harness Engine Core + Gatekeeper + Post-Harness + File Upload + Locked Plan Panel** — harness_runs table + RLS, PhaseType dispatcher, programmatic + llm_single + llm_agent phase types, gatekeeper LLM with TRIGGER_HARNESS sentinel, post-harness summary LLM, DOCX/PDF upload, locked Plan Panel for harness runs, observability + security cross-cuts
+- [ ] **Phase 21: Batched Parallel Sub-Agents + Human-in-the-Loop** — llm_batch_agents phase type with asyncio.gather + queue streaming + mid-batch resume, llm_human_input phase type with informed-question generation
+- [ ] **Phase 22: Contract Review Harness + DOCX Deliverable** — 8-phase deterministic Contract Review workflow (intake → classify → context → playbook → clauses → risk → redlines → summary), DOCX report via sandbox python-docx, non-fatal fallback
+
+**Total:** 6 phases · 111 requirements (DEEP×7, TODO×7, WS×11, TASK×7, ASK×4, STATUS×6, HARN×10, GATE×5, POST×5, HIL×4, BATCH×7, UPL×4, PANEL×4, CR×8, DOCX×8, MIG×4, SEC×4, OBS×3, CONF×3) · feature-flag dark-launch via existing `TOOL_REGISTRY_ENABLED` plus new toggles surfaced through admin settings
 
 <details>
 <summary>✅ v1.2 Advanced Tool Calling & Agent Intelligence (Phases 12–16) — SHIPPED 2026-05-03</summary>
@@ -60,75 +72,87 @@ Full archive: `.planning/milestones/v1.1-ROADMAP.md`
 
 ## Phase Details
 
-### Phase 12: Chat UX — Context Window Indicator & Interleaved History
+### Phase 17: Deep Mode Foundation + Planning Todos + Plan Panel
 
-**Goal**: Users see how much of the LLM context window is consumed and get a faithful, interleaved replay of past chats (sub-agent panels and code-execution terminals included) when reloading or switching threads.
-**Depends on**: Nothing (independent of tool-calling chain; ships unconditionally — no feature flag)
-**Requirements**: CTX-01, CTX-02, CTX-03, CTX-04, CTX-05, CTX-06, HIST-01, HIST-02, HIST-03, HIST-04, HIST-05, HIST-06
+**Goal**: Users can toggle Deep Mode per-message and watch the agent build, mutate, and execute a real-time todo plan inside an extended agent loop, with all plan state persisted thread-side and surfaced through a Plan Panel that survives page reloads.
+**Depends on**: Nothing (independent foundation; can run in parallel with Phase 18 once `agent_todos` migration lands)
+**Requirements**: DEEP-01, DEEP-02, DEEP-03, DEEP-04, DEEP-05, DEEP-06, DEEP-07, TODO-01, TODO-02, TODO-03, TODO-04, TODO-05, TODO-06, TODO-07, MIG-01, MIG-04, SEC-01, CONF-01, CONF-02, CONF-03
 **Success Criteria** (what must be TRUE):
-  1. After the first message exchange in a thread, a slim progress bar appears above the chat input showing `Xk / Yk (Z%)` and shifts color green → yellow → red at the 60%/80% thresholds.
-  2. Switching threads or starting a new thread resets the bar; threads on providers that ignore `stream_options` simply show no bar (no errors, no broken UI).
-  3. Reloading any thread that ran sub-agents or code execution shows the full interleaved transcript — text, tool steps, sub-agent panels, and code-execution panels (with stdout/stderr/output files) appear in the same visual order they streamed in.
-  4. Sending a follow-up message in a reloaded thread preserves prior agentic context — the LLM can reference earlier sub-agent findings and code-execution variables/output.
-  5. `GET /settings/public` returns `{"context_window": N}` without auth and the frontend honors that value (changing `LLM_CONTEXT_WINDOW` env var without a frontend redeploy still updates the bar's denominator).
+  1. User clicks the Deep Mode toggle next to Send and the next message routes through the extended agent loop (extended system prompt, deep-mode tools loaded, `MAX_DEEP_ROUNDS=50` cap); with Deep Mode OFF, chat behavior is byte-identical to v1.2 (zero token overhead, no extra tools).
+  2. While the agent is working, the Plan Panel sidebar streams real-time `todos_updated` SSE events — each todo flips pending → in_progress → completed, and the LLM can adaptively add / remove / rewrite tasks mid-execution.
+  3. Reloading any thread that ran in Deep Mode reconstructs the last-known todo state from `agent_todos` and renders the same Plan Panel (Deep Mode badge included), with `messages.deep_mode` distinguishing deep messages from standard ones.
+  4. Loop-exhaustion at `MAX_DEEP_ROUNDS` forces the agent to summarize and deliver (graceful degradation, not a crash); user can interrupt mid-loop and all completed work persists.
+  5. RLS on `agent_todos` enforces thread-ownership scope — User A cannot read or write User B's todos via direct table access; configuration knobs (`MAX_DEEP_ROUNDS`, `MAX_TOOL_ROUNDS`, `MAX_SUB_AGENT_ROUNDS`) are env-driven with documented defaults.
 **Plans**: TBD
 **UI hint**: yes
 
-### Phase 13: Unified Tool Registry & `tool_search` Meta-Tool
+### Phase 18: Workspace Virtual Filesystem
 
-**Goal**: A single registry holds all tools (native, skill, MCP) and exposes them to the LLM through a compact catalog plus a `tool_search` meta-tool, scaling tool count without bloating every prompt.
-**Depends on**: Nothing (foundation for Phases 14 & 15; safe-off behind `TOOL_REGISTRY_ENABLED=false` so it can ship before consumers are ready)
-**Requirements**: TOOL-01, TOOL-02, TOOL-03, TOOL-04, TOOL-05, TOOL-06
+**Goal**: A per-thread virtual filesystem holds text and binary artifacts produced by the agent, sandbox, or user upload, surfaces them through file-manipulation LLM tools and a Workspace Panel, and replaces the current sandbox-file-disappears-after-execution problem with a durable cross-device store.
+**Depends on**: Nothing (foundation in parallel with Phase 17 once `workspace_files` migration lands; sandbox-file integration touches v1.1 sandbox code path)
+**Requirements**: WS-01, WS-02, WS-03, WS-04, WS-05, WS-06, WS-07, WS-08, WS-09, WS-10, WS-11, MIG-02
 **Success Criteria** (what must be TRUE):
-  1. With `TOOL_REGISTRY_ENABLED=true`, the LLM system prompt contains a compact catalog of ≤50 tools (name + one-line description, ~500 tokens) and the LLM can call `tool_search` with a keyword or regex to retrieve full schemas for matching tools.
-  2. Tools loaded via `tool_search` are usable for the rest of the current conversation turn, then reset on the next request — they never persist across conversations.
-  3. With `TOOL_REGISTRY_ENABLED=false` (default), chat behavior is byte-identical to v1.1 — the legacy `build_rag_tools()` path is taken and no registry code runs in the request hot path.
-  4. Native tools (the existing 14) register at app startup as `source="native"`, `loading="immediate"`; skill tools register on database load as `source="skill"`, `loading="deferred"`; both appear in the catalog and are callable end-to-end through the registry.
-  5. A single `register(name, description, schema, source, loading, executor)` API accepts all three sources, and `dict[str, ToolDefinition]` lookups are O(1) for dispatch.
-**Plans:** 5/5 plans complete
-Plans:
-- [x] 13-01-tool-registry-foundation-PLAN.md — ToolDefinition + register() + build_catalog_block + active-set primitives + config flag
-- [x] 13-02-native-tool-adapter-wrap-PLAN.md — Wrap 14 natives via TOOL_DEFINITIONS adapter (D-P13-01)
-- [x] 13-03-skills-as-first-class-tools-PLAN.md — register_user_skills helper (D-P13-02 skill = first-class tool)
-- [x] 13-04-tool-search-meta-tool-active-set-PLAN.md — tool_search matcher + ranking + regex safety (D-P13-04, D-P13-05)
-- [x] 13-05-chat-wiring-multi-agent-filter-PLAN.md — chat.py three flag-gated splices + should_filter_tool + byte-identical snapshot (D-P13-06, TOOL-05)
+  1. Agent calls `write_file`, `read_file`, `edit_file`, and `list_files` against a per-thread workspace; path validation rejects path traversal, leading slashes, backslashes, paths >500 chars, and text content >1 MB with structured tool errors (no exceptions).
+  2. Text files persist in `workspace_files.content` (sub-100 ms reads); binaries persist in Supabase Storage with metadata in DB; sandbox-generated downloads now auto-register as `source="sandbox"` workspace entries (fixing the v1.1 disappearing-link issue).
+  3. User opens any thread (Deep Mode or harness) and the Workspace Panel sidebar shows the file list with sizes and source badges (agent / sandbox / upload); clicking a text file opens an inline view, clicking a binary triggers a signed-URL download.
+  4. `GET /threads/{id}/files` and `GET /threads/{id}/files/{path}` return RLS-scoped results, real-time `workspace_updated` SSE events fire on every mutation, and sub-agents share the parent thread's workspace transparently.
+  5. Workspace Panel is decoupled from Deep Mode — it appears whenever a thread has at least one workspace file, so harness runs and standard sandbox uploads can populate it independently.
+**Plans**: TBD
+**UI hint**: yes
 
-### Phase 14: Sandbox HTTP Bridge (Code Mode)
+### Phase 19: Sub-Agent Delegation + Ask User + Status & Recovery
 
-**Goal**: LLM-generated Python in the sandbox can call platform tools through a host-side HTTP bridge with typed stubs, collapsing N tool round-trips into one sandbox execution while keeping credentials on the host.
-**Depends on**: Phase 13 (registry is the dispatch surface for `/bridge/call`)
-**Requirements**: BRIDGE-01, BRIDGE-02, BRIDGE-03, BRIDGE-04, BRIDGE-05, BRIDGE-06, BRIDGE-07
+**Goal**: Deep Mode agents can fan work out to isolated-context sub-agents, pause to ask the user a clarifying question mid-loop, and surface working / waiting / complete / error status while never crashing the parent loop on failures.
+**Depends on**: Phase 17 (deep loop), Phase 18 (workspace shared with sub-agents)
+**Requirements**: TASK-01, TASK-02, TASK-03, TASK-04, TASK-05, TASK-06, TASK-07, ASK-01, ASK-02, ASK-03, ASK-04, STATUS-01, STATUS-02, STATUS-03, STATUS-04, STATUS-05, STATUS-06
 **Success Criteria** (what must be TRUE):
-  1. With `SANDBOX_ENABLED=true` and `TOOL_REGISTRY_ENABLED=true`, code submitted to the sandbox can call `tool_client.call("search_documents", query=...)` (or any registered tool) and receive a structured result; a `code_mode_start` SSE event lists which tools were available for that execution.
-  2. The sandbox container has network access only to the bridge endpoint (`host.docker.internal:PORT`) — outbound calls to the public internet, Supabase, OpenAI, etc. fail; service-role keys and MCP connections never enter the container.
-  3. Every `/bridge/call` request must carry a valid session token tied to the originating user; calls with a stale, mismatched, or missing token are rejected before tool dispatch, and the existing dangerous-import block list still rejects unsafe submitted code.
-  4. Generated typed Python stubs (one per active tool) are injected into the sandbox at runtime so LLM-generated code sees correct function signatures and parameter names; bridge errors return as structured dicts (no exceptions leak from sandbox to host).
-  5. With `SANDBOX_ENABLED=false` (default) or `TOOL_REGISTRY_ENABLED=false`, no `/bridge/*` endpoint is reachable in the chat flow and existing v1.1 sandbox behavior is unchanged.
+  1. Agent calls `task(description, context_files)` to spawn a sub-agent that inherits parent tools minus `task` / `write_todos` / `read_todos`, shares the parent workspace (read+write), and returns its last assistant message as the tool result; existing `analyze_document` and `explore_knowledge_base` sub-agents still work unchanged.
+  2. Agent calls `ask_user(question)` and the loop pauses with `agent_status="waiting_for_user"`; an `ask_user` SSE event surfaces the question, and the user's reply is delivered as the tool's result (not as a new top-level user message), then the loop resumes.
+  3. Status indicator surfaces `working` / `waiting_for_user` / `complete` / `error` states in the chat header; failed tool calls remain in conversation context (append-only) so the LLM can recover without retries, and sub-agent failures isolate to the parent (parent loop never crashes).
+  4. After every loop round, messages + tool calls + todos + workspace are persisted to DB; user can resume a paused thread by sending a follow-up message and the agent reads existing todos / workspace and continues without re-priming.
+  5. No automatic retries are issued anywhere in the loop — every recovery decision (retry, alternative path, `ask_user` escalation) is LLM-driven and visible in the conversation transcript; `task` start / complete SSE events drive the nested sub-agent UI rendering.
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 20: Harness Engine Core + Gatekeeper + Post-Harness + File Upload + Locked Plan Panel
+
+**Goal**: A backend state-machine harness engine dispatches typed phases (programmatic / llm_single / llm_agent) against a thin orchestrator and workspace-passed context, gated by a conversational gatekeeper LLM and capped by a post-harness response LLM that streams a concise summary referencing workspace artifacts; the Plan Panel locks for harness runs and the user can upload DOCX / PDF source files.
+**Depends on**: Phase 17 (Plan Panel + todos), Phase 18 (workspace), Phase 19 (sub-agent loop primitives reused by `llm_agent` phases)
+**Requirements**: HARN-01, HARN-02, HARN-03, HARN-04, HARN-05, HARN-06, HARN-07, HARN-08, HARN-09, HARN-10, MIG-03, GATE-01, GATE-02, GATE-03, GATE-04, GATE-05, POST-01, POST-02, POST-03, POST-04, POST-05, PANEL-01, PANEL-02, PANEL-03, PANEL-04, UPL-01, UPL-02, UPL-03, UPL-04, SEC-02, SEC-03, SEC-04, OBS-01, OBS-02, OBS-03
+**Success Criteria** (what must be TRUE):
+  1. With a registered harness, the gatekeeper LLM runs before each user message with no active/completed harness run, supports multi-turn dialogue ("upload your contract first"), and emits `[TRIGGER_HARNESS]` to start the harness in the same SSE stream — harnesses without prerequisites skip the gatekeeper entirely.
+  2. The harness engine dispatches `programmatic`, `llm_single`, and `llm_agent` phases through a typed `PhaseDefinition` dataclass + `HarnessRegistry` dict, persists state in `harness_runs` (RLS, unique active run per thread), enforces per-phase timeouts (120 s / 300 s defaults) and clean cancellation between rounds/phases, and offloads context to workspace files so the orchestrator stays ~5 k tokens regardless of contract size.
+  3. `llm_single` phases enforce structured output via `response_format: json_schema` + Pydantic validation before advancing; phase failures, completions, starts emit the full SSE event suite (`harness_phase_start/_complete/_error`, `harness_complete`, `harness_human_input_required`).
+  4. After harness completion, a separate post-harness LLM call loads phase results into a system prompt (truncated at 30 k chars with last 2 phases kept in full), streams a ~500-token summary as a separate assistant message, and follow-up user messages route through the normal LLM loop with phase results in context.
+  5. User uploads DOCX / PDF via `POST /threads/{id}/files/upload` (binary in Storage, metadata in `workspace_files` with `source='upload'`, text extracted via `python-docx` / `PyPDF2` for harness consumption); harness phases write to `agent_todos` so the Plan Panel shows phases progressing, with `write_todos`/`read_todos` stripped from harness-phase tool sets and a lock icon on the Plan Panel header to communicate immutability.
+  6. Cross-cutting: all new agent + harness paths route LLM payloads through the existing PII redaction egress filter (privacy invariant preserved), sub-agents run inside the parent user's auth context (no privilege escalation), provider API keys stay server-side; harness writes a single-writer `progress.md` per phase transition with intermediate summaries, all operations include `thread_id` correlation logging, and existing LangSmith tracing covers the new agent loop and harness phases.
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 21: Batched Parallel Sub-Agents + Human-in-the-Loop
+
+**Goal**: Add the two harness phase types that turn the engine from sequential into a fan-out workflow platform — `llm_batch_agents` runs sub-agents in parallel batches with real-time streaming and mid-batch resumability, and `llm_human_input` pauses the harness to ask the user an informed question and resumes when they reply.
+**Depends on**: Phase 20 (engine core, sub-agent infrastructure, workspace context-passing)
+**Requirements**: BATCH-01, BATCH-02, BATCH-03, BATCH-04, BATCH-05, BATCH-06, BATCH-07, HIL-01, HIL-02, HIL-03, HIL-04
+**Success Criteria** (what must be TRUE):
+  1. `llm_batch_agents` parses items from a workspace input file (e.g. `clauses.md` JSON array), chunks into batches of `batch_size` (default 5), and runs each batch concurrently via `asyncio.gather()` reusing the `run_task_agent()` pattern from Phase 19.
+  2. Sub-agent SSE events stream in real-time via `asyncio.Queue` (not delayed until the batch completes) so the user sees nested "Analyzing item N/M" updates with live tool calls; each sub-agent reads only the workspace inputs it needs.
+  3. Results accumulate into a workspace output file per batch; if the harness crashes or the client disconnects mid-batch, resuming detects the partial output (e.g. 10 of 15 written) and resumes from where it left off without redoing completed items.
+  4. `llm_human_input` phase generates an informed question from prior phase results, streams it as a normal chat message (not in the phase panel), sets harness status to `paused`, and on user reply writes the response into a workspace file, marks the phase complete, and resumes the harness.
+  5. Mid-stream cancellation of `llm_human_input` is explicitly out of scope — cancellation only happens between rounds/phases, consistent with the rest of the engine cancellation contract.
 **Plans**: TBD
 
-### Phase 15: MCP Client Integration
+### Phase 22: Contract Review Harness + DOCX Deliverable
 
-**Goal**: External MCP servers (GitHub, Slack, databases, etc.) connect at startup, expose their tools through the unified registry, and become discoverable and callable like native tools.
-**Depends on**: Phase 13 (registry is the registration target for MCP tools)
-**Requirements**: MCP-01, MCP-02, MCP-03, MCP-04, MCP-05, MCP-06
+**Goal**: Ship the first domain harness — an 8-phase deterministic Contract Review workflow that exercises every phase type end-to-end and produces a polished `.docx` executive report with title page, summary, redline tables, and recommendations.
+**Depends on**: Phase 20 (engine core), Phase 21 (batch + HIL phase types)
+**Requirements**: CR-01, CR-02, CR-03, CR-04, CR-05, CR-06, CR-07, CR-08, DOCX-01, DOCX-02, DOCX-03, DOCX-04, DOCX-05, DOCX-06, DOCX-07, DOCX-08
 **Success Criteria** (what must be TRUE):
-  1. With `MCP_SERVERS` configured (e.g. `github:npx:-y @modelcontextprotocol/server-github`) and `TOOL_REGISTRY_ENABLED=true`, the app spawns each server via stdio at startup, calls `list_tools()`, and registers each tool in the unified registry as `source="mcp"`, `loading="deferred"`.
-  2. MCP tool schemas are converted to OpenAI function-calling format eagerly at connect time; tools whose schemas can't be converted are skipped with a logged error (fail-fast, not fail-at-call).
-  3. MCP tools appear in the system-prompt catalog, are discoverable via `tool_search`, and are callable both directly by the LLM and via the sandbox bridge — indistinguishable from native tools to the LLM.
-  4. When an MCP server disconnects, the manager marks its tools unavailable, logs the failure, and reconnects with exponential backoff; subsequent successful reconnects re-register the server's tools without an app restart.
-  5. With empty `MCP_SERVERS` or `TOOL_REGISTRY_ENABLED=false`, no MCP processes are spawned and there is zero startup-time cost from the MCP subsystem.
-**Plans**: TBD
-
-### Phase 16: v1.1 Backlog Cleanup (Fix B + Panel Tests + asChild Sweep)
-
-**Goal**: Close the three operational debts carried forward from v1.1 — domain-term PII false positives, missing `CodeExecutionPanel` test coverage, and base-ui wrappers that crash under `asChild` — so the v1.2 milestone leaves no inherited rough edges.
-**Depends on**: Nothing (independent maintenance; can run any wave)
-**Requirements**: REDACT-01, TEST-01, UI-01
-**Success Criteria** (what must be TRUE):
-  1. The PII detection layer at `backend/app/services/redaction/detection.py` honors a configurable deny list — domain terms previously misclassified as PII (e.g. legal vocabulary that tripped Phase 5 production thread `bf1b7325`) pass through unredacted, with a regression test guarding the behavior.
-  2. `CodeExecutionPanel.tsx` has automated component tests covering live streaming output, terminal rendering, signed-URL file downloads, and history-reconstruction render parity — replacing the UAT-only coverage that shipped in v1.1.
-  3. base-ui wrappers `select.tsx`, `dropdown-menu.tsx`, and `dialog.tsx` accept `asChild` via the same render-prop shim as `tooltip.tsx` and `popover.tsx`; `tsc -b` (project-references mode) builds clean and existing call sites that pass `asChild` no longer error.
-  4. All three fixes ship with no behavioral regressions to v1.1 features (PII redaction round-trip, code execution UI, existing select/dropdown/dialog usages).
+  1. User uploads a contract (DOCX or PDF) and the gatekeeper triggers the Contract Review harness; Phase 1 (intake, programmatic) extracts text via `python-docx` / `PyPDF2` and writes `contract-text.md`; Phase 2 (classification, llm_single) writes `classification.md` with type / parties (≥2) / dates / governing law / jurisdiction enforced via Pydantic.
+  2. Phase 3 (gather context, llm_human_input) asks the user informed questions (which side, deadline, focus areas, deal context) and writes `review-context.md`; Phase 4 (load playbook, llm_agent with RAG, max 10 rounds) discovers playbook materials via `search_documents` + `analyze_document` and writes `playbook-context.md` with doc IDs, titles, summaries, clause-category mappings.
+  3. Phase 5 (clause extraction, programmatic with internal LLM) writes `clauses.md` as a JSON array of every clause across the 13 categories (Liability, Indemnification, IP, Data Protection, Confidentiality, Warranties, Term/Termination, Governing Law, Insurance, Assignment, Force Majeure, Payment, Other); contracts >50 k tokens chunk with overlap and dedupe-merge.
+  4. Phase 6 (risk analysis, llm_batch_agents batch_size=5) assigns GREEN/YELLOW/RED per clause against the playbook with rationale + alternative language, exposing real-time "Analyzing clause N/M" with nested RAG tool calls; Phase 7 (redline generation, llm_batch_agents batch_size=5) processes only YELLOW/RED clauses and writes `redlines.md` with original / proposed replacement / rationale / fallback positions.
+  5. Phase 8 (executive summary, llm_single + post_execute) writes `contract-review-report.md` (overall risk, recommendation, key findings, RED/YELLOW/GREEN breakdown), and the post_execute callback runs a sandbox python-docx script to generate a CONFIDENTIAL-marked `.docx` with title page, executive summary, key findings list, color-coded redline table, acceptable-clauses (GREEN) section, and recommended next steps; if sandbox is unavailable, the markdown report is still saved (non-fatal degradation).
 **Plans**: TBD
 **UI hint**: yes
 
@@ -145,35 +169,48 @@ The following capabilities shipped before GSD initialization. Tracked as the Val
 - **Auth & Admin** (AUTH-01..04) — Supabase Auth, RBAC, RLS, admin UI
 - **Settings & Deployment** (SET-01..02, DEPLOY-01..03) — System settings cache, per-user preferences, Vercel + Railway pipeline
 
-## Progress (v1.2 — COMPLETE)
+## Progress (v1.3 — IN PROGRESS)
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 12. Chat UX — Context Window & Interleaved History | 7/7 | ✅ Complete | 2026-05-02 |
-| 13. Unified Tool Registry & `tool_search` | 5/5 | ✅ Complete | 2026-05-02 |
-| 14. Sandbox HTTP Bridge (Code Mode) | 5/5 | ✅ Complete | 2026-05-03 |
-| 15. MCP Client Integration | 5/5 | ✅ Complete | 2026-05-03 |
-| 16. v1.1 Backlog Cleanup | 3/3 | ✅ Complete | 2026-05-02 |
+| 17. Deep Mode Foundation + Planning Todos + Plan Panel | 0/0 | Not started | — |
+| 18. Workspace Virtual Filesystem | 0/0 | Not started | — |
+| 19. Sub-Agent Delegation + Ask User + Status & Recovery | 0/0 | Not started | — |
+| 20. Harness Engine Core + Gatekeeper + Post-Harness + Upload + Locked Panel | 0/0 | Not started | — |
+| 21. Batched Parallel Sub-Agents + Human-in-the-Loop | 0/0 | Not started | — |
+| 22. Contract Review Harness + DOCX Deliverable | 0/0 | Not started | — |
 
 ## Phase Numbering
 
-- **Integer phases (1, 2, 3, …):** Planned milestone work. Numbering is **monotonic across milestones** for this project: v1.0 = 1–6, v1.1 = 7–11, v1.2 = 12–16.
+- **Integer phases (1, 2, 3, …):** Planned milestone work. Numbering is **monotonic across milestones** for this project: v1.0 = 1–6, v1.1 = 7–11, v1.2 = 12–16, v1.3 = 17–22.
 - **Decimal phases (e.g. 2.1):** Urgent insertions created via `/gsd-insert-phase`.
 
 ## Parallelization Notes (workflow.parallel=true)
 
-- **Phase 12** is independent of the tool-calling chain — can launch as Wave 1 alongside Phase 13.
-- **Phase 13** is the prerequisite for Phases 14 and 15. Must complete before they start.
-- **Phases 14 and 15** are independent of each other — designed to launch as a single parallel wave once Phase 13 is green.
-- **Phase 16** has zero dependencies and can be slotted into any wave to absorb idle capacity.
+- **Phase 17** and **Phase 18** are independent foundations — both touch chat-loop wiring but on disjoint surfaces (Phase 17 = deep-mode branch + todo tools; Phase 18 = workspace tools + Workspace Panel + sandbox file integration). They can run as a parallel wave once the two migrations (`agent_todos`, `workspace_files`, plus `messages.deep_mode`/`harness_mode` columns) land.
+- **Phase 19** requires both Phase 17 (deep loop is the parent loop sub-agents fork from) and Phase 18 (workspace is shared parent↔sub-agent context). Cannot run earlier without stubbing.
+- **Phase 20** requires Phases 17, 18, 19 — engine reuses Plan Panel (17), workspace context-passing (18), and sub-agent + auth-context plumbing (19). It also folds in `harness_runs` migration, gatekeeper, post-harness, file upload, locked Plan Panel, OBS / SEC cross-cutting concerns.
+- **Phase 21** extends Phase 20's engine with the two non-trivial phase types (batch + HIL). Strictly sequential after Phase 20.
+- **Phase 22** is the first domain consumer and exercises every phase type — strictly sequential after Phase 21.
 
-Suggested wave plan:
-- **Wave A**: Phase 12 ‖ Phase 13 ‖ Phase 16 (3-way parallel, no shared files of consequence)
-- **Wave B**: Phase 14 ‖ Phase 15 (2-way parallel after Phase 13 ships the registry)
+**Suggested wave plan:**
+
+- **Wave A (parallel)**: Phase 17 ‖ Phase 18 — both foundations; merge gates: agent_todos / workspace_files migrations co-applied early; chat.py edits coordinated via discuss-phase
+- **Wave B (sequential)**: Phase 19 — joins Wave A on the deep loop + workspace
+- **Wave C (single)**: Phase 20 — large phase (35 reqs), expect 8–10 plans
+- **Wave D (sequential)**: Phase 21 — engine extension
+- **Wave E (sequential, capstone)**: Phase 22 — domain harness + DOCX
+
+Cross-cutting requirements split rule:
+- `MIG-*` co-located with the phase that needs the table (MIG-01 + MIG-04 → 17, MIG-02 → 18, MIG-03 → 20)
+- `SEC-01` (RLS on new tables) → Phase 17 since `agent_todos` is the first new table; subsequent phases extend the same RLS pattern to their own tables
+- `SEC-02..04` (sub-agent auth, key custody, egress filter coverage) → Phase 20 where harness fan-out and external upload first stress the boundary
+- `OBS-01..03` (progress.md, thread_id correlation, LangSmith) → Phase 20 where harness phase transitions are the first non-trivial observability surface
+- `CONF-01..03` (loop iteration env caps) → Phase 17 where the deep loop is introduced
 
 ---
 *Roadmap created: 2026-04-25*
 *v1.0 milestone archived: 2026-04-29 — see `.planning/milestones/v1.0-ROADMAP.md` for full phase details*
 *v1.1 milestone archived: 2026-05-02 — see `.planning/milestones/v1.1-ROADMAP.md` for full phase details*
-*v1.2 milestone phases (12–16) added: 2026-05-02 — Advanced Tool Calling & Agent Intelligence; 5 phases / 34 requirements; flag-gated tool-calling features (`TOOL_REGISTRY_ENABLED`, `SANDBOX_ENABLED`)*
 *v1.2 milestone archived: 2026-05-03 — see `.planning/milestones/v1.2-ROADMAP.md` for full phase details*
+*v1.3 milestone phases (17–22) added: 2026-05-03 — Agent Harness & Domain-Specific Workflows; 6 phases / 111 requirements / 4 migrations (`agent_todos`, `workspace_files`, `harness_runs`, `messages.deep_mode|harness_mode`); Contract Review Harness as first domain implementation*
