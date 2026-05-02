@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Advanced Tool Calling & Agent Intelligence
 status: planning
-last_updated: "2026-05-02T09:11:05.020Z"
-last_activity: 2026-05-02 — Roadmap for v1.2 written; 34/34 requirements mapped to 5 phases (12–16); Phase 16 discuss-phase complete (auto-mode)
+last_updated: "2026-05-02T09:54:00.000Z"
+last_activity: 2026-05-02 — Roadmap for v1.2 written; 34/34 requirements mapped to 5 phases (12–16); Wave A discuss-phase complete (Phase 12 + 16 auto-mode, Phase 13 interactive)
 progress:
   total_phases: 5
   completed_phases: 0
@@ -23,17 +23,18 @@ See: `.planning/PROJECT.md` (updated 2026-05-02 — v1.2 milestone started)
 
 ## Current Position
 
-Phase: Roadmap created (Phases 12–16 defined, no plans yet); Phase 12 + Phase 16 CONTEXT.md captured
+Phase: Roadmap created (Phases 12–16 defined, no plans yet); Wave A CONTEXT.md captured for Phases 12, 13, 16
 Plan: —
-Status: Ready to plan Wave-A phases 12 / 16 (CONTEXT.md ready); Phase 13 still needs discuss
-Last activity: 2026-05-02 — Roadmap for v1.2 written; 34/34 requirements mapped to 5 phases (12–16); Phase 12 + Phase 16 discuss-phase complete (auto-mode)
+Status: Wave A ready to plan — Phase 12 / 13 / 16 all have CONTEXT.md; Phase 13 has 6 locked decisions (D-P13-01..06)
+Resume: `.planning/phases/13-unified-tool-registry-tool-search-meta-tool/13-CONTEXT.md`
+Last activity: 2026-05-02 — Roadmap + REQUIREMENTS for v1.2 written; Wave A discuss-phase complete (Phase 12 + 16 auto-mode, Phase 13 interactive — 4 gray areas, 6 D-P13-* decisions locked)
 
 ## Roadmap Snapshot (v1.2)
 
 | Phase | Name | Reqs | Depends on | Status |
 |-------|------|------|------------|--------|
 | 12 | Chat UX — Context Window & Interleaved History | CTX×6 + HIST×6 (12) | — | Not started |
-| 13 | Unified Tool Registry & `tool_search` | TOOL×6 (6) | — | Not started |
+| 13 | Unified Tool Registry & `tool_search` | TOOL×6 (6) | — | Context gathered (2026-05-02) |
 | 14 | Sandbox HTTP Bridge (Code Mode) | BRIDGE×7 (7) | Phase 13 | Not started |
 | 15 | MCP Client Integration | MCP×6 (6) | Phase 13 | Not started |
 | 16 | v1.1 Backlog Cleanup | REDACT-01 + TEST-01 + UI-01 (3) | — | Context gathered (2026-05-02) |
@@ -86,3 +87,5 @@ Items carried forward at milestone closes (v1.0 → v1.1 → next):
 *v1.1 milestone complete: 2026-05-02 — 5 phases (7–11), 26 plans, ~314 tests, 3 migrations (034–036). Shipped to prod as v0.5.0.0 (tag `v0.5.0.0`). Skills system + Code Execution Sandbox + Persistent Tool Memory.*
 *v1.2 milestone started: 2026-05-02 — Advanced Tool Calling & Agent Intelligence. Phase numbering continues from 11 → starts at Phase 12.*
 *v1.2 roadmap created: 2026-05-02 — 5 phases (12–16), 34 requirements (CTX×6, HIST×6, TOOL×6, BRIDGE×7, MCP×6, REDACT×1, TEST×1, UI×1), 100% coverage. Ready to plan first wave.*
+
+*Wave A discuss-phase complete: 2026-05-02 — Phase 12 (Chat UX) + Phase 16 (v1.1 cleanup) auto-mode in parallel background subagents (5 + 5 gray areas auto-decided); Phase 13 (Tool Registry) interactive in main session (4 gray areas, 6 decisions D-P13-01..06 locked: adapter wrap, skill = first-class tool, single unified catalog, tool_search meta-callout, two-param search schema, multi-agent registry filter). Wave A ready for `/gsd-plan-phase 12 / 13 / 16` in any order.*
