@@ -172,6 +172,7 @@ def _persist_round_message(
     content: str,
     tool_records: list[ToolCallRecord],
     agent_name: str | None,
+    deep_mode: bool = False,
 ) -> str:
     """Phase 12 / HIST-01 / D-P12-11 / D-P12-12: insert ONE assistant
     messages row for a single agentic round.
@@ -183,6 +184,10 @@ def _persist_round_message(
 
     Empty rounds (no content AND no tool_records AND no agent_name) are
     a no-op — return parent_message_id unchanged.
+
+    Phase 17 / DEEP-04: deep_mode=True is set on assistant rows produced
+    by run_deep_mode_loop. Standard callers leave it at the default False
+    (DEEP-03 byte-identical invariant — existing rows are unaffected).
     """
     if not content and not tool_records and not agent_name:
         return parent_message_id
@@ -192,6 +197,7 @@ def _persist_round_message(
         "role": "assistant",
         "content": content,
         "parent_message_id": parent_message_id,
+        "deep_mode": deep_mode,
     }
     if tool_records or agent_name:
         insert_data["tool_calls"] = ToolCallSummary(
@@ -229,6 +235,10 @@ class SendMessageRequest(BaseModel):
     message: str
     parent_message_id: str | None = None
     web_search: bool | None = None  # ADR-0008 L3: per-message override
+    # Phase 17 / DEEP-01: optional per-message Deep Mode flag.
+    # When True, routes to run_deep_mode_loop (MAX_DEEP_ROUNDS=50, extended prompt, todos tools).
+    # When False or absent, behavior is byte-identical to v1.2 (DEEP-03 invariant).
+    deep_mode: bool = False
 
 
 @router.post("/stream")
@@ -989,7 +999,10 @@ async def stream_chat(
                     tool_context["agent_allowed_tools"] = None
                 tool_loop_buffer = []
                 async for event_type, data in _run_tool_loop(
-                    messages, tools, settings.tools_max_iterations,
+                    # D-15: use max_tool_rounds (default 25) — migrated from
+                    # tools_max_iterations (legacy default 5). Deprecated alias
+                    # in config.py back-fills max_tool_rounds for one milestone.
+                    messages, tools, settings.max_tool_rounds,
                     user["id"], tool_context,
                     registry=registry,
                     redaction_service=redaction_service,
@@ -1180,6 +1193,34 @@ async def stream_chat(
             yield f"data: {json.dumps({'type': 'usage', 'prompt_tokens': last_prompt_tokens, 'completion_tokens': cumulative_completion_tokens, 'total_tokens': total_tokens})}\n\n"
 
         yield f"data: {json.dumps({'type': 'delta', 'delta': '', 'done': True})}\n\n"
+
+    # Phase 17 / DEEP-01 / T-17-09 front-gate:
+    # When deep_mode=True is requested, validate the feature flag and dispatch
+    # to run_deep_mode_loop (a separate async generator with its own loop cap,
+    # extended prompt, and todos tools). Standard event_generator is unchanged.
+    if body.deep_mode:
+        if not settings.deep_mode_enabled:
+            raise HTTPException(
+                status_code=400,
+                detail="deep mode disabled",
+            )
+        return StreamingResponse(
+            run_deep_mode_loop(
+                messages=history,
+                user_message=body.message,
+                user_id=user["id"],
+                user_email=user.get("email", ""),
+                token=user["token"],
+                tool_context=tool_context,
+                thread_id=body.thread_id,
+                user_msg_id=user_msg_id,
+                client=client,
+                sys_settings=sys_settings,
+                web_search_effective=web_search_effective,
+            ),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
 
     return StreamingResponse(
         event_generator(),
@@ -1418,3 +1459,459 @@ async def _run_tool_loop_for_test(
         }
 
     yield "records", tool_records
+
+
+# ---------------------------------------------------------------------------
+# Phase 17 / DEEP-02 — Deep Mode loop (run_deep_mode_loop)
+#
+# A NEW module-level async generator that mirrors the _run_tool_loop_for_test
+# pattern but:
+#   - Uses max_deep_rounds (default 50) as the iteration cap (DEEP-02).
+#   - Assembles an extended system prompt via build_deep_mode_system_prompt
+#     (DEEP-05, TODO-04 — deterministic, KV-cache-friendly, no timestamps).
+#   - Loads write_todos and read_todos as additional deep-mode tools (D-10).
+#   - After every successful write_todos / read_todos call, emits a
+#     todos_updated SSE event with the full list snapshot (D-17, D-18, TODO-03).
+#   - On iteration max_deep_rounds - 1, swaps tools to [] and injects a
+#     "summarize and deliver" system message (DEEP-06).
+#   - Persists assistant message rows with deep_mode=True (DEEP-04 / MIG-04).
+#   - Routes every LLM call through the egress filter (D-32, T-17-10).
+#   - Mid-loop interrupt safety: write_todos commits to DB before SSE event
+#     is emitted, so a disconnect after a write preserves the committed todos
+#     (DEEP-07). Reuses the per-round persistence pattern from chat.py.
+#
+# DEEP-03 invariant: the standard event_generator is UNCHANGED. All deep-mode
+# behavior lives exclusively in this function. The byte-identical fallback
+# (deep_mode=False or absent) sees NO change in tools, prompt, or events.
+# ---------------------------------------------------------------------------
+
+
+async def run_deep_mode_loop(
+    messages: list[dict],
+    user_message: str,
+    user_id: str,
+    user_email: str,
+    token: str,
+    tool_context: dict,
+    thread_id: str,
+    user_msg_id: str,
+    client,
+    sys_settings: dict,
+    web_search_effective: bool,
+):
+    """Phase 17 / DEEP-02: Deep Mode agent loop.
+
+    Async generator that produces SSE event strings (yielded directly to
+    StreamingResponse). Mirrors the event format of the standard event_generator:
+    ``data: {json}\\n\\n`` for each SSE event.
+
+    Args:
+        messages: Pre-built history list (already loaded by stream_chat).
+        user_message: The raw user message string (pre-redaction).
+        user_id: Authenticated user's UUID.
+        user_email: Authenticated user's email (for audit log).
+        token: JWT access token for RLS-scoped Supabase calls.
+        tool_context: Per-request tool context dict (thread_id, top_k, etc.).
+        thread_id: Current thread UUID.
+        user_msg_id: The message_id of the persisted user message (parent chain start).
+        client: Supabase client.
+        sys_settings: System settings dict (llm_model, pii_redaction_enabled, ...).
+        web_search_effective: ADR-0008 computed web_search toggle.
+    """
+    from app.services.deep_mode_prompt import build_deep_mode_system_prompt
+    from app.services.redaction import (
+        ConversationRegistry,
+        anonymize_tool_output,
+        deanonymize_tool_args,
+        filter_tool_output_by_registry,
+    )
+    from app.services.redaction_service import get_redaction_service
+
+    llm_model = sys_settings.get("llm_model", settings.openrouter_model)
+    max_iterations = settings.max_deep_rounds  # DEEP-02: 50 rounds
+
+    # --- Phase 17 / D-32: egress filter + redaction setup (mirrors event_generator) ---
+    redaction_on = bool(sys_settings.get("pii_redaction_enabled", True))
+    redaction_service = get_redaction_service()
+    if redaction_on:
+        registry = await ConversationRegistry.load(thread_id)
+        raw_strings = [m["content"] for m in messages if m.get("content")] + [user_message]
+        anonymized_strings = await redaction_service.redact_text_batch(raw_strings, registry)
+        anon_history = [
+            {**h, "content": anonymized_strings[i]}
+            for i, h in enumerate(m for m in messages if m.get("content"))
+        ]
+        anonymized_message = anonymized_strings[-1]
+        yield f"data: {json.dumps({'type': 'redaction_status', 'stage': 'anonymizing'})}\n\n"
+    else:
+        registry = None
+        anon_history = messages
+        anonymized_message = user_message
+
+    # --- Build deep-mode tools list (D-10: standard tools + write_todos + read_todos) ---
+    if settings.tools_enabled and settings.tool_registry_enabled:
+        from app.services import tool_registry as _tr
+        _deep_active_set = _tr.make_active_set()
+        from app.services.skill_catalog_service import register_user_skills
+        await register_user_skills(user_id, token)
+        deep_tools = _tr.build_llm_tools(
+            active_set=_deep_active_set,
+            web_search_enabled=web_search_effective,
+            sandbox_enabled=settings.sandbox_enabled,
+            agent_allowed_tools=None,
+        )
+        # write_todos and read_todos are loading="immediate" in tool_registry Phase 17 block
+        # — they are already included in deep_tools above.
+        catalog_block = await _tr.build_catalog_block(agent_allowed_tools=None)
+    else:
+        deep_tools = tool_service.get_available_tools(web_search_enabled=web_search_effective)
+        catalog_block = await build_skill_catalog_block(user_id, token)
+
+    available_tool_names = [t["function"]["name"] for t in deep_tools]
+
+    # --- Phase 17 / DEEP-05 + TODO-04: assemble extended system prompt ---
+    pii_guidance = get_pii_guidance_block(redaction_enabled=redaction_on)
+    extended_system_prompt = build_deep_mode_system_prompt(
+        SYSTEM_PROMPT + pii_guidance + catalog_block
+    )
+
+    # --- Build initial messages array ---
+    loop_messages: list[dict] = (
+        [{"role": "system", "content": extended_system_prompt}]
+        + [{"role": m["role"], "content": m.get("content") or ""} for m in anon_history]
+        + [{"role": "user", "content": anonymized_message}]
+    )
+
+    # --- Wire user_email + token into tool_context for write_todos/read_todos audit (D-34) ---
+    tool_context = {**tool_context, "user_email": user_email, "token": token}
+    if settings.tools_enabled and settings.tool_registry_enabled:
+        from app.services import tool_registry as _tr2
+        tool_context["active_set"] = _tr2.make_active_set()
+        tool_context["agent_allowed_tools"] = None
+
+    # --- Per-round state ---
+    current_parent_id = user_msg_id
+    tool_records: list[ToolCallRecord] = []
+    full_response = ""
+    last_prompt_tokens: int | None = None
+    cumulative_completion_tokens = 0
+    any_usage_seen = False
+
+    def _accumulate_usage_dm(usage: dict | None) -> None:
+        nonlocal last_prompt_tokens, cumulative_completion_tokens, any_usage_seen
+        if usage is None:
+            return
+        any_usage_seen = True
+        prompt = usage.get("prompt_tokens")
+        completion = usage.get("completion_tokens")
+        if prompt is not None:
+            last_prompt_tokens = prompt
+        if completion is not None:
+            cumulative_completion_tokens += completion
+
+    # current_tools is mutable — swapped to [] on final iteration (DEEP-06)
+    current_tools = list(deep_tools)
+    tool_loop_buffer: list[dict] = []
+
+    try:
+        for _iteration in range(max_iterations):
+            # --- Phase 17 / DEEP-06: force summarize on final iteration ---
+            if _iteration == max_iterations - 1 and current_tools:
+                loop_messages.append({
+                    "role": "system",
+                    "content": (
+                        "You have reached the iteration limit. "
+                        "Please summarize what you have completed and deliver "
+                        "a final answer to the user."
+                    ),
+                })
+                current_tools = []  # force terminal text round
+
+            if not current_tools and _iteration > 0:
+                break  # no tools → terminal text round via stream_response below
+
+            # --- Phase 17 / D-32 / T-17-10: egress filter before LLM call ---
+            if redaction_on and registry is not None:
+                payload = json.dumps(loop_messages, ensure_ascii=False)
+                egress_result = egress_filter(payload, registry, None)
+                if egress_result.tripped:
+                    logger.warning(
+                        "egress_blocked event=egress_blocked feature=deep_mode_loop "
+                        "iteration=%d match_count=%d",
+                        _iteration,
+                        egress_result.match_count,
+                    )
+                    raise EgressBlockedAbort("deep_mode_loop egress blocked")
+
+            # --- LLM call (with tools) ---
+            result = await openrouter_service.complete_with_tools(
+                loop_messages, current_tools, model=llm_model
+            )
+
+            # Terminal: no tool_calls → accumulate text and exit loop
+            if not result["tool_calls"]:
+                _accumulate_usage_dm(result.get("usage"))
+                chunk_text = result.get("content") or ""
+                if chunk_text:
+                    full_response += chunk_text
+                    if not redaction_on:
+                        yield f"data: {json.dumps({'type': 'delta', 'delta': chunk_text, 'done': False})}\n\n"
+                break
+
+            iteration_start_idx = len(tool_records)
+            iteration_tool_records: list[ToolCallRecord] = []
+
+            # --- Process each tool call ---
+            for tc in result["tool_calls"]:
+                func_name = tc["function"]["name"]
+                try:
+                    func_args = json.loads(tc["function"]["arguments"])
+                except json.JSONDecodeError:
+                    func_args = {}
+
+                # SSE: tool_start
+                tool_start_evt: dict = (
+                    {"type": "tool_start", "tool": func_name}
+                    if redaction_on
+                    else {"type": "tool_start", "tool": func_name, "input": func_args}
+                )
+                if redaction_on:
+                    tool_loop_buffer.append(tool_start_evt)
+                else:
+                    yield f"data: {json.dumps(tool_start_evt)}\n\n"
+
+                try:
+                    if func_name not in available_tool_names:
+                        tool_output: dict = {
+                            "blocked": True,
+                            "reason": f"Tool '{func_name}' is not available for this request.",
+                        }
+                    elif redaction_on and registry is not None:
+                        real_args = (
+                            func_args if func_name == "web_search"
+                            else await deanonymize_tool_args(func_args, registry, redaction_service)
+                        )
+                        tool_output = await _dispatch_tool_deep(
+                            func_name, real_args, user_id, tool_context, token=token
+                        )
+                        if func_name == "web_search":
+                            tool_output = filter_tool_output_by_registry(tool_output, registry)
+                        else:
+                            tool_output = await anonymize_tool_output(
+                                tool_output, registry, redaction_service
+                            )
+                    else:
+                        tool_output = await _dispatch_tool_deep(
+                            func_name, func_args, user_id, tool_context, token=token
+                        )
+
+                    # --- Phase 17 / D-17 / D-18 / TODO-03: todos_updated SSE ---
+                    # Emitted AFTER DB write commits (write_todos is already awaited above),
+                    # BEFORE tool_result. Satisfies DEEP-07 mid-loop interrupt safety.
+                    if func_name in ("write_todos", "read_todos") and isinstance(tool_output, dict):
+                        todos_snapshot = tool_output.get("todos", [])
+                        yield f"data: {json.dumps({'type': 'todos_updated', 'todos': todos_snapshot})}\n\n"
+
+                    record = ToolCallRecord(
+                        tool=func_name,
+                        input=func_args,
+                        output=tool_output,
+                        tool_call_id=tc["id"],
+                        status=_derive_tool_status(func_name, tool_output),
+                    )
+                except EgressBlockedAbort:
+                    raise
+                except Exception as exc:
+                    tool_output = {"error": str(exc)}
+                    record = ToolCallRecord(
+                        tool=func_name,
+                        input=func_args,
+                        output={},
+                        error=str(exc),
+                        tool_call_id=tc["id"],
+                        status=_derive_tool_status(func_name, None, exception_caught=True),
+                    )
+
+                tool_records.append(record)
+                iteration_tool_records.append(record)
+
+                # SSE: tool_result
+                tool_result_evt: dict = (
+                    {"type": "tool_result", "tool": func_name}
+                    if redaction_on
+                    else {"type": "tool_result", "tool": func_name, "output": tool_output}
+                )
+                if redaction_on:
+                    tool_loop_buffer.append(tool_result_evt)
+                else:
+                    yield f"data: {json.dumps(tool_result_evt)}\n\n"
+
+                loop_messages.append({
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [tc],
+                })
+                loop_messages.append({
+                    "role": "tool",
+                    "tool_call_id": tc["id"],
+                    "content": json.dumps(tool_output),
+                })
+
+            # --- Phase 12 / HIST-01 / DEEP-04: per-round persistence ---
+            round_content = result.get("content") or ""
+            _accumulate_usage_dm(result.get("usage"))
+            new_parent = _persist_round_message(
+                client,
+                thread_id=thread_id,
+                user_id=user_id,
+                parent_message_id=current_parent_id,
+                content=round_content,
+                tool_records=iteration_tool_records,
+                agent_name=None,
+                deep_mode=True,  # DEEP-04: tag each round row with deep_mode=True
+            )
+            current_parent_id = new_parent
+
+        # Flush buffered tool events (redaction ON path)
+        for buffered in tool_loop_buffer:
+            yield f"data: {json.dumps(buffered)}\n\n"
+
+        # --- Final streaming response (terminal text after tools exhausted) ---
+        if not full_response:
+            if redaction_on and registry is not None:
+                payload = json.dumps(loop_messages, ensure_ascii=False)
+                egress_result = egress_filter(payload, registry, None)
+                if egress_result.tripped:
+                    logger.warning(
+                        "egress_blocked event=egress_blocked feature=deep_mode_stream "
+                        "match_count=%d",
+                        egress_result.match_count,
+                    )
+                    raise EgressBlockedAbort("deep_mode stream_response egress blocked")
+
+            async for chunk in openrouter_service.stream_response(loop_messages, model=llm_model):
+                if not chunk["done"]:
+                    full_response += chunk["delta"]
+                    if not redaction_on:
+                        yield f"data: {json.dumps({'type': 'delta', 'delta': chunk['delta'], 'done': False})}\n\n"
+                else:
+                    _accumulate_usage_dm(chunk.get("usage"))
+
+    except EgressBlockedAbort:
+        yield f"data: {json.dumps({'type': 'redaction_status', 'stage': 'blocked'})}\n\n"
+        yield f"data: {json.dumps({'type': 'delta', 'delta': '', 'done': True})}\n\n"
+        return
+    except Exception as exc:
+        logger.error("run_deep_mode_loop error: %s", exc, exc_info=True)
+
+    # --- De-anonymize and emit final response (redaction ON) ---
+    if redaction_on and full_response:
+        yield f"data: {json.dumps({'type': 'redaction_status', 'stage': 'deanonymizing'})}\n\n"
+        try:
+            deanon_text = await redaction_service.de_anonymize_text(
+                full_response, registry, mode=settings.fuzzy_deanon_mode,
+            )
+        except Exception as exc:
+            logger.warning(
+                "deanon_degraded feature=deep_mode_loop error_class=%s", type(exc).__name__,
+            )
+            deanon_text = await redaction_service.de_anonymize_text(
+                full_response, registry, mode="none",
+            )
+        full_response = deanon_text
+        yield f"data: {json.dumps({'type': 'delta', 'delta': full_response, 'done': False})}\n\n"
+
+    # --- Persist final text row (DEEP-04: deep_mode=True) ---
+    if full_response:
+        _persist_round_message(
+            client,
+            thread_id=thread_id,
+            user_id=user_id,
+            parent_message_id=current_parent_id,
+            content=full_response,
+            tool_records=[],
+            agent_name=None,
+            deep_mode=True,  # DEEP-04
+        )
+
+    # --- Auto-title (mirrors standard path) ---
+    try:
+        thread_row = client.table("threads").select("title").eq("id", thread_id).single().execute()
+        if thread_row.data and thread_row.data["title"] == "New Thread":
+            title_input = full_response
+            if redaction_on and full_response:
+                anon_for_title = await redaction_service.redact_text_batch([full_response], registry)
+                title_input = anon_for_title[0]
+            title_messages_dm = [
+                {"role": "system", "content": "Generate a short title (max 6 words) for this chat conversation. Respond with ONLY the title text, no quotes, no punctuation at the end. If the message is in Indonesian, generate the title in Indonesian."},
+                {"role": "user", "content": anonymized_message},
+                {"role": "assistant", "content": title_input},
+            ]
+            title_result = await _llm_provider_client.call(
+                feature="title_gen",
+                messages=title_messages_dm,
+                registry=registry,
+            )
+            new_title_raw = (
+                title_result.get("title")
+                or title_result.get("content")
+                or title_result.get("raw")
+                or ""
+            ).strip().strip('"\'')[:80]
+            if redaction_on and new_title_raw:
+                new_title = await redaction_service.de_anonymize_text(
+                    new_title_raw, registry, mode="none",
+                )
+            else:
+                new_title = new_title_raw
+            if new_title:
+                client.table("threads").update({"title": new_title}).eq("id", thread_id).execute()
+                yield f"data: {json.dumps({'type': 'thread_title', 'title': new_title, 'thread_id': thread_id})}\n\n"
+    except Exception as _title_exc:
+        try:
+            stub = " ".join(user_message.split()[:6]) or "New Thread"
+            if stub:
+                client.table("threads").update({"title": stub}).eq("id", thread_id).execute()
+                yield f"data: {json.dumps({'type': 'thread_title', 'title': stub, 'thread_id': thread_id})}\n\n"
+            logger.info(
+                "chat.title_gen_fallback event=title_gen_fallback thread_id=%s error_class=%s",
+                thread_id, type(_title_exc).__name__,
+            )
+        except Exception:
+            pass
+
+    # --- Terminal SSE: usage + done ---
+    if any_usage_seen and last_prompt_tokens is not None:
+        total_tokens = last_prompt_tokens + cumulative_completion_tokens
+        yield f"data: {json.dumps({'type': 'usage', 'prompt_tokens': last_prompt_tokens, 'completion_tokens': cumulative_completion_tokens, 'total_tokens': total_tokens})}\n\n"
+
+    yield f"data: {json.dumps({'type': 'delta', 'delta': '', 'done': True})}\n\n"
+
+
+async def _dispatch_tool_deep(
+    name: str,
+    arguments: dict,
+    user_id: str,
+    context: dict | None = None,
+    *,
+    token: str | None = None,
+):
+    """Tool dispatch for run_deep_mode_loop — registry-first, same pattern as _dispatch_tool.
+
+    Separate module-level function (not a closure) so run_deep_mode_loop can be
+    module-level. The registry already has write_todos and read_todos registered
+    (Phase 17 Plan 17-03). All calls route through the same adapter-wrap invariant.
+    """
+    if settings.tool_registry_enabled:
+        from app.services import tool_registry as _tr
+        if name in _tr._REGISTRY:
+            tool_def = _tr._REGISTRY[name]
+            return await tool_def.executor(
+                arguments,
+                user_id,
+                context,
+                token=token,
+            )
+    return await tool_service.execute_tool(
+        name, arguments, user_id, context, token=token,
+    )
