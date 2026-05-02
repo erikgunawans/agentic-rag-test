@@ -544,3 +544,162 @@ def mark_server_available(server_name: str) -> int:
 # Run self-registration at module load. The chat.py flag-off path never imports
 # this module, so this is effectively gated by settings.tool_registry_enabled.
 _register_tool_search()
+
+
+# ---------------------------------------------------------------------------
+# Phase 17 / v1.3 — write_todos + read_todos native tools (TODO-02, TODO-05).
+#
+# D-31: registration through the unified ToolRegistry adapter wrap.
+# D-P13-01 invariant: NO edits to tool_service.py lines 1-1283.
+# This module is only imported when settings.tool_registry_enabled is True
+# (lazy import in _register_natives_with_registry), so registration is
+# already gated by the flag — no additional settings import needed.
+#
+# Executor signature follows the registry dispatcher shape from chat.py:
+#   executor(arguments, user_id, context, *, registry=None, token=None, ...)
+#   - arguments: LLM-supplied tool params dict
+#   - user_id: authed user's UUID (from get_current_user)
+#   - context: per-request dict with thread_id, user_email, token, etc.
+#   - token: JWT passed as kwarg by chat.py's _dispatch_tool
+#
+# T-17-06: thread_id is read from ctx (server-set), NEVER from LLM params.
+# T-17-07: write_todos only calls get_supabase_authed_client (RLS-scoped).
+# ---------------------------------------------------------------------------
+
+_WRITE_TODOS_SCHEMA = {
+    "type": "function",
+    "function": {
+        "name": "write_todos",
+        "description": (
+            "Replace the entire per-thread todo list. Use this to plan a multi-step task "
+            "or update progress (set status='in_progress' before working on a step, "
+            "'completed' after). Pass the full updated list every time — partial updates "
+            "are not supported."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "todos": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "content": {
+                                "type": "string",
+                                "description": "Step description (what to accomplish)",
+                            },
+                            "status": {
+                                "type": "string",
+                                "enum": ["pending", "in_progress", "completed"],
+                                "description": "Current status of this step",
+                            },
+                        },
+                        "required": ["content", "status"],
+                    },
+                    "description": (
+                        "Full todo list (max 50 items). Position is assigned by list order. "
+                        "Pass the complete updated list — prior entries are replaced."
+                    ),
+                },
+            },
+            "required": ["todos"],
+        },
+    },
+}
+
+_READ_TODOS_SCHEMA = {
+    "type": "function",
+    "function": {
+        "name": "read_todos",
+        "description": (
+            "Return the current todo list for this thread ordered by position. "
+            "Call after each completed step to confirm your plan and progress "
+            "before deciding the next action (D-30 recitation pattern)."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": False,
+        },
+    },
+}
+
+
+def _register_phase17_todos() -> None:
+    """Register write_todos and read_todos as native tools (Phase 17 / D-31).
+
+    Executors extract thread_id from context (server-set, T-17-06).
+    user_email falls back to None if not yet in context (Plan 17-04 wires it).
+    """
+    # Lazy import to avoid circular dependencies and preserve the TOOL-05
+    # byte-identical fallback — this module itself is only imported when the
+    # flag is on, but we keep the import local as a best-practice guard.
+    from app.services import agent_todos_service  # noqa: PLC0415
+
+    async def _write_todos_executor(
+        arguments: dict,
+        user_id: str,
+        context: dict | None = None,
+        *,
+        token: str | None = None,
+        **kwargs,
+    ) -> dict:
+        """Adapter: extract ctx fields, delegate to agent_todos_service.write_todos."""
+        ctx = context or {}
+        thread_id = ctx.get("thread_id") or ""
+        user_email = ctx.get("user_email") or ""
+        # token can come from context or the kwarg (Plan 17-04 wires via tool_context)
+        resolved_token = token or ctx.get("token") or ""
+        todos = arguments.get("todos") or []
+
+        result = await agent_todos_service.write_todos(
+            thread_id=thread_id,
+            user_id=user_id,
+            user_email=user_email,
+            token=resolved_token,
+            todos=todos,
+        )
+        return {"todos": result}
+
+    async def _read_todos_executor(
+        arguments: dict,
+        user_id: str,
+        context: dict | None = None,
+        *,
+        token: str | None = None,
+        **kwargs,
+    ) -> dict:
+        """Adapter: extract ctx fields, delegate to agent_todos_service.read_todos."""
+        ctx = context or {}
+        thread_id = ctx.get("thread_id") or ""
+        user_email = ctx.get("user_email") or ""
+        resolved_token = token or ctx.get("token") or ""
+
+        result = await agent_todos_service.read_todos(
+            thread_id=thread_id,
+            user_id=user_id,
+            user_email=user_email,
+            token=resolved_token,
+        )
+        return {"todos": result}
+
+    register(
+        name="write_todos",
+        description=_WRITE_TODOS_SCHEMA["function"]["description"],
+        schema=_WRITE_TODOS_SCHEMA,
+        source="native",
+        loading="immediate",
+        executor=_write_todos_executor,
+    )
+
+    register(
+        name="read_todos",
+        description=_READ_TODOS_SCHEMA["function"]["description"],
+        schema=_READ_TODOS_SCHEMA,
+        source="native",
+        loading="immediate",
+        executor=_read_todos_executor,
+    )
+
+
+_register_phase17_todos()

@@ -301,29 +301,19 @@ async def test_rls_isolation(user_a_creds, user_b_creds, user_a_thread):
 
 
 @pytest.mark.asyncio
-async def test_write_todos_via_execute_tool(user_a_creds, user_a_thread, monkeypatch):
-    """Registry path: tool_registry executor for write_todos dispatches correctly."""
+async def test_write_todos_via_execute_tool(user_a_creds, user_a_thread):
+    """Registry path: tool_registry executor for write_todos dispatches correctly.
+
+    This test uses the registry directly (already loaded at module import since
+    tool_registry.py self-registers write_todos/_read_todos at load time).
+    """
     if not _check_table_exists():
         pytest.skip("agent_todos table not present (migration 038 not applied)")
 
-    import app.config as config_mod
-    monkeypatch.setenv("TOOL_REGISTRY_ENABLED", "true")
-    config_mod.get_settings.cache_clear()
-
     from app.services import tool_registry
-    tool_registry._clear_for_tests()
 
-    # Import tool_service to trigger registration
-    import importlib
-    import app.services.tool_service as ts_mod
-    importlib.reload(ts_mod)
-
-    # Import tool_registry registration for phase 17 todos
-    import app.services.agent_todos_service  # noqa: F401 — ensures module loads
-
-    # Verify write_todos is registered (it should be after reload)
     if "write_todos" not in tool_registry._REGISTRY:
-        pytest.skip("write_todos not registered — Phase 17 registry entries not loaded yet")
+        pytest.skip("write_todos not registered — Phase 17 registry entries not loaded")
 
     token_a, user_a_id, user_a_email = user_a_creds
     thread_id = user_a_thread
@@ -344,7 +334,7 @@ async def test_write_todos_via_execute_tool(user_a_creds, user_a_thread, monkeyp
 
     assert "todos" in result, f"Executor should return {{'todos': [...]}}; got {result}"
 
-    # Verify DB row
+    # Verify DB row via service-role
     svc = get_supabase_client()
     rows = (
         svc.table("agent_todos")
@@ -358,14 +348,10 @@ async def test_write_todos_via_execute_tool(user_a_creds, user_a_thread, monkeyp
 
 
 @pytest.mark.asyncio
-async def test_read_todos_via_execute_tool(user_a_creds, user_a_thread, monkeypatch):
+async def test_read_todos_via_execute_tool(user_a_creds, user_a_thread):
     """Registry path: read_todos executor returns sorted list."""
     if not _check_table_exists():
         pytest.skip("agent_todos table not present (migration 038 not applied)")
-
-    import app.config as config_mod
-    monkeypatch.setenv("TOOL_REGISTRY_ENABLED", "true")
-    config_mod.get_settings.cache_clear()
 
     from app.services import tool_registry
 
@@ -381,7 +367,7 @@ async def test_read_todos_via_execute_tool(user_a_creds, user_a_thread, monkeypa
         "token": token_a,
     }
 
-    # Write 2 todos first
+    # Write 2 todos first via registry executor
     write_def = tool_registry._REGISTRY["write_todos"]
     await write_def.executor(
         {"todos": [
@@ -393,7 +379,7 @@ async def test_read_todos_via_execute_tool(user_a_creds, user_a_thread, monkeypa
         token=token_a,
     )
 
-    # Read via registry
+    # Read via registry executor
     read_def = tool_registry._REGISTRY["read_todos"]
     result = await read_def.executor({}, user_a_id, ctx_dict, token=token_a)
 
