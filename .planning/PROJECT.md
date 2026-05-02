@@ -53,6 +53,21 @@ Indonesian legal teams can manage the full contract lifecycle — chat with docu
 - ✓ **SET-01..02**: System settings cache (60s TTL), per-user preferences — *existing*
 - ✓ **DEPLOY-01..03**: Vercel + Railway pipeline, smoke tests — *existing*
 
+#### Advanced Tool Calling & Agent Intelligence — v1.2 (CTX-*, HIST-*, TOOL-*, BRIDGE-*, MCP-*, REDACT-01, TEST-01, UI-01)
+- ✓ **CTX-01..06** — v1.2: Context window usage bar (token count + color thresholds), `usage` SSE event, `LLM_CONTEXT_WINDOW` env, `GET /settings/public`, per-thread reset, graceful no-bar on unsupported providers
+- ✓ **HIST-01..06** — v1.2: Per-round message persistence in `tool_calls` JSONB, `buildInterleavedItems()` helper, `SubAgentPanel` + `CodeExecutionPanel` history reconstruction, `ToolCallCard` triple-branch routing
+- ✓ **TOOL-01..06** — v1.2: Unified `ToolRegistry` with `register()`, native/skill/MCP sources, `tool_search` meta-tool (keyword + regex), compact catalog in system prompt (≤50 tools), `TOOL_REGISTRY_ENABLED` byte-identical fallback
+- ✓ **BRIDGE-01..07** — v1.2: `/bridge/call|catalog|health` FastAPI endpoints, pre-baked `ToolClient` (stdlib-only) in sandbox Docker image, runtime typed stub injection, session-token auth, network isolation (bridge-only), `code_mode_start` SSE, dangerous-import block list preserved
+- ✓ **MCP-01..06** — v1.2: `MCPClientManager` over stdio, `MCP_SERVERS` env parsing, eager OpenAI-format schema conversion, registry registration as `source="mcp"`, reconnect-with-exponential-backoff, zero startup cost when disabled
+- ✓ **REDACT-01** — v1.2: Configurable PII domain-term deny list (`pii_domain_deny_list_extra` column, 60s-cached union, migration 037 applied)
+- ✓ **TEST-01** — v1.2: Vitest bootstrapped; `CodeExecutionPanel.tsx` automated component tests (streaming, terminal, signed-URL, history parity)
+- ✓ **UI-01** — v1.2: base-ui `asChild` shim sweep complete — `select.tsx`, `dropdown-menu.tsx`, `dialog.tsx` all support render-prop pattern
+
+#### Agent Skills & Code Execution — v1.1 (SKILLS-*, SANDBOX-*, MEM-*)
+- ✓ **SKILLS-01..07** — v1.1: Skills DB (migration 034+035), ZIP export/import, 8-endpoint router, LLM tool integration (`load_skill`, `save_skill`, `read_skill_file`), skill catalog injected into system prompt, frontend CRUD UI
+- ✓ **SANDBOX-01..07** — v1.1: Code execution sandbox (`llm-sandbox`), per-thread IPython session reuse, 30-min idle TTL, signed-URL file downloads, `execute_code` tool (safe-off gate), `code_stdout`/`code_stderr` SSE events, `CodeExecutionPanel` UI
+- ✓ **MEM-01..03** — v1.1: `code_executions` immutable audit table (migration 036), per-round tool-call persistence in `tool_calls` JSONB, history reconstruction in `_expand_history_row`
+
 #### PII Redaction System — v1.0 (PII-*, ANON-*, REG-*, RESOLVE-*, DEANON-*, BUFFER-*, PROMPT-*, SCAN-*, PROVIDER-*, TOOL-*, EMBED-*, OBS-*, PERF-*)
 - ✓ **PII-01..05** — v1.0: Presidio + spaCy NER, two-pass thresholds, UUID filter, 16 entity types, lazy singletons
 - ✓ **ANON-01..06** — v1.0: Faker surrogates, hard-redact placeholders, collision-free, gender-matched (Indonesian lookup), programmatic find-and-replace
@@ -69,34 +84,19 @@ Indonesian legal teams can manage the full contract lifecycle — chat with docu
 - ✓ **PERF-01, PERF-03, PERF-04** — v1.0: Lazy singletons at startup; asyncio-lock race-protection; graceful LLM-failure degradation
 - ✓* **PERF-02** — v1.0: <500ms anonymization target — 2000ms hard gate passed; 500ms unconfirmed on dev hardware (pending server-class run)
 
-## Current State (Post-v1.1 ship — 2026-05-02)
+## Current State (Post-v1.2 complete — 2026-05-03)
 
-**Shipped version:** v0.5.0.0 (tag `v0.5.0.0`, commit `e90cf41`)
-**Live deployments:** Frontend on Vercel (deploy `frontend-6m8hh45oy`, 16s build), backend on Railway (`/health = ok`), Supabase project `qedhulpfezucnfadlfiz` (migrations 001–036 applied)
-**Smoke test at ship:** 5/5 passed (Health, Dashboard, BJR, PDP, Snapshots)
-**Monitoring:** A scheduled remote routine (`trig_011oZn7P8e68pyxbLp6dJ7JF`) fires 2026-05-16 to verify Phase 11's prod data path end-to-end (SANDBOX_ENABLED env contract + history reconstruction + signed-URL refresh).
+**Completed milestone:** v1.2 Advanced Tool Calling & Agent Intelligence (2026-05-03)
+**Live (prod) version:** v0.5.0.0 (tag `v0.5.0.0`) — v1.2 code committed but not yet deployed to production (all features dark behind `TOOL_REGISTRY_ENABLED=false` / `SANDBOX_ENABLED=false`)
+**Live deployments:** Frontend on Vercel, backend on Railway, Supabase project `qedhulpfezucnfadlfiz` (migrations 001–037 applied)
+**v1.2 outcome:** Milestone shipped 25 plans across 5 phases (12–16), executed in two parallel waves. Wave A (Phases 12‖13‖16) ran first; Wave B (Phases 14‖15) unblocked after Phase 13. All 34 v1.2 requirements covered. Phase 15 verified PASS (26/26 must-haves). Phase 14 18/18 byte-identical tests green. Vitest bootstrapped as the first frontend test framework. NoneType bug fixed in `_expand_with_neighbors`.
 
-**v1.1 outcome:** Milestone shipped 26/26 plans across 5 phases (7–11). Skills system, Code Execution Sandbox, persistent tool memory all live in production. Phase 11 verified PASS-WITH-CAVEATS (operational caveats only — Railway sandbox readiness, multi-worker session semantics, missing CodeExecutionPanel component tests). UAT approved 2026-05-02.
-
-## Current Milestone: v1.2 Advanced Tool Calling & Agent Intelligence
-
-**Goal:** Transform the platform's tool infrastructure from a static, hardcoded system into a dynamic, scalable agent architecture, with chat-UX improvements for context-window visibility and persistent rich history.
-
-**Source PRD:** `docs/superpowers/PRD-advanced-tool-calling.md`
-
-**Target features (5 PRD + 3 bundled v1.1 backlog):**
-- **Context Window Usage Indicator** — token-usage progress bar in chat input with green/yellow/red thresholds (60%/80%), `usage` SSE event, configurable `LLM_CONTEXT_WINDOW`, `GET /settings/public` endpoint.
-- **Chat History Interleaved Rendering** — per-round message persistence + rich sub-agent / code-execution state in `tool_calls` JSONB → faithful reload of interleaved conversations (no schema migration needed).
-- **Unified Tool Registry + Search** — `tool_search` meta-tool with compact catalog (≤50 entries) in system prompt, native + skill + MCP sources, `TOOL_REGISTRY_ENABLED` flag for byte-identical fallback.
-- **Code Mode via Sandbox HTTP Bridge** — `/bridge/*` FastAPI endpoints, pre-baked `ToolClient` in custom Docker image, runtime-injected typed Python stubs, session-token auth, container network isolated to bridge endpoint only.
-- **MCP Client Integration** — `MCPClientManager` over stdio, `MCP_SERVERS` env, eager schema → OpenAI-tool conversion, registry registration as `source="mcp"`, reconnect-with-backoff resilience.
-- **Bundled v1.1 backlog** — Fix B (PII deny list at `backend/app/services/redaction/detection.py`), `CodeExecutionPanel.tsx` component tests, base-ui `asChild` shim sweep (`select.tsx` / `dropdown-menu.tsx` / `dialog.tsx`).
-
-**Phase numbering:** Continues from v1.1 → starts at **Phase 12**.
-
-**Backlog NOT in v1.2 scope (deferred):**
-- Async-lock cross-process upgrade (D-31) — defer until horizontal scale-out triggers a real concurrency bug. Per-process `asyncio.Lock` is sufficient at current Railway scale.
-- PERF-02 — server-class hardware confirmation; needs Railway test run, not a code change. Re-attempt during v1.2 close if Railway-class hardware available.
+**Deferred to next milestone:**
+- Async-lock cross-process upgrade (D-31) — per-process `asyncio.Lock` sufficient at current Railway scale
+- PERF-02 — server-class hardware confirmation pending Railway test run
+- Signed-URL download UX polish (cosmetic, no 404 vs 500 distinction)
+- Multi-worker IPython session semantics for Railway horizontal scale-out
+- Deploy v1.2 features to production (flip `TOOL_REGISTRY_ENABLED=true` + `SANDBOX_ENABLED=true` in Railway env, deploy Docker image, run smoke tests)
 
 ### Out of Scope
 
@@ -158,6 +158,15 @@ Indonesian legal teams can manage the full contract lifecycle — chat with docu
 | `EMBEDDING_PROVIDER` configurable (local/cloud) | Deployer choice; preserves RAG-02 by default; no auto-re-embedding on switch | ✓ Good — documented in CLAUDE.md Gotchas; EMBED-02 correctly scoped as deployer-managed migration |
 | D-48 canonical-only egress scan | Only longest real value per surrogate for egress, not all variants | ✓ Good — fixed production false-positive trips on legal vocabulary (thread bf1b7325) |
 | `pii_redaction_enabled` moved to `system_settings` DB | Admin can toggle without Railway redeploy | ✓ Good — migration 032 applied; admin UI toggle functional |
+| Adapter-wrap invariant (v1.2 D-P13-01) | Phase 13 wraps native tools without touching `tool_service.py` lines 1-1283; byte-identical fallback when flag off | ✓ Good — snapshot test + subprocess no-import test both PASS; zero-risk dark launch |
+| Skill = first-class tool (v1.2 D-P13-02) | Each user skill registers as a distinct tool entry in the unified registry, not as a monolithic skill-runner | ✓ Good — tool_search can surface individual skills by name/description |
+| Single unified catalog in system prompt (v1.2 D-P13-03) | One `## Available Tools` table (≤50 entries) replaces N individual tool schemas in the prompt | ✓ Good — prompt token cost stays bounded regardless of skill library size |
+| `tool_search` as meta-callout (v1.2 D-P13-04) | LLM calls `tool_search` to pull full schemas on demand; active-set scoped to current turn | ✓ Good — scales to 100+ tools without bloating every prompt |
+| Bridge ToolClient uses stdlib only (v1.2 D-P14-01) | `urllib.request` only in sandbox `tool_client.py` — no pip deps in sandbox image | ✓ Good — sandbox image stays lean; no dependency conflicts |
+| Bridge token = per-execution JWT (v1.2 D-P14-03) | Short-lived JWT signed by host per execution, not user's auth token | ✓ Good — credential isolation; token leakage surface minimized |
+| MCP stdio transport only (v1.2 D-P15) | MCP over stdio for v1.2; SSE transport deferred | ✓ Good — simpler subprocess model; SSE deferred to future milestone |
+| `available` field on ToolDefinition (v1.2 D-P15-01) | Registry marks MCP tools unavailable on disconnect rather than removing them | ✓ Good — clean reconnect path without re-registration overhead |
+| Vitest 3.2 for frontend tests (v1.2 D-P16-02) | Vitest 2.x incompatible with Vite 8; version bump required | ✓ Good — first frontend test suite established; co-located `__tests__/` convention |
 
 ## Evolution
 
@@ -184,6 +193,8 @@ This document evolves at phase transitions and milestone boundaries.
 *Last updated: 2026-05-02 — **Milestone v1.1 Agent Skills & Code Execution COMPLETE** ✅ — All 26 v1.1 REQ-IDs shipped. 5 phases (7–11), 26 plans, ~314 tests, 3 migrations (034–036). Skills system + Code Execution Sandbox + Persistent Tool Memory all live in prod as v0.5.0.0. Privacy invariant preserved (sandbox stdout/stderr anonymized through registry-based filter before reaching cloud LLM). Phase 11 verified PASS-WITH-CAVEATS (operational caveats only). Production smoke 5/5 green. Full archive: `.planning/milestones/v1.1-ROADMAP.md` and `.planning/milestones/v1.1-REQUIREMENTS.md`. No active milestone — `/gsd-new-milestone` to scope v1.2.*
 
 *Last updated: 2026-05-02 — **Milestone v1.2 Advanced Tool Calling & Agent Intelligence started** (`/gsd-new-milestone`). Source PRD: `docs/superpowers/PRD-advanced-tool-calling.md`. Scope: 5 PRD features (Context Window Indicator, Interleaved History Rendering, Tool Registry + Search, Sandbox HTTP Bridge, MCP Client) + 3 bundled v1.1 backlog items (Fix B PII deny list, CodeExecutionPanel tests, base-ui asChild shim sweep). Phase numbering continues from 11 → starts at Phase 12. All tool-calling features ship dark behind `TOOL_REGISTRY_ENABLED` and `SANDBOX_ENABLED` flags.*
+
+*Last updated: 2026-05-03 — **Milestone v1.2 Advanced Tool Calling & Agent Intelligence COMPLETE** ✅ — All 34 v1.2 REQ-IDs shipped (CTX×6, HIST×6, TOOL×6, BRIDGE×7, MCP×6, REDACT×1, TEST×1, UI×1). 5 phases (12–16), 25 plans, Wave A (12‖13‖16) + Wave B (14‖15) parallel execution. Phase 15 verified PASS (26/26 must-haves). Vitest bootstrapped. NoneType RAG bug fixed. Migration 037 live. All v1.2 requirements moved to Validated. Full archive: `.planning/milestones/v1.2-ROADMAP.md` and `.planning/milestones/v1.2-REQUIREMENTS.md`. Next: `/gsd-new-milestone` to scope v1.3.*
 
 *Last updated: 2026-04-29 — Milestone v1.1 Agent Skills & Code Execution started (`/gsd-new-milestone`)*
 

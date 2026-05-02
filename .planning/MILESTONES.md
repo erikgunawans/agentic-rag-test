@@ -1,5 +1,16 @@
 # Milestones: LexCore
 
+## v1.2 Advanced Tool Calling & Agent Intelligence (Shipped: 2026-05-02)
+
+**Phases completed:** 5 phases, 26 plans, 1 tasks
+
+**Key accomplishments:**
+
+- Found during:
+- EXECUTED + VERIFIED
+
+---
+
 ## v1.0 — PII Redaction System
 
 **Shipped:** 2026-04-29

@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Advanced Tool Calling & Agent Intelligence
-status: executing
-last_updated: "2026-05-03T00:00:00.000Z"
-last_activity: 2026-05-03 -- Wave B complete (Phase 14 + Phase 15 both executed; 5/5 plans each; all requirements BRIDGE-01..07 + MCP-01..06 covered)
+status: completed
+last_updated: "2026-05-02T17:37:03.680Z"
+last_activity: 2026-05-02
 progress:
   total_phases: 5
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 26
-  completed_plans: 25
-  percent: 96
+  completed_plans: 28
+  percent: 100
 ---
 
 # State: LexCore
@@ -29,7 +29,7 @@ Phase: 14 (sandbox-http-bridge-code-mode) — EXECUTED (5/5 plans, BRIDGE-01..07
 Plan: 5 of 5 (both phases complete)
 Status: v1.2 milestone all 5 phases complete — ready for /gsd-complete-milestone
 Resume: `.planning/phases/15-mcp-client-integration/15-VERIFICATION.md`
-Last activity: 2026-05-02 -- Phase 14 execution started
+Last activity: 2026-05-02
 
 ## Roadmap Snapshot (v1.2)
 
