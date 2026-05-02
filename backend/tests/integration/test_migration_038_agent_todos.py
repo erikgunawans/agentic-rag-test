@@ -1,12 +1,16 @@
 """Integration tests for migration 038: agent_todos table + messages.deep_mode column.
 
 These tests verify:
-  - Schema: agent_todos columns, types, constraints (6 defined tests per plan spec)
+  - Schema: agent_todos columns, constraints (6 defined tests per plan spec)
   - RLS: SEC-01 regression — User A cannot SELECT/INSERT/UPDATE/DELETE User B's todos
   - Trigger: handle_updated_at fires on agent_todos UPDATE
 
 All 6 tests FAIL before migration 038 is applied (TDD RED gate).
 After `supabase db push`, all 6 should PASS (TDD GREEN gate).
+
+NOTE: Tests 1–4 use functional assertions (SELECT/INSERT) rather than querying
+information_schema or pg_indexes directly — Supabase PostgREST only exposes the
+public schema, not system catalog tables.
 
 Requirements covered: TODO-01, MIG-01, MIG-04, SEC-01
 
@@ -87,44 +91,52 @@ def _delete_thread_svc(thread_id: str) -> None:
 
 
 def test_schema_columns_present():
-    """agent_todos table has exactly the expected 8 columns with correct types.
+    """agent_todos table has all 8 required columns.
 
-    Queries information_schema.columns for public.agent_todos.
-    Fails with relation-not-found error before migration 038 is applied (RED).
+    Uses a SELECT with all column names explicitly — PostgREST raises PGRST204
+    if any column is missing, and the INSERT round-trip validates types.
+    Fails with relation-not-found before migration 038 is applied (RED).
     """
+    user_a_id = _get_user_id(TEST_EMAIL, TEST_PASSWORD)
     svc = get_supabase_client()
-    result = (
-        svc.table("information_schema.columns")
-        .select("column_name,data_type,is_nullable,column_default")
-        .eq("table_schema", "public")
-        .eq("table_name", "agent_todos")
-        .execute()
-    )
-    rows = result.data
-    col_map = {r["column_name"]: r for r in rows}
+    thread_id = _create_thread_svc(user_a_id)
+    todo_id = str(uuid.uuid4())
+    try:
+        # INSERT with all 8 required columns — fails if any is absent or wrong type
+        insert_result = svc.table("agent_todos").insert({
+            "id": todo_id,
+            "thread_id": thread_id,
+            "user_id": user_a_id,
+            "content": "schema verification row",
+            "status": "pending",
+            "position": 0,
+        }).execute()
+        assert insert_result.data, "INSERT returned no data — table may not exist"
 
-    expected_columns = {
-        "id": "uuid",
-        "thread_id": "uuid",
-        "user_id": "uuid",
-        "content": "text",
-        "status": "text",
-        "position": "integer",
-        "created_at": "timestamp with time zone",
-        "updated_at": "timestamp with time zone",
-    }
-
-    assert set(col_map.keys()) == set(expected_columns.keys()), (
-        f"Column mismatch. Expected: {set(expected_columns.keys())}, "
-        f"Got: {set(col_map.keys())}"
-    )
-
-    for col_name, expected_type in expected_columns.items():
-        actual_type = col_map[col_name]["data_type"]
-        assert actual_type == expected_type, (
-            f"Column '{col_name}' type mismatch: expected '{expected_type}', "
-            f"got '{actual_type}'"
+        # SELECT back with all 8 columns explicitly named
+        row = (
+            svc.table("agent_todos")
+            .select("id,thread_id,user_id,content,status,position,created_at,updated_at")
+            .eq("id", todo_id)
+            .single()
+            .execute()
         )
+        data = row.data
+        assert data is not None, "SELECT returned no row"
+        for col in ("id", "thread_id", "user_id", "content", "status", "position",
+                    "created_at", "updated_at"):
+            assert col in data, f"Column '{col}' missing from agent_todos"
+
+        # Spot-check types: position must be int, content must be str
+        assert isinstance(data["position"], int), (
+            f"position must be integer, got {type(data['position'])}"
+        )
+        assert isinstance(data["content"], str), (
+            f"content must be text, got {type(data['content'])}"
+        )
+    finally:
+        svc.table("agent_todos").delete().eq("id", todo_id).execute()
+        _delete_thread_svc(thread_id)
 
 
 # ---------------------------------------------------------------------------
@@ -135,72 +147,108 @@ def test_schema_columns_present():
 def test_schema_check_constraint():
     """status CHECK constraint accepts valid values and rejects 'foo'.
 
-    Verifies the constraint exists in information_schema.check_constraints.
-    Fails before migration 038 is applied (RED).
+    Inserts rows with each valid status (should succeed) and then inserts
+    with status='foo' (should raise an exception from PostgreSQL CHECK).
+    Fails before migration 038 is applied (table does not exist — RED).
     """
+    user_a_id = _get_user_id(TEST_EMAIL, TEST_PASSWORD)
     svc = get_supabase_client()
+    thread_id = _create_thread_svc(user_a_id)
+    created_ids: list[str] = []
+    try:
+        # Valid statuses must succeed
+        for pos, status in enumerate(("pending", "in_progress", "completed")):
+            row_id = str(uuid.uuid4())
+            res = svc.table("agent_todos").insert({
+                "id": row_id,
+                "thread_id": thread_id,
+                "user_id": user_a_id,
+                "content": f"valid status test ({status})",
+                "status": status,
+                "position": pos,
+            }).execute()
+            assert res.data, f"INSERT with valid status='{status}' returned no data"
+            created_ids.append(row_id)
 
-    # Check the constraint exists in check_constraints for agent_todos
-    result = svc.rpc("query_check_constraints", {}).execute()
+        # Invalid status must raise — PostgreSQL CHECK violation
+        with pytest.raises(Exception) as exc_info:
+            svc.table("agent_todos").insert({
+                "id": str(uuid.uuid4()),
+                "thread_id": thread_id,
+                "user_id": user_a_id,
+                "content": "bad status row",
+                "status": "foo",
+                "position": 99,
+            }).execute()
 
-    # Use information_schema directly via the table API
-    constraints = (
-        svc.table("information_schema.check_constraints")
-        .select("constraint_name,check_clause")
-        .eq("constraint_schema", "public")
-        .execute()
-    )
-
-    # Also check table_constraints to confirm agent_todos has a check constraint
-    table_constraints = (
-        svc.table("information_schema.table_constraints")
-        .select("constraint_name,constraint_type,table_name")
-        .eq("table_schema", "public")
-        .eq("table_name", "agent_todos")
-        .eq("constraint_type", "CHECK")
-        .execute()
-    )
-
-    assert len(table_constraints.data) >= 1, (
-        "Expected at least one CHECK constraint on agent_todos "
-        f"(status IN ('pending','in_progress','completed')), got none. "
-        "Migration 038 not applied."
-    )
+        err = str(exc_info.value).lower()
+        assert any(kw in err for kw in ("check", "constraint", "violates", "invalid", "23514")), (
+            f"Expected CHECK constraint violation for status='foo', got: {exc_info.value}"
+        )
+    finally:
+        for row_id in created_ids:
+            svc.table("agent_todos").delete().eq("id", row_id).execute()
+        _delete_thread_svc(thread_id)
 
 
 # ---------------------------------------------------------------------------
-# Test 3: Indexes present on agent_todos
+# Test 3: Indexes present on agent_todos (functional verification)
 # ---------------------------------------------------------------------------
 
 
 def test_schema_indexes_present():
-    """idx_agent_todos_thread and idx_agent_todos_user exist on agent_todos.
+    """Verify indexed access patterns work on agent_todos.
 
-    Queries pg_indexes via service-role.
-    Fails before migration 038 is applied (RED).
+    pg_indexes is not exposed via PostgREST, so we verify functionally:
+    - Queries ordered by (thread_id, position) work without error (idx_agent_todos_thread)
+    - Queries filtered + ordered by (user_id, created_at DESC) work (idx_agent_todos_user)
+
+    Fails before migration 038 is applied (table does not exist — RED).
     """
+    user_a_id = _get_user_id(TEST_EMAIL, TEST_PASSWORD)
     svc = get_supabase_client()
+    thread_id = _create_thread_svc(user_a_id)
+    todo_ids: list[str] = []
+    try:
+        # Insert two rows so ORDER BY has something to work with
+        for pos in range(2):
+            row_id = str(uuid.uuid4())
+            svc.table("agent_todos").insert({
+                "id": row_id,
+                "thread_id": thread_id,
+                "user_id": user_a_id,
+                "content": f"index test row {pos}",
+                "status": "pending",
+                "position": pos,
+            }).execute()
+            todo_ids.append(row_id)
 
-    # pg_indexes is accessible via the REST API through information_schema equivalent
-    # We use a direct RPC call to pg_catalog via information_schema
-    result = (
-        svc.table("pg_indexes")
-        .select("indexname,tablename")
-        .eq("schemaname", "public")
-        .eq("tablename", "agent_todos")
-        .execute()
-    )
+        # idx_agent_todos_thread: filter by thread_id, ORDER BY position
+        r1 = (
+            svc.table("agent_todos")
+            .select("id,position")
+            .eq("thread_id", thread_id)
+            .order("position")
+            .execute()
+        )
+        assert r1.data is not None, "Query on (thread_id, position) failed"
+        assert len(r1.data) == 2, f"Expected 2 rows, got {len(r1.data)}"
+        assert r1.data[0]["position"] <= r1.data[1]["position"], "Rows not ordered by position"
 
-    index_names = {row["indexname"] for row in result.data}
-
-    assert "idx_agent_todos_thread" in index_names, (
-        f"Index 'idx_agent_todos_thread' not found on agent_todos. "
-        f"Found indexes: {index_names}. Migration 038 not applied."
-    )
-    assert "idx_agent_todos_user" in index_names, (
-        f"Index 'idx_agent_todos_user' not found on agent_todos. "
-        f"Found indexes: {index_names}. Migration 038 not applied."
-    )
+        # idx_agent_todos_user: filter by user_id, ORDER BY created_at DESC
+        r2 = (
+            svc.table("agent_todos")
+            .select("id,created_at")
+            .eq("user_id", user_a_id)
+            .order("created_at", desc=True)
+            .limit(10)
+            .execute()
+        )
+        assert r2.data is not None, "Query on (user_id, created_at DESC) failed"
+    finally:
+        for row_id in todo_ids:
+            svc.table("agent_todos").delete().eq("id", row_id).execute()
+        _delete_thread_svc(thread_id)
 
 
 # ---------------------------------------------------------------------------
@@ -209,36 +257,59 @@ def test_schema_indexes_present():
 
 
 def test_schema_messages_deep_mode_column():
-    """messages.deep_mode column exists, type boolean, NOT NULL, default false.
+    """messages.deep_mode column exists, is boolean, and defaults to false.
 
-    Queries information_schema.columns for public.messages.deep_mode.
-    Fails before migration 038 is applied (RED).
+    Inserts a message WITHOUT specifying deep_mode, then SELECTs it back
+    including the deep_mode column — verifies existence and default value.
+    Fails before migration 038 is applied (column does not exist — RED).
     """
+    user_a_id = _get_user_id(TEST_EMAIL, TEST_PASSWORD)
     svc = get_supabase_client()
-    result = (
-        svc.table("information_schema.columns")
-        .select("column_name,data_type,is_nullable,column_default")
-        .eq("table_schema", "public")
-        .eq("table_name", "messages")
-        .eq("column_name", "deep_mode")
-        .execute()
-    )
+    thread_id = _create_thread_svc(user_a_id)
+    msg_id = str(uuid.uuid4())
+    try:
+        # Insert without specifying deep_mode — default should apply
+        insert_result = svc.table("messages").insert({
+            "id": msg_id,
+            "thread_id": thread_id,
+            "user_id": user_a_id,
+            "role": "user",
+            "content": "migration 038 deep_mode column test",
+        }).execute()
+        assert insert_result.data, "Message INSERT returned no data"
 
-    assert len(result.data) == 1, (
-        f"Expected messages.deep_mode column to exist, got {len(result.data)} rows. "
-        "Migration 038 not applied (ALTER TABLE messages ADD COLUMN deep_mode missing)."
-    )
+        # SELECT back with deep_mode explicitly in the column list
+        row = (
+            svc.table("messages")
+            .select("id,deep_mode")
+            .eq("id", msg_id)
+            .single()
+            .execute()
+        )
+        assert row.data is not None, "Message not found after INSERT"
+        assert "deep_mode" in row.data, (
+            "deep_mode column missing from messages — "
+            "ALTER TABLE messages ADD COLUMN deep_mode not applied (migration 038 missing)"
+        )
+        assert row.data["deep_mode"] is False, (
+            f"messages.deep_mode should default to false, got: {row.data['deep_mode']}"
+        )
 
-    col = result.data[0]
-    assert col["data_type"] == "boolean", (
-        f"messages.deep_mode must be type 'boolean', got '{col['data_type']}'"
-    )
-    assert col["is_nullable"] == "NO", (
-        f"messages.deep_mode must be NOT NULL, got is_nullable='{col['is_nullable']}'"
-    )
-    assert col["column_default"] is not None and "false" in str(col["column_default"]).lower(), (
-        f"messages.deep_mode must have DEFAULT false, got column_default='{col['column_default']}'"
-    )
+        # Also verify that explicitly setting deep_mode=True works (column accepts booleans)
+        svc.table("messages").update({"deep_mode": True}).eq("id", msg_id).execute()
+        row2 = (
+            svc.table("messages")
+            .select("deep_mode")
+            .eq("id", msg_id)
+            .single()
+            .execute()
+        )
+        assert row2.data["deep_mode"] is True, (
+            "messages.deep_mode should accept True after UPDATE"
+        )
+    finally:
+        svc.table("messages").delete().eq("id", msg_id).execute()
+        _delete_thread_svc(thread_id)
 
 
 # ---------------------------------------------------------------------------
