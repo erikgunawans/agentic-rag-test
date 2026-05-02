@@ -135,7 +135,14 @@ export function useChatState() {
     setForkParentId(null)
   }
 
-  async function sendMessageToThread(threadId: string, content: string) {
+  async function sendMessageToThread(
+    threadId: string,
+    content: string,
+    // Phase 17 / DEEP-01 / D-24 / D-26: per-message deep mode flag.
+    // Forwarded to POST /chat/stream when true (DEEP-03: omitted when false to
+    // preserve byte-identical legacy payload).
+    opts?: { deepMode?: boolean }
+  ) {
     // Determine parent: if forking, use forkParentId; otherwise use the last visible message
     const parentId = forkParentId ?? messages[messages.length - 1]?.id ?? null
 
@@ -164,14 +171,21 @@ export function useChatState() {
     setForkParentId(null)
 
     try {
+      // Phase 17 / DEEP-01 / DEEP-03: only include deep_mode in payload when true.
+      // Byte-identical legacy payload when toggle is off (omit the key entirely).
+      const requestBody: Record<string, unknown> = {
+        thread_id: threadId,
+        message: content,
+        parent_message_id: parentId,
+        web_search: webSearchEnabled, // ADR-0008
+      }
+      if (opts?.deepMode) {
+        requestBody.deep_mode = true
+      }
+
       const response = await apiFetch('/chat/stream', {
         method: 'POST',
-        body: JSON.stringify({
-          thread_id: threadId,
-          message: content,
-          parent_message_id: parentId,
-          web_search: webSearchEnabled, // ADR-0008
-        }),
+        body: JSON.stringify(requestBody),
       })
 
       const reader = response.body!.getReader()
@@ -293,9 +307,9 @@ export function useChatState() {
     }
   }
 
-  async function handleSendMessage(content: string) {
+  async function handleSendMessage(content: string, opts?: { deepMode?: boolean }) {
     if (!activeThreadId || isStreaming) return
-    await sendMessageToThread(activeThreadId, content)
+    await sendMessageToThread(activeThreadId, content, opts)
   }
 
   function handleNewChat() {
@@ -310,10 +324,10 @@ export function useChatState() {
     setUsage(null)
   }
 
-  async function handleSendFirstMessage(content: string) {
+  async function handleSendFirstMessage(content: string, opts?: { deepMode?: boolean }) {
     if (isStreaming) return
     const thread = await handleCreateThread()
-    await sendMessageToThread(thread.id, content)
+    await sendMessageToThread(thread.id, content, opts)
   }
 
   return {

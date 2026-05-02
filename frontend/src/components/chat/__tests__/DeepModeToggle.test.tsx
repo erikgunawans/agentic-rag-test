@@ -133,8 +133,8 @@ describe('Deep Mode Toggle — MessageInput (Phase 17 DEEP-01)', () => {
     const textarea = screen.getByRole('textbox')
     fireEvent.change(textarea, { target: { value: 'hi' } })
 
-    // Click send button (aria-label or role)
-    const sendBtn = screen.getByRole('button', { name: /send/i })
+    // Click send button (data-testid for language-agnostic lookup)
+    const sendBtn = screen.getByTestId('send-button')
     fireEvent.click(sendBtn)
 
     await waitFor(() => {
@@ -159,7 +159,7 @@ describe('Deep Mode Toggle — MessageInput (Phase 17 DEEP-01)', () => {
     const textarea = screen.getByRole('textbox')
     fireEvent.change(textarea, { target: { value: 'hello' } })
 
-    const sendBtn = screen.getByRole('button', { name: /send/i })
+    const sendBtn = screen.getByTestId('send-button')
     fireEvent.click(sendBtn)
 
     await waitFor(() => {
@@ -189,7 +189,7 @@ describe('Deep Mode Toggle — MessageInput (Phase 17 DEEP-01)', () => {
     // Type and send
     const textarea = screen.getByRole('textbox')
     fireEvent.change(textarea, { target: { value: 'hi' } })
-    const sendBtn = screen.getByRole('button', { name: /send/i })
+    const sendBtn = screen.getByTestId('send-button')
     fireEvent.click(sendBtn)
 
     await waitFor(() => {

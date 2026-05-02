@@ -7,7 +7,10 @@ import { ContextWindowBar } from './ContextWindowBar'
 import { InputActionBar } from './InputActionBar'
 
 interface MessageInputProps {
-  onSend: (message: string) => void
+  // Phase 17 / DEEP-01 / D-24: onSend accepts an optional options bag.
+  // When deep_mode_enabled=true and the toggle is on, { deepMode: true } is forwarded.
+  // When toggle is off, either no second arg or { deepMode: false } — caller checks deepMode===true.
+  onSend: (message: string, opts?: { deepMode?: boolean }) => void
   disabled: boolean
   forkParentId?: string | null
   onCancelFork?: () => void
@@ -15,17 +18,22 @@ interface MessageInputProps {
 
 export function MessageInput({ onSend, disabled, forkParentId, onCancelFork }: MessageInputProps) {
   const [value, setValue] = useState('')
+  // Phase 17 / DEEP-01 / D-24: per-message deep mode toggle; resets after each send.
+  const [deepMode, setDeepMode] = useState(false)
   const { t } = useI18n()
   const { webSearchEnabled, setWebSearchEnabled, usage } = useChatContext()
   // Phase 12 / CTX-04: contextWindow denominator from /settings/public.
+  // Phase 17 / DEEP-03: deepModeEnabled — feature gate for the toggle button.
   // Single fetch per app load via module-level cache (D-P12-06).
-  const { contextWindow } = usePublicSettings()
+  const { contextWindow, deepModeEnabled } = usePublicSettings()
 
   function handleSend() {
     const trimmed = value.trim()
     if (!trimmed || disabled) return
-    onSend(trimmed)
+    // Phase 17 / DEEP-01 / D-24: forward deepMode flag; reset toggle after send.
+    onSend(trimmed, deepMode ? { deepMode: true } : undefined)
     setValue('')
+    setDeepMode(false) // per-message semantic — reset for next message
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -69,6 +77,9 @@ export function MessageInput({ onSend, disabled, forkParentId, onCancelFork }: M
           disabled={disabled || !value.trim()}
           webSearchEnabled={webSearchEnabled}
           onToggleWebSearch={() => setWebSearchEnabled((v) => !v)}
+          deepModeEnabled={deepModeEnabled}
+          deepMode={deepMode}
+          onToggleDeepMode={() => setDeepMode((v) => !v)}
         />
       </div>
     </div>

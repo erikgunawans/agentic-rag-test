@@ -1,23 +1,31 @@
 import { useState } from 'react'
 import { useI18n } from '@/i18n/I18nContext'
 import { useChatContext } from '@/contexts/ChatContext'
+import { usePublicSettings } from '@/hooks/usePublicSettings'
 import { InputActionBar } from './InputActionBar'
 
 interface WelcomeInputProps {
-  onSend: (message: string) => void
+  // Phase 17 / DEEP-01 / D-24 (form duplication rule — CLAUDE.md):
+  // WelcomeInput mirrors MessageInput; also accepts optional opts for deepMode.
+  onSend: (message: string, opts?: { deepMode?: boolean }) => void
   disabled: boolean
 }
 
 export function WelcomeInput({ onSend, disabled }: WelcomeInputProps) {
   const [value, setValue] = useState('')
+  // Phase 17 / DEEP-01 / D-24: per-message deep mode toggle (same as MessageInput).
+  const [deepMode, setDeepMode] = useState(false)
   const { t } = useI18n()
   const { webSearchEnabled, setWebSearchEnabled } = useChatContext()
+  // Phase 17 / DEEP-03: read feature flag from /settings/public.
+  const { deepModeEnabled } = usePublicSettings()
 
   function handleSend() {
     const trimmed = value.trim()
     if (!trimmed || disabled) return
-    onSend(trimmed)
+    onSend(trimmed, deepMode ? { deepMode: true } : undefined)
     setValue('')
+    setDeepMode(false) // per-message semantic — reset for next message
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -44,6 +52,9 @@ export function WelcomeInput({ onSend, disabled }: WelcomeInputProps) {
         showVersion
         webSearchEnabled={webSearchEnabled}
         onToggleWebSearch={() => setWebSearchEnabled((v) => !v)}
+        deepModeEnabled={deepModeEnabled}
+        deepMode={deepMode}
+        onToggleDeepMode={() => setDeepMode((v) => !v)}
       />
     </div>
   )

@@ -16,6 +16,10 @@ export const translations: Record<Locale, Record<string, string>> = {
     'chat.webSearchTooltip': 'Aktifkan pencarian web untuk pesan ini',
     'chat.source.web': 'Sumber Web',
     'chat.source.internal': 'Dokumen Internal',
+    // Phase 17 / DEEP-01 / D-24: Deep Mode toggle and badge
+    'chat.deepMode.toggleLabel': 'Deep Mode',
+    'chat.deepMode.toggleAriaLabel': 'Aktifkan Deep Mode untuk pesan ini',
+    'chat.deepMode.badge': 'Deep Mode',
 
     // Navigation
     'nav.documents': 'Dokumen',
@@ -696,6 +700,10 @@ export const translations: Record<Locale, Record<string, string>> = {
     'chat.webSearchTooltip': 'Enable web search for this message',
     'chat.source.web': 'Web Source',
     'chat.source.internal': 'Internal Documents',
+    // Phase 17 / DEEP-01 / D-24: Deep Mode toggle and badge
+    'chat.deepMode.toggleLabel': 'Deep Mode',
+    'chat.deepMode.toggleAriaLabel': 'Enable Deep Mode for this message',
+    'chat.deepMode.badge': 'Deep Mode',
 
     // Navigation
     'nav.documents': 'Documents',
