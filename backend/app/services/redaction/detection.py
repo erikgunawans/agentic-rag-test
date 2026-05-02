@@ -86,8 +86,70 @@ _DENY_LIST_CASEFOLD: frozenset[str] = frozenset({
 })
 
 
+# REDACT-01 / D-P16-03 / D-P16-04: 60s-cached union of the baked-in deny
+# list and the runtime extras column from system_settings. The cache
+# holds a frozenset (preserves O(1) lookup in _is_domain_term). Rebuild
+# is keyed on the runtime-extras string so that updates within the TTL
+# are picked up at most once per 60s -- matching get_system_settings().
+_DENY_LIST_TTL_SECONDS: float = 60.0
+_deny_list_cache: frozenset[str] = _DENY_LIST_CASEFOLD
+_deny_list_cache_ts: float = 0.0
+_deny_list_cache_extras_key: str = ""
+
+
+def _parse_extras_csv(raw: str) -> frozenset[str]:
+    """Parse comma-separated extras into a casefolded frozenset.
+
+    Whitespace around items is stripped; empty items are dropped.
+    Empty / None input yields an empty frozenset. Mirrors the parsing
+    rule used elsewhere in detection.py for pii_*_entities columns,
+    but case-folds (not upper) because _is_domain_term casefolds.
+    """
+    if not raw:
+        return frozenset()
+    return frozenset(
+        item.strip().casefold()
+        for item in raw.split(",")
+        if item.strip()
+    )
+
+
+def _get_active_deny_list() -> frozenset[str]:
+    """Return the currently-active deny list as a frozenset.
+
+    Cached for 60s. The cache key includes the raw extras string so a
+    deployer updating system_settings.pii_domain_deny_list_extra is
+    honored on the next call after the 60s TTL expires (D-P16-03).
+    On any error reading system_settings, falls back to the baked-in
+    frozenset (zero-regression invariant from D-P16-02).
+    """
+    global _deny_list_cache, _deny_list_cache_ts, _deny_list_cache_extras_key
+    now = time.time()
+    if (now - _deny_list_cache_ts) < _DENY_LIST_TTL_SECONDS:
+        return _deny_list_cache
+
+    try:
+        from app.services.system_settings_service import get_system_settings
+        row = get_system_settings() or {}
+        extras_raw = row.get("pii_domain_deny_list_extra") or ""
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.warning("deny_list extras read failed; using baseline only: %s", exc)
+        extras_raw = ""
+
+    if extras_raw == _deny_list_cache_extras_key and _deny_list_cache_ts > 0.0:
+        # Same extras string -- refresh ts only, reuse the frozenset.
+        _deny_list_cache_ts = now
+        return _deny_list_cache
+
+    extras_set = _parse_extras_csv(extras_raw)
+    _deny_list_cache = frozenset(_DENY_LIST_CASEFOLD | extras_set)
+    _deny_list_cache_ts = now
+    _deny_list_cache_extras_key = extras_raw
+    return _deny_list_cache
+
+
 def _is_domain_term(span_text: str) -> bool:
-    return span_text.casefold() in _DENY_LIST_CASEFOLD
+    return span_text.casefold() in _get_active_deny_list()
 
 
 class Entity(BaseModel):
