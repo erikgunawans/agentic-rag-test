@@ -21,6 +21,13 @@ class Settings(BaseSettings):
     openrouter_api_key: str = ""
     openrouter_model: str = "openai/gpt-4o-mini"
 
+    # CTX-03 / D-P12-04: deployment-time config for the chat context-window bar.
+    # Pydantic Settings reads LLM_CONTEXT_WINDOW env var; default sized to GPT-4o.
+    # Surfaced via GET /settings/public (no auth) — see backend/app/routers/settings.py.
+    # NOT routed through system_settings: changing LLM_CONTEXT_WINDOW only requires a
+    # backend Railway redeploy, not a frontend redeploy (CTX-03 success criterion #5).
+    llm_context_window: int = 128_000
+
     # RAG tuning
     rag_top_k: int = 5
     rag_similarity_threshold: float = 0.3
@@ -72,6 +79,10 @@ class Settings(BaseSettings):
     # Phase 10: Code Execution Sandbox (SANDBOX-01..06, 08; D-P10-01..D-P10-17)
     # SANDBOX-05 / D-P10: gate the execute_code tool. Default OFF — opt-in per Railway env.
     sandbox_enabled: bool = False
+    # Phase 13 (TOOL-01..06; D-P13-01..D-P13-06): Unified Tool Registry & tool_search.
+    # Default OFF — when False, chat.py + tool_service.py skip importing the registry
+    # entirely (TOOL-05 byte-identical fallback). Env var: TOOL_REGISTRY_ENABLED.
+    tool_registry_enabled: bool = False
     # D-P10-03: Docker Hub image (rebuild + push when packages change).
     sandbox_image: str = "lexcore-sandbox:latest"
     # D-P10-02: Railway socket-mount pattern. Override per-env if running rootless / DinD.
