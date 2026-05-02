@@ -4,6 +4,7 @@ import { useChatContext } from '@/contexts/ChatContext'
 import { MessageView } from '@/components/chat/MessageView'
 import { MessageInput } from '@/components/chat/MessageInput'
 import { WelcomeScreen } from '@/components/chat/WelcomeScreen'
+import { PlanPanel } from '@/components/chat/PlanPanel'
 
 export function ChatPage() {
   const location = useLocation()
@@ -51,26 +52,34 @@ export function ChatPage() {
   }
 
   return (
-    <div className="flex flex-1 min-h-0 flex-col">
-      <MessageView
-        messages={messages}
-        allMessages={allMessages}
-        streamingContent={streamingContent}
-        isStreaming={isStreaming}
-        activeTools={activeTools}
-        toolResults={toolResults}
-        activeAgent={activeAgent}
-        redactionStage={redactionStage}
-        sandboxStreams={sandboxStreams}
-        onFork={handleForkAt}
-        onSwitchBranch={handleSwitchBranch}
-      />
-      <MessageInput
-        onSend={handleSendMessage}
-        disabled={isStreaming}
-        forkParentId={forkParentId}
-        onCancelFork={handleCancelFork}
-      />
+    // Phase 17 / D-20: Plan Panel slots into the chat layout as a right-side
+    // persistent sidebar (coexists with message view + input).
+    // flex-row so PlanPanel and the chat column sit side-by-side.
+    <div className="flex flex-1 min-h-0 flex-row">
+      {/* Main chat column */}
+      <div className="flex flex-1 min-h-0 flex-col min-w-0">
+        <MessageView
+          messages={messages}
+          allMessages={allMessages}
+          streamingContent={streamingContent}
+          isStreaming={isStreaming}
+          activeTools={activeTools}
+          toolResults={toolResults}
+          activeAgent={activeAgent}
+          redactionStage={redactionStage}
+          sandboxStreams={sandboxStreams}
+          onFork={handleForkAt}
+          onSwitchBranch={handleSwitchBranch}
+        />
+        <MessageInput
+          onSend={handleSendMessage}
+          disabled={isStreaming}
+          forkParentId={forkParentId}
+          onCancelFork={handleCancelFork}
+        />
+      </div>
+      {/* Phase 17 Plan Panel — visible when deep mode active or thread has todos (D-22) */}
+      <PlanPanel />
     </div>
   )
 }

@@ -144,8 +144,9 @@ describe('PlanPanel', () => {
 
     const inProgressIcon = container.querySelector('[data-testid="status-in-progress"]')
     expect(inProgressIcon).not.toBeNull()
-    // Should have animate-spin class (Loader2 spinner)
-    expect(inProgressIcon?.className).toContain('animate-spin')
+    // SVG elements use getAttribute('class') in jsdom (className is SVGAnimatedString)
+    const cls = inProgressIcon?.getAttribute('class') ?? ''
+    expect(cls).toContain('animate-spin')
   })
 
   it('test_status_indicator_completed: green check icon for completed status', () => {
@@ -155,8 +156,9 @@ describe('PlanPanel', () => {
 
     const completedIcon = container.querySelector('[data-testid="status-completed"]')
     expect(completedIcon).not.toBeNull()
-    // Should have green color class
-    expect(completedIcon?.className).toContain('text-green')
+    // SVG elements use getAttribute('class') in jsdom (className is SVGAnimatedString)
+    const cls = completedIcon?.getAttribute('class') ?? ''
+    expect(cls).toContain('text-green')
   })
 
   it('test_panel_hydrates_on_mount: fetchThreadTodos called on mount (via useChatState hook)', async () => {
@@ -210,16 +212,19 @@ describe('PlanPanel', () => {
     const panel = container.querySelector('[data-testid="plan-panel"]')
     expect(panel).not.toBeNull()
 
-    // Walk the entire panel subtree to verify no backdrop-blur anywhere
+    // Walk the entire panel subtree to verify no backdrop-blur anywhere.
+    // Use getAttribute('class') instead of .className to handle SVGAnimatedString.
     const allElements = panel!.querySelectorAll('*')
     const panelRoot = panel as HTMLElement
 
-    const hasBackdropBlur = (el: HTMLElement) =>
-      el.className && /backdrop-blur/.test(el.className)
+    const hasBackdropBlur = (el: Element) => {
+      const cls = el.getAttribute('class') ?? ''
+      return /backdrop-blur/.test(cls)
+    }
 
     expect(hasBackdropBlur(panelRoot)).toBe(false)
     allElements.forEach((el) => {
-      expect(hasBackdropBlur(el as HTMLElement)).toBe(false)
+      expect(hasBackdropBlur(el)).toBe(false)
     })
   })
 
