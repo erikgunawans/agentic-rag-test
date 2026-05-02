@@ -176,3 +176,209 @@ async def test_anti_speculation_guardrail_present():
         result = await build_skill_catalog_block("u1", "tok")
     assert "load_skill" in result
     assert "Only load a skill when there's a strong match" in result
+
+
+# ===========================================================================
+# Phase 13 Plan 03 — register_user_skills + _make_skill_executor
+# ===========================================================================
+
+from unittest.mock import AsyncMock
+
+
+def _mock_client_v13(rows):
+    """Phase 13 Supabase chain mock — no .limit() in register_user_skills.
+
+    Chain: client.table('skills').select(...).eq(...).order(...).execute()
+    """
+    client = MagicMock()
+    chain = MagicMock()
+    chain.execute.return_value.data = rows
+    chain.eq.return_value = chain
+    chain.order.return_value = chain
+    chain.select.return_value = chain
+    client.table.return_value = chain
+    return client
+
+
+@pytest.fixture(autouse=False)
+def _reset_registry():
+    """Opt-in fixture to clear the tool_registry between Phase 13 tests."""
+    from app.services import tool_registry
+
+    tool_registry._clear_for_tests()
+    yield
+    tool_registry._clear_for_tests()
+
+
+@pytest.mark.asyncio
+async def test_register_user_skills_two_skills(_reset_registry):
+    """Test 1: 2 enabled skills → 2 entries in _REGISTRY with source/loading set."""
+    from app.services import tool_registry
+    from app.services.skill_catalog_service import register_user_skills
+
+    rows = [
+        {"name": "legal_review", "description": "Reviews NDA contracts."},
+        {"name": "compliance_check", "description": "Checks GDPR compliance."},
+    ]
+    client = _mock_client_v13(rows)
+    with patch(
+        "app.services.skill_catalog_service.get_supabase_authed_client",
+        return_value=client,
+    ):
+        await register_user_skills("u1", "tok")
+
+    assert len(tool_registry._REGISTRY) == 2
+    for name in ("legal_review", "compliance_check"):
+        td = tool_registry._REGISTRY[name]
+        assert td.source == "skill"
+        assert td.loading == "deferred"
+
+
+@pytest.mark.asyncio
+async def test_register_user_skills_parameterless_schema(_reset_registry):
+    """Test 2: schema is the parameterless OpenAI shape with name + description."""
+    from app.services import tool_registry
+    from app.services.skill_catalog_service import register_user_skills
+
+    rows = [{"name": "legal_review", "description": "Reviews NDA contracts."}]
+    client = _mock_client_v13(rows)
+    with patch(
+        "app.services.skill_catalog_service.get_supabase_authed_client",
+        return_value=client,
+    ):
+        await register_user_skills("u1", "tok")
+
+    schema = tool_registry._REGISTRY["legal_review"].schema
+    assert schema == {
+        "type": "function",
+        "function": {
+            "name": "legal_review",
+            "description": "Reviews NDA contracts.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+            },
+        },
+    }
+
+
+@pytest.mark.asyncio
+async def test_register_user_skills_falsy_token_returns_silent(_reset_registry):
+    """Test 3: empty/None token → no DB call, no registration."""
+    from app.services import tool_registry
+    from app.services.skill_catalog_service import register_user_skills
+
+    with patch(
+        "app.services.skill_catalog_service.get_supabase_authed_client"
+    ) as mock_client_factory:
+        await register_user_skills("u1", "")
+        await register_user_skills("u1", None)  # type: ignore[arg-type]
+
+    mock_client_factory.assert_not_called()
+    assert tool_registry._REGISTRY == {}
+
+
+@pytest.mark.asyncio
+async def test_register_user_skills_db_error_fail_soft(_reset_registry, caplog):
+    """Test 4: DB exception → WARNING logged, no propagation, no registration."""
+    from app.services import tool_registry
+    from app.services.skill_catalog_service import register_user_skills
+
+    client = MagicMock()
+    chain = MagicMock()
+    chain.execute.side_effect = RuntimeError("boom")
+    chain.eq.return_value = chain
+    chain.order.return_value = chain
+    chain.select.return_value = chain
+    client.table.return_value = chain
+
+    with patch(
+        "app.services.skill_catalog_service.get_supabase_authed_client",
+        return_value=client,
+    ), caplog.at_level("WARNING"):
+        # Must NOT raise
+        await register_user_skills("u1", "tok")
+
+    assert any(
+        "register_user_skills failed" in rec.getMessage() for rec in caplog.records
+    )
+    assert tool_registry._REGISTRY == {}
+
+
+@pytest.mark.asyncio
+async def test_register_user_skills_zero_rows_no_registration(_reset_registry):
+    """Test 5: empty result set → no registration."""
+    from app.services import tool_registry
+    from app.services.skill_catalog_service import register_user_skills
+
+    client = _mock_client_v13([])
+    with patch(
+        "app.services.skill_catalog_service.get_supabase_authed_client",
+        return_value=client,
+    ):
+        await register_user_skills("u1", "tok")
+    assert tool_registry._REGISTRY == {}
+
+
+@pytest.mark.asyncio
+async def test_skill_executor_delegates_to_load_skill(_reset_registry):
+    """Test 6: closure invokes ToolService.execute_tool('load_skill', {'name': <skill>})."""
+    from app.services import tool_registry
+    from app.services.skill_catalog_service import register_user_skills
+    from app.services.tool_service import ToolService
+
+    rows = [
+        {"name": "legal_review", "description": "Reviews NDA contracts."},
+        {"name": "compliance_check", "description": "Checks GDPR compliance."},
+    ]
+    client = _mock_client_v13(rows)
+
+    with patch(
+        "app.services.skill_catalog_service.get_supabase_authed_client",
+        return_value=client,
+    ), patch.object(
+        ToolService,
+        "execute_tool",
+        new=AsyncMock(return_value={"instructions": "..."}),
+    ) as mock_execute:
+        await register_user_skills("u1", "tok")
+
+        # Invoke each closure and verify the right name is passed
+        for skill_name in ("legal_review", "compliance_check"):
+            td = tool_registry._REGISTRY[skill_name]
+            await td.executor(arguments={}, user_id="u1", context={})
+
+        # Each closure called execute_tool with ("load_skill", {"name": skill_name}, ...)
+        called = [(c.args[0], c.args[1]) for c in mock_execute.await_args_list]
+        assert ("load_skill", {"name": "legal_review"}) in called
+        assert ("load_skill", {"name": "compliance_check"}) in called
+
+
+@pytest.mark.asyncio
+async def test_register_user_skills_idempotent_first_write_wins(_reset_registry, caplog):
+    """Test 7: re-registering the same skills logs WARNINGs but doesn't double-add."""
+    from app.services import tool_registry
+    from app.services.skill_catalog_service import register_user_skills
+
+    rows = [
+        {"name": "legal_review", "description": "Reviews NDA contracts."},
+        {"name": "compliance_check", "description": "Checks GDPR compliance."},
+    ]
+    client = _mock_client_v13(rows)
+
+    with patch(
+        "app.services.skill_catalog_service.get_supabase_authed_client",
+        return_value=client,
+    ), caplog.at_level("WARNING"):
+        await register_user_skills("u1", "tok")
+        assert len(tool_registry._REGISTRY) == 2
+        await register_user_skills("u1", "tok")
+
+    # Still 2 entries (first-write-wins)
+    assert len(tool_registry._REGISTRY) == 2
+    # WARNINGs emitted for each duplicate
+    duplicate_warnings = [
+        r for r in caplog.records if "duplicate name" in r.getMessage()
+    ]
+    assert len(duplicate_warnings) >= 2
