@@ -21,6 +21,13 @@ export const translations: Record<Locale, Record<string, string>> = {
     'chat.deepMode.toggleAriaLabel': 'Aktifkan Deep Mode untuk pesan ini',
     'chat.deepMode.badge': 'Deep Mode',
 
+    // Phase 17 / TODO-06 / D-25: Plan Panel labels
+    'planPanel.title': 'Rencana',
+    'planPanel.empty': 'Belum ada rencana',
+    'planPanel.status.pending': 'Menunggu',
+    'planPanel.status.inProgress': 'Sedang berjalan',
+    'planPanel.status.completed': 'Selesai',
+
     // Navigation
     'nav.documents': 'Dokumen',
     'nav.settings': 'Pengaturan',
@@ -704,6 +711,13 @@ export const translations: Record<Locale, Record<string, string>> = {
     'chat.deepMode.toggleLabel': 'Deep Mode',
     'chat.deepMode.toggleAriaLabel': 'Enable Deep Mode for this message',
     'chat.deepMode.badge': 'Deep Mode',
+
+    // Phase 17 / TODO-06 / D-25: Plan Panel labels
+    'planPanel.title': 'Plan',
+    'planPanel.empty': 'No plan yet',
+    'planPanel.status.pending': 'Pending',
+    'planPanel.status.inProgress': 'In Progress',
+    'planPanel.status.completed': 'Completed',
 
     // Navigation
     'nav.documents': 'Documents',

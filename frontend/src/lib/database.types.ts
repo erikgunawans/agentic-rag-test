@@ -122,6 +122,7 @@ export type SSEEvent =
   | CodeStdoutEvent       // Phase 11 SANDBOX-07
   | CodeStderrEvent       // Phase 11 SANDBOX-07
   | UsageEvent            // Phase 12 / CTX-01
+  | TodosUpdatedEvent     // Phase 17 / TODO-03
 
 export interface DocumentMetadata {
   title: string
@@ -174,4 +175,22 @@ export interface DocumentFolder {
 export interface PublicSettings {
   context_window: number
   deep_mode_enabled: boolean
+}
+
+// Phase 17 / TODO-06 / D-04: per-thread planning todo item.
+// Created by write_todos LLM tool; read by PlanPanel sidebar + GET /threads/{id}/todos.
+export type TodoStatus = 'pending' | 'in_progress' | 'completed'
+
+export type Todo = {
+  id: string
+  content: string
+  status: TodoStatus
+  position: number
+}
+
+// Phase 17 / TODO-03 / D-17: SSE event emitted after every write_todos / read_todos call.
+// Full list snapshot (D-06 full-replacement semantic).
+export interface TodosUpdatedEvent {
+  type: 'todos_updated'
+  todos: Todo[]
 }

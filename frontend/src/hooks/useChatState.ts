@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { apiFetch } from '@/lib/api'
+import { apiFetch, fetchThreadTodos } from '@/lib/api'
 import { buildChildrenMap, getActivePath } from '@/lib/messageTree'
-import type { Thread, Message, SSEEvent, ToolStartEvent, ToolResultEvent } from '@/lib/database.types'
+import type { Thread, Message, SSEEvent, ToolStartEvent, ToolResultEvent, Todo } from '@/lib/database.types'
 
 export function useChatState() {
   const [threads, setThreads] = useState<Thread[]>([])
@@ -43,6 +43,14 @@ export function useChatState() {
   const [loadingThreads, setLoadingThreads] = useState(false)
   // ADR-0008: per-thread sticky web-search toggle; resets on thread switch
   const [webSearchEnabled, setWebSearchEnabled] = useState(false)
+  // Phase 17 / TODO-06 / D-26: per-thread agent planning todos.
+  // Populated from todos_updated SSE events (live) and fetchThreadTodos (reload).
+  // Full-replacement semantic (D-06): TODOS_UPDATED replaces the slice in full.
+  const [todos, setTodos] = useState<Todo[]>([])
+  // Phase 17 / DEEP-01 / D-22: tracks whether the currently-active message
+  // (i.e. the most recent send) used deep mode. Used for Plan Panel visibility
+  // when todos.length === 0 (e.g. first deep-mode turn before LLM writes todos).
+  const [isCurrentMessageDeepMode, setIsCurrentMessageDeepMode] = useState(false)
 
   const loadThreads = useCallback(async () => {
     setLoadingThreads(true)
@@ -61,6 +69,30 @@ export function useChatState() {
 
   useEffect(() => {
     setWebSearchEnabled(false) // ADR-0008: per-thread sticky; reset on thread switch
+  }, [activeThreadId])
+
+  // Phase 17 / TODO-07 / D-21: hydrate todos on thread switch.
+  // Reset to [] immediately (T-17-16: prevent stale cross-thread todos from showing),
+  // then fetch current todos from GET /threads/{id}/todos.
+  // isCurrentMessageDeepMode also resets so the panel hides until the user
+  // sends a deep-mode message or there are persisted todos.
+  useEffect(() => {
+    setTodos([])
+    setIsCurrentMessageDeepMode(false)
+    if (!activeThreadId) return
+
+    supabase.auth.getSession().then(({ data }) => {
+      const token = data.session?.access_token
+      if (!token || !activeThreadId) return
+      fetchThreadTodos(activeThreadId, token)
+        .then(({ todos: fetched }) => {
+          // Guard against stale responses if user switched thread again quickly
+          setTodos(fetched)
+        })
+        .catch(() => {
+          // Non-blocking: leave todos as [] if fetch fails
+        })
+    })
   }, [activeThreadId])
 
   function rebuildVisibleMessages(all: Message[], selections: Map<string, string>) {
@@ -162,6 +194,8 @@ export function useChatState() {
     setToolResults([])
     setActiveAgent(null)
     setRedactionStage(null)
+    // Phase 17 / D-22: track deep mode for current turn (panel visibility rule).
+    setIsCurrentMessageDeepMode(opts?.deepMode === true)
     // Phase 11 SANDBOX-07 D-P11-02: fresh send starts with an empty buffer;
     // mirrors activeTools/toolResults reset at the same lifecycle site.
     setSandboxStreams(new Map())
@@ -270,6 +304,11 @@ export function useChatState() {
               completion: event.completion_tokens,
               total: event.total_tokens,
             })
+          } else if (event.type === 'todos_updated') {
+            // Phase 17 / TODO-03 / D-17: full-replacement update of the per-thread
+            // todo list. Fired after every write_todos or read_todos LLM tool call
+            // (D-18: fires AFTER DB write commits, BEFORE tool_result).
+            setTodos(event.todos)
           } else {
             const delta = 'delta' in event ? event.delta : ''
             const isDone = 'done' in event ? event.done : false
@@ -347,6 +386,8 @@ export function useChatState() {
     loadingThreads,
     webSearchEnabled,
     setWebSearchEnabled,
+    todos,                       // Phase 17 / TODO-06 / D-26
+    isCurrentMessageDeepMode,    // Phase 17 / D-22
     handleSelectThread,
     handleCreateThread,
     handleDeleteThread,
