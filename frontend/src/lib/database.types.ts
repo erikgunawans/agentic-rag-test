@@ -16,6 +16,12 @@ export interface ToolCallRecord {
   // Phase 11 D-P11-08: required for new rows; nullable so legacy rows still typecheck.
   tool_call_id?: string | null
   status?: 'success' | 'error' | 'timeout' | null
+  // Phase 12 D-P12-14 / HIST-02: persisted sub-agent run state for history reconstruction.
+  // Shape mirrors the live `agent_start` / `agent_done` SSE events.
+  sub_agent_state?: Record<string, unknown> | null
+  // Phase 12 D-P12-14 / HIST-03: persisted code-execution state for history reconstruction.
+  // Shape mirrors Phase 10 `tool_result` payload (code, stdout, stderr, exit_code, execution_ms, files, error_type).
+  code_execution_state?: Record<string, unknown> | null
 }
 
 export interface Message {
@@ -89,6 +95,18 @@ export interface CodeStderrEvent {
   tool_call_id: string
 }
 
+// Phase 12 / CTX-01 / CTX-02: emitted exactly once per chat exchange,
+// immediately before the terminal {type:'delta', done:true} event.
+// CTX-06 graceful no-op: when the LLM provider does not emit usage data,
+// this event is silently SKIPPED — no error, no broken UI.
+// Numbers may be null when the provider only partially populates usage.
+export interface UsageEvent {
+  type: 'usage'
+  prompt_tokens: number | null
+  completion_tokens: number | null
+  total_tokens: number | null
+}
+
 export type SSEEvent =
   | DeltaEvent
   | ToolStartEvent
@@ -99,6 +117,7 @@ export type SSEEvent =
   | RedactionStatusEvent  // Phase 5 D-88
   | CodeStdoutEvent       // Phase 11 SANDBOX-07
   | CodeStderrEvent       // Phase 11 SANDBOX-07
+  | UsageEvent            // Phase 12 / CTX-01
 
 export interface DocumentMetadata {
   title: string
@@ -143,4 +162,10 @@ export interface DocumentFolder {
   is_global?: boolean
   created_at: string
   updated_at: string
+}
+
+// Phase 12 / CTX-03: response shape of GET /settings/public (no auth).
+// Backend source: app.config.settings.llm_context_window (env-var-driven).
+export interface PublicSettings {
+  context_window: number
 }

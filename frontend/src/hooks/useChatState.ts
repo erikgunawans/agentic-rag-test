@@ -25,6 +25,15 @@ export function useChatState() {
   const [sandboxStreams, setSandboxStreams] = useState<
     Map<string, { stdout: string[]; stderr: string[] }>
   >(new Map())
+  // Phase 12 / CTX-01..05 / D-P12-08: per-thread token-usage state for the
+  // ContextWindowBar. Backend emits {type:'usage'} exactly once per exchange
+  // before terminal done. Reset to null on thread switch (D-P12-09 ensures
+  // the bar disappears until the next exchange in the new thread).
+  const [usage, setUsage] = useState<{
+    prompt: number | null
+    completion: number | null
+    total: number | null
+  } | null>(null)
   const [activeAgent, setActiveAgent] = useState<{ agent: string; display_name: string } | null>(null)
   // Phase 5 D-88 + D-94: redaction status spinner state.
   // Set on backend redaction_status events; null when redaction is OFF or between turns.
@@ -66,6 +75,9 @@ export function useChatState() {
     // Phase 11 SANDBOX-07 D-P11-02: thread switch clears live execute_code
     // buffers (T-11-05-1 — prevent stale Map entries leaking across threads).
     setSandboxStreams(new Map())
+    // Phase 12 D-P12-08 / D-P12-09: reset usage on thread switch so the
+    // ContextWindowBar disappears until the next exchange in the new thread.
+    setUsage(null)
     setForkParentId(null)
     const newSelections = new Map<string, string>()
     setBranchSelections(newSelections)
@@ -146,6 +158,9 @@ export function useChatState() {
     // Phase 11 SANDBOX-07 D-P11-02: fresh send starts with an empty buffer;
     // mirrors activeTools/toolResults reset at the same lifecycle site.
     setSandboxStreams(new Map())
+    // Phase 12 D-P12-08: clear stale usage at the start of a new exchange so
+    // the bar reflects only this turn's tokens. SSE 'usage' event re-populates.
+    setUsage(null)
     setForkParentId(null)
 
     try {
@@ -231,6 +246,16 @@ export function useChatState() {
               })
               return next
             })
+          } else if (event.type === 'usage') {
+            // Phase 12 CTX-02 / D-P12-01: backend emits this exactly once per
+            // exchange, immediately before terminal done. Some providers send
+            // partial values (None for completion); store as-is and let the
+            // ContextWindowBar component decide how to render partial state.
+            setUsage({
+              prompt: event.prompt_tokens,
+              completion: event.completion_tokens,
+              total: event.total_tokens,
+            })
           } else {
             const delta = 'delta' in event ? event.delta : ''
             const isDone = 'done' in event ? event.done : false
@@ -281,6 +306,8 @@ export function useChatState() {
     setForkParentId(null)
     setStreamingContent('')
     setRedactionStage(null)
+    // Phase 12 D-P12-08: clear usage on new-chat (no thread is active).
+    setUsage(null)
   }
 
   async function handleSendFirstMessage(content: string) {
@@ -302,6 +329,7 @@ export function useChatState() {
     activeAgent,
     redactionStage,
     sandboxStreams, // Phase 11 SANDBOX-07 D-P11-02
+    usage,          // Phase 12 / CTX-01..05
     loadingThreads,
     webSearchEnabled,
     setWebSearchEnabled,
