@@ -424,7 +424,9 @@ export function DocumentCreationPage() {
           return [...prev, ...data.clauses.filter((c: Clause) => !existingIds.has(c.id))]
         })
       }
-    } catch {}
+    } catch {
+      // Suggestion fetch is best-effort; UI degrades to no auto-fill.
+    }
   }
 
   async function handleSaveAsTemplate() {

@@ -98,10 +98,14 @@ export function DocumentsPage() {
   }, [currentFolderId])
 
   useEffect(() => {
+    // setState happens after awaits inside loadFolders, not synchronously.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadFolders()
   }, [loadFolders])
 
   useEffect(() => {
+    // setState happens after awaits inside loadDocuments, not synchronously.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadDocuments()
   }, [loadDocuments])
 

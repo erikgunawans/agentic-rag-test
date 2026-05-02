@@ -3,6 +3,7 @@ import { LogOut } from 'lucide-react'
 import { useState } from 'react'
 import { useI18n } from '@/i18n/I18nContext'
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function deriveDisplayName(email: string): string {
   const prefix = email.split('@')[0]
   return prefix
@@ -11,6 +12,7 @@ export function deriveDisplayName(email: string): string {
     .join(' ')
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function getInitials(email: string): string {
   const parts = email.split('@')[0].split(/[._-]/)
   if (parts.length >= 2) {
