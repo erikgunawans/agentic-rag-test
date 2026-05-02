@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { X, GitFork } from 'lucide-react'
 import { useI18n } from '@/i18n/I18nContext'
 import { useChatContext } from '@/contexts/ChatContext'
+import { usePublicSettings } from '@/hooks/usePublicSettings'
+import { ContextWindowBar } from './ContextWindowBar'
 import { InputActionBar } from './InputActionBar'
 
 interface MessageInputProps {
@@ -14,7 +16,10 @@ interface MessageInputProps {
 export function MessageInput({ onSend, disabled, forkParentId, onCancelFork }: MessageInputProps) {
   const [value, setValue] = useState('')
   const { t } = useI18n()
-  const { webSearchEnabled, setWebSearchEnabled } = useChatContext()
+  const { webSearchEnabled, setWebSearchEnabled, usage } = useChatContext()
+  // Phase 12 / CTX-04: contextWindow denominator from /settings/public.
+  // Single fetch per app load via module-level cache (D-P12-06).
+  const { contextWindow } = usePublicSettings()
 
   function handleSend() {
     const trimmed = value.trim()
@@ -33,6 +38,11 @@ export function MessageInput({ onSend, disabled, forkParentId, onCancelFork }: M
   return (
     <div className="shrink-0 p-4">
       <div className="mx-auto max-w-2xl rounded-2xl border bg-card p-4 shadow-[var(--shadow-md)] transition-shadow focus-within:shadow-[var(--glow-primary)] gradient-border-animated">
+        {/* Phase 12 / CTX-04 / D-P12-07: bar lives inside the existing
+            max-w-2xl container, ABOVE the textarea. Spec deviation note:
+            PRD says max-w-3xl; we reuse the existing max-w-2xl wrapper for
+            visual consistency (the existing chat-input container width). */}
+        <ContextWindowBar usage={usage} contextWindow={contextWindow} />
         {forkParentId && (
           <div className="flex items-center gap-2 mb-2 rounded-md bg-primary/10 px-3 py-1.5 text-xs text-primary">
             <GitFork className="h-3.5 w-3.5" />
