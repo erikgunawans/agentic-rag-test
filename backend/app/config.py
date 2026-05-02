@@ -156,6 +156,20 @@ class Settings(BaseSettings):
     # D-69: PRD-mandated default 0.85; range [0.50, 1.00] (Pydantic + DB CHECK defense in depth).
     fuzzy_deanon_threshold: float = Field(default=0.85, ge=0.50, le=1.00)
 
+    # Phase 17 / v1.3 (DEEP-02, CONF-01..03; D-14 / D-15 / D-16):
+    # Loop iteration caps for the Deep Mode branch + standard tool loop + sub-agent loop.
+    # Env-driven (NOT system_settings) — these are deployment knobs, not user-runtime settings.
+    max_deep_rounds: int = 50
+    max_tool_rounds: int = 25
+    max_sub_agent_rounds: int = 15
+
+    # Phase 17 / v1.3 (DEEP-03; D-16):
+    # Dark-launch feature flag. When False, the Deep Mode toggle is hidden in the UI,
+    # the /chat endpoint rejects deep_mode=true payloads, and the codebase is byte-identical
+    # to pre-Phase-17 (CONF-01 / DEEP-03 invariant). Mirrors TOOL_REGISTRY_ENABLED /
+    # SANDBOX_ENABLED dark-launch precedent.
+    deep_mode_enabled: bool = False
+
     @model_validator(mode="after")
     def _validate_local_embedding(self) -> "Settings":
         # CR-02 fix: catch EMBEDDING_PROVIDER=local + empty LOCAL_EMBEDDING_BASE_URL at startup.
@@ -164,6 +178,29 @@ class Settings(BaseSettings):
                 "LOCAL_EMBEDDING_BASE_URL must be set when EMBEDDING_PROVIDER=local "
                 "(e.g. 'http://localhost:11434/v1' for Ollama)"
             )
+        return self
+
+    @model_validator(mode="after")
+    def _migrate_tools_max_iterations_alias(self) -> "Settings":
+        # D-15 deprecation: TOOLS_MAX_ITERATIONS env still readable for one milestone.
+        # If MAX_TOOL_ROUNDS not explicitly set (still equals default 25) BUT
+        # TOOLS_MAX_ITERATIONS env was provided (and != legacy default 5),
+        # back-fill max_tool_rounds and emit a deprecation warning.
+        import os
+        import warnings
+        env_legacy = os.environ.get("TOOLS_MAX_ITERATIONS")
+        env_new = os.environ.get("MAX_TOOL_ROUNDS")
+        if env_legacy is not None and env_new is None:
+            warnings.warn(
+                "TOOLS_MAX_ITERATIONS is deprecated; set MAX_TOOL_ROUNDS instead. "
+                "Falling back to TOOLS_MAX_ITERATIONS for this run (Phase 17 / D-15).",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            try:
+                self.max_tool_rounds = int(env_legacy)
+            except ValueError:
+                pass
         return self
 
 
