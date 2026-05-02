@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Advanced Tool Calling & Agent Intelligence
 status: executing
-last_updated: "2026-05-02T09:55:04.793Z"
-last_activity: 2026-05-02 -- Phase 16 planning complete
+last_updated: "2026-05-02T10:08:25.345Z"
+last_activity: 2026-05-02 -- Phase 12 planning complete
 progress:
   total_phases: 5
   completed_phases: 0
-  total_plans: 7
+  total_plans: 16
   completed_plans: 0
   percent: 0
 ---
@@ -28,13 +28,13 @@ Phase: Roadmap created (Phases 12–16 defined, no plans yet); Wave A CONTEXT.md
 Plan: —
 Status: Ready to execute
 Resume: `.planning/phases/13-unified-tool-registry-tool-search-meta-tool/13-CONTEXT.md`
-Last activity: 2026-05-02 -- Phase 16 planning complete
+Last activity: 2026-05-02 -- Phase 12 planning complete
 
 ## Roadmap Snapshot (v1.2)
 
 | Phase | Name | Reqs | Depends on | Status |
 |-------|------|------|------------|--------|
-| 12 | Chat UX — Context Window & Interleaved History | CTX×6 + HIST×6 (12) | — | Not started |
+| 12 | Chat UX — Context Window & Interleaved History | CTX×6 + HIST×6 (12) | — | Planned (7 plans, 2026-05-02) |
 | 13 | Unified Tool Registry & `tool_search` | TOOL×6 (6) | — | Context gathered (2026-05-02) |
 | 14 | Sandbox HTTP Bridge (Code Mode) | BRIDGE×7 (7) | Phase 13 | Not started |
 | 15 | MCP Client Integration | MCP×6 (6) | Phase 13 | Not started |
