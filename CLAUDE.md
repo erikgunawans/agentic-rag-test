@@ -97,6 +97,8 @@ Test accounts:
 
 Local URLs: frontend `http://localhost:5173`, backend `http://localhost:8000`
 
+**RBAC / auth changes:** When adding or removing entries in `require_admin`, RLS policies, or any role-permission table, update any matching count-based test fixtures (e.g. tests that assert "N permissions exist") in the same commit. The PostToolUse hook already auto-runs pytest on `.py` edits, so a fixture drift will surface there — but the *commit* should land both halves together.
+
 ## Code Quality
 
 ```bash
