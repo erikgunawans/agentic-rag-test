@@ -91,32 +91,35 @@ class TestBridgeCall:
 
     def test_call_unknown_tool_returns_404(self):
         app = make_app(user_id="user-1")
-        mock_module = MagicMock()
-        mock_module._REGISTRY = {}
-        with patch("app.services.sandbox_bridge_service.validate_token", return_value=True):
-            with patch.dict("sys.modules", {"app.services.tool_registry": mock_module}):
-                with TestClient(app) as client:
-                    r = client.post("/bridge/call", json={
-                        "tool_name": "nonexistent_tool",
-                        "arguments": {},
-                        "session_token": "valid-token",
-                    })
+        mock_registry = MagicMock()
+        mock_registry._REGISTRY = {}
+        with (
+            patch("app.services.sandbox_bridge_service.validate_token", return_value=True),
+            patch("app.services.tool_registry._REGISTRY", {}),
+            TestClient(app) as client,
+        ):
+            r = client.post("/bridge/call", json={
+                "tool_name": "nonexistent_tool",
+                "arguments": {},
+                "session_token": "valid-token",
+            })
         assert r.status_code == 404
 
     def test_call_dispatches_to_executor_and_returns_result(self):
         expected_result = {"documents": [{"id": "doc-1", "content": "test"}]}
         tool_def, executor = self._make_tool_def(expected_result)
-        mock_module = MagicMock()
-        mock_module._REGISTRY = {"search_documents": tool_def}
+        registry = {"search_documents": tool_def}
         app = make_app(user_id="user-1")
-        with patch("app.services.sandbox_bridge_service.validate_token", return_value=True):
-            with patch.dict("sys.modules", {"app.services.tool_registry": mock_module}):
-                with TestClient(app) as client:
-                    r = client.post("/bridge/call", json={
-                        "tool_name": "search_documents",
-                        "arguments": {"query": "revenue"},
-                        "session_token": "valid-token",
-                    })
+        with (
+            patch("app.services.sandbox_bridge_service.validate_token", return_value=True),
+            patch("app.services.tool_registry._REGISTRY", registry),
+            TestClient(app) as client,
+        ):
+            r = client.post("/bridge/call", json={
+                "tool_name": "search_documents",
+                "arguments": {"query": "revenue"},
+                "session_token": "valid-token",
+            })
         assert r.status_code == 200
         data = r.json()
         assert "result" in data
@@ -128,17 +131,18 @@ class TestBridgeCall:
         executor = AsyncMock(side_effect=RuntimeError("tool blew up"))
         tool_def = MagicMock()
         tool_def.executor = executor
-        mock_module = MagicMock()
-        mock_module._REGISTRY = {"search_documents": tool_def}
+        registry = {"search_documents": tool_def}
         app = make_app(user_id="user-1")
-        with patch("app.services.sandbox_bridge_service.validate_token", return_value=True):
-            with patch.dict("sys.modules", {"app.services.tool_registry": mock_module}):
-                with TestClient(app) as client:
-                    r = client.post("/bridge/call", json={
-                        "tool_name": "search_documents",
-                        "arguments": {},
-                        "session_token": "valid-token",
-                    })
+        with (
+            patch("app.services.sandbox_bridge_service.validate_token", return_value=True),
+            patch("app.services.tool_registry._REGISTRY", registry),
+            TestClient(app) as client,
+        ):
+            r = client.post("/bridge/call", json={
+                "tool_name": "search_documents",
+                "arguments": {},
+                "session_token": "valid-token",
+            })
         assert r.status_code == 200  # BRIDGE-07: errors as dicts, not HTTP errors
         data = r.json()
         assert data["result"]["error"] == "tool_execution_error"
@@ -152,13 +156,14 @@ class TestBridgeCall:
         mock_tool_a = MagicMock()
         mock_tool_a.source = "native"
         mock_tool_a.description = "Tool A description"
-        mock_module = MagicMock()
-        mock_module._REGISTRY = {"tool_b": mock_tool_b, "tool_a": mock_tool_a}
+        registry = {"tool_b": mock_tool_b, "tool_a": mock_tool_a}
         app = make_app(user_id="user-1")
-        with patch("app.services.sandbox_bridge_service.validate_token", return_value=True):
-            with patch.dict("sys.modules", {"app.services.tool_registry": mock_module}):
-                with TestClient(app) as client:
-                    r = client.get("/bridge/catalog", params={"session_token": "valid-token"})
+        with (
+            patch("app.services.sandbox_bridge_service.validate_token", return_value=True),
+            patch("app.services.tool_registry._REGISTRY", registry),
+            TestClient(app) as client,
+        ):
+            r = client.get("/bridge/catalog", params={"session_token": "valid-token"})
         assert r.status_code == 200
         data = r.json()
         assert "tools" in data
