@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Advanced Tool Calling & Agent Intelligence
 status: executing
-last_updated: "2026-05-02T10:54:36.478Z"
-last_activity: 2026-05-02 -- Phase 13 execution started
+last_updated: "2026-05-02T10:58:00.000Z"
+last_activity: 2026-05-02 -- Phase 16 Wave 1 executed (3/3 plans committed; 16-01 T2 supabase db push BLOCKED -- manual step)
 progress:
   total_phases: 5
   completed_phases: 0
   total_plans: 16
-  completed_plans: 1
-  percent: 6
+  completed_plans: 4
+  percent: 25
 ---
 
 # State: LexCore
@@ -38,7 +38,7 @@ Last activity: 2026-05-02 -- Phase 13 execution started
 | 13 | Unified Tool Registry & `tool_search` | TOOL×6 (6) | — | Planned (5 plans, 2026-05-02) |
 | 14 | Sandbox HTTP Bridge (Code Mode) | BRIDGE×7 (7) | Phase 13 | Not started |
 | 15 | MCP Client Integration | MCP×6 (6) | Phase 13 | Not started |
-| 16 | v1.1 Backlog Cleanup | REDACT-01 + TEST-01 + UI-01 (3) | — | Planned (3 plans, 2026-05-02) |
+| 16 | v1.1 Backlog Cleanup | REDACT-01 + TEST-01 + UI-01 (3) | — | Wave 1 executed 2026-05-02 (3/3 plans committed; 16-01 supabase db push pending manual step) |
 
 **Coverage:** 34/34 v1.2 requirements mapped, no orphans.
 
