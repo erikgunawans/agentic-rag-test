@@ -331,6 +331,44 @@ async def stream_chat(
         "thread_id": body.thread_id,   # Phase 10 D-P10-04: needed by execute_code handler for session routing
     }
 
+    async def _dispatch_tool(
+        name: str,
+        arguments: dict,
+        user_id: str,
+        context: dict | None = None,
+        *,
+        registry=None,
+        token: str | None = None,
+        stream_callback=None,
+    ):
+        """Phase 13 D-P13-05 Option A: registry-first dispatch.
+
+        When tool_registry_enabled and the tool is in the registry, delegate
+        to its executor (so tool_search and future skill/MCP executors drive
+        dispatch). Otherwise fall through to legacy tool_service.execute_tool
+        (preserves byte-identical TOOL-05 behavior on flag-off).
+
+        Note: the registry's native executors themselves delegate back to
+        ToolService.execute_tool, so this layer only changes behavior for
+        tool_search (and future deferred/skill/MCP tools).
+        """
+        if settings.tool_registry_enabled:
+            from app.services import tool_registry  # lazy
+            if name in tool_registry._REGISTRY:
+                tool_def = tool_registry._REGISTRY[name]
+                return await tool_def.executor(
+                    arguments,
+                    user_id,
+                    context,
+                    registry=registry,
+                    token=token,
+                    stream_callback=stream_callback,
+                )
+        return await tool_service.execute_tool(
+            name, arguments, user_id, context,
+            registry=registry, token=token, stream_callback=stream_callback,
+        )
+
     async def _run_tool_loop(
         messages, tools, max_iterations, user_id, tool_context,
         *, registry=None, redaction_service=None, redaction_on=False,
@@ -482,9 +520,10 @@ async def stream_chat(
                             )
                         # Phase 10 D-P10-05: use Task + queue drain for execute_code;
                         # direct await for all other tools (sandbox_callback is None).
+                        # Phase 13 D-P13-05: dispatch through registry-first wrapper.
                         if sandbox_event_queue is not None:
                             tool_output_task = asyncio.create_task(
-                                tool_service.execute_tool(
+                                _dispatch_tool(
                                     func_name, real_args, user_id, tool_context,
                                     registry=registry,
                                     token=token,
@@ -506,7 +545,7 @@ async def stream_chat(
                                 yield evt["type"], evt
                             tool_output = await tool_output_task
                         else:
-                            tool_output = await tool_service.execute_tool(
+                            tool_output = await _dispatch_tool(
                                 func_name, real_args, user_id, tool_context,
                                 registry=registry,
                                 token=token,
@@ -537,9 +576,10 @@ async def stream_chat(
                     else:
                         # Phase 10 D-P10-05: use Task + queue drain for execute_code;
                         # direct await for all other tools (sandbox_callback is None).
+                        # Phase 13 D-P13-05: dispatch through registry-first wrapper.
                         if sandbox_event_queue is not None:
                             tool_output_task = asyncio.create_task(
-                                tool_service.execute_tool(
+                                _dispatch_tool(
                                     func_name, func_args, user_id, tool_context,
                                     token=token,
                                     stream_callback=sandbox_callback,
@@ -560,7 +600,7 @@ async def stream_chat(
                                 yield evt["type"], evt
                             tool_output = await tool_output_task
                         else:
-                            tool_output = await tool_service.execute_tool(
+                            tool_output = await _dispatch_tool(
                                 func_name, func_args, user_id, tool_context,
                                 token=token,
                                 stream_callback=None,
@@ -660,6 +700,15 @@ async def stream_chat(
         full_response = ""
         agent_name = None
 
+        # Phase 13 D-P13-05: per-request active set for tool_search dynamic activation.
+        # Owner of lifetime = this event_generator scope. Closes when SSE stream ends.
+        # Flag-off path leaves _registry_active_set = None and never imports tool_registry
+        # (TOOL-05 byte-identical fallback).
+        _registry_active_set: set[str] | None = None
+        if settings.tool_registry_enabled:
+            from app.services import tool_registry  # lazy — flag-off never imports
+            _registry_active_set = tool_registry.make_active_set()
+
         # Phase 12 / HIST-01 / D-P12-12: per-round persistence chains via
         # parent_message_id; each round produces its own messages row.
         current_parent_id = user_msg_id
@@ -723,10 +772,28 @@ async def stream_chat(
 
             # ADR-0008: compute available tool catalog up front so it can be
             # fed to the orchestrator classifier and the tool loop.
-            all_tools = (
-                tool_service.get_available_tools(web_search_enabled=web_search_effective)
-                if settings.tools_enabled else []
-            )
+            # Phase 13 (TOOL-04): when tool_registry_enabled, build the tools
+            # array from the unified registry (natives + skills + tool_search).
+            # Flag-off preserves the legacy tool_service.get_available_tools path
+            # byte-identically (TOOL-05).
+            if settings.tools_enabled and settings.tool_registry_enabled:
+                from app.services import tool_registry  # lazy
+                from app.services.skill_catalog_service import register_user_skills
+                # Per-request skill registration (D-P13-02): RLS-scoped fresh query.
+                await register_user_skills(user["id"], user["token"])
+                assert _registry_active_set is not None  # initialized above with same flag
+                all_tools = tool_registry.build_llm_tools(
+                    active_set=_registry_active_set,
+                    web_search_enabled=web_search_effective,
+                    sandbox_enabled=settings.sandbox_enabled,
+                    agent_allowed_tools=None,  # multi-agent path narrows below
+                )
+            elif settings.tools_enabled:
+                all_tools = tool_service.get_available_tools(
+                    web_search_enabled=web_search_effective
+                )
+            else:
+                all_tools = []
             available_tool_names = [t["function"]["name"] for t in all_tools]
 
             if settings.agents_enabled:
@@ -755,21 +822,50 @@ async def stream_chat(
                 # Phase 8 D-P8-03: append the enabled-skills catalog. Returns "" when
                 # the user has 0 enabled skills (D-P8-02), so this is byte-identical
                 # to pre-Phase-8 behavior in that case.
-                skill_catalog = await build_skill_catalog_block(user["id"], user["token"])
+                # Phase 13 (TOOL-01, TOOL-04, D-P13-06): when flag is on, use the
+                # unified registry catalog filtered by agent.tool_names.
+                if settings.tool_registry_enabled:
+                    from app.services import tool_registry  # lazy
+                    catalog_block = await tool_registry.build_catalog_block(
+                        agent_allowed_tools=agent_def.tool_names,
+                    )
+                    # Narrow the LLM tools array to this agent's filter (D-P13-06).
+                    assert _registry_active_set is not None
+                    all_tools = tool_registry.build_llm_tools(
+                        active_set=_registry_active_set,
+                        web_search_enabled=web_search_effective,
+                        sandbox_enabled=settings.sandbox_enabled,
+                        agent_allowed_tools=agent_def.tool_names,
+                    )
+                    available_tool_names = [t["function"]["name"] for t in all_tools]
+                else:
+                    catalog_block = await build_skill_catalog_block(user["id"], user["token"])
                 messages = (
-                    [{"role": "system", "content": agent_def.system_prompt + skill_catalog}]
+                    [{"role": "system", "content": agent_def.system_prompt + catalog_block}]
                     + [{"role": m["role"], "content": m["content"]} for m in anonymized_history]
                     + [{"role": "user", "content": anonymized_message}]
                 )
 
-                # 4. Get agent's tool subset (filtered from the effective catalog)
-                agent_tools = agent_service.get_agent_tools(agent_def, all_tools)
+                # 4. Get agent's tool subset (filtered from the effective catalog).
+                # Phase 13: when flag is on, all_tools was already filtered by
+                # agent.tool_names in build_llm_tools; agent_service.get_agent_tools
+                # is a pass-through here. Flag-off path preserves legacy behavior.
+                if settings.tool_registry_enabled:
+                    agent_tools = all_tools
+                else:
+                    agent_tools = agent_service.get_agent_tools(agent_def, all_tools)
 
                 # 5. Sub-agent tool loop
                 # When redaction is ON: buffer tool_start/tool_result events and
                 # only flush after the loop completes without an EgressBlockedAbort.
                 # Prevents corrupt partial-turn UI state when a later iteration's
                 # egress filter trips after earlier tool events were already emitted.
+                # Phase 13 D-P13-05: thread per-request active_set + agent filter
+                # to executors via tool_context. Flag-off path skips these keys
+                # (preserves byte-identical context dict shape for TOOL-05).
+                if settings.tool_registry_enabled:
+                    tool_context["active_set"] = _registry_active_set
+                    tool_context["agent_allowed_tools"] = agent_def.tool_names
                 tool_loop_buffer = []
                 async for event_type, data in _run_tool_loop(
                     messages, agent_tools, agent_def.max_iterations,
@@ -847,9 +943,17 @@ async def stream_chat(
                 # Phase 8 D-P8-01: append enabled-skills catalog. Returns "" when
                 # the user has 0 enabled skills (D-P8-02 SC#5-style invariant —
                 # behavior identical to pre-Phase-8 when feature unused).
-                skill_catalog = await build_skill_catalog_block(user["id"], user["token"])
+                # Phase 13 (TOOL-01): when flag is on, use the unified registry
+                # catalog (no agent filter — single-agent path sees everything).
+                if settings.tool_registry_enabled:
+                    from app.services import tool_registry  # lazy
+                    catalog_block = await tool_registry.build_catalog_block(
+                        agent_allowed_tools=None,
+                    )
+                else:
+                    catalog_block = await build_skill_catalog_block(user["id"], user["token"])
                 messages = (
-                    [{"role": "system", "content": SYSTEM_PROMPT + pii_guidance + skill_catalog}]
+                    [{"role": "system", "content": SYSTEM_PROMPT + pii_guidance + catalog_block}]
                     + [{"role": m["role"], "content": m["content"]} for m in anonymized_history]
                     + [{"role": "user", "content": anonymized_message}]
                 )
@@ -862,6 +966,12 @@ async def stream_chat(
                 # only flush after the loop completes without an EgressBlockedAbort
                 # (defense-in-depth against PII leak via tool events emitted before
                 # a later iteration trips the egress filter).
+                # Phase 13 D-P13-05: thread per-request active_set into tool_context
+                # so the tool_search executor can mutate it. Single-agent path:
+                # agent_allowed_tools=None (no filter).
+                if settings.tool_registry_enabled:
+                    tool_context["active_set"] = _registry_active_set
+                    tool_context["agent_allowed_tools"] = None
                 tool_loop_buffer = []
                 async for event_type, data in _run_tool_loop(
                     messages, tools, settings.tools_max_iterations,

@@ -1,0 +1,20 @@
+{
+  "description": "Phase 13 Plan 05 — TOOL-05 byte-identical reference snapshot.",
+  "captured_with": "TOOL_REGISTRY_ENABLED=false",
+  "captured_at_phase": "13-05",
+  "what_it_locks": "When the flag is off, chat.py uses tool_service.get_available_tools(...) for the LLM tools array AND build_skill_catalog_block(...) for the system-prompt skill block. Neither path touches tool_registry. The fixture below is captured directly from those two functions for a fixed input matrix.",
+  "input_matrix": {
+    "web_search_enabled": true,
+    "sandbox_enabled": false,
+    "tools_enabled": true,
+    "tool_registry_enabled": false,
+    "user_id": "u1",
+    "token": "tok",
+    "skills_db_returns": []
+  },
+  "tools_array_source": "tool_service.get_available_tools(web_search_enabled=True)",
+  "tools_count_at_capture_time": 11,
+  "skill_catalog_source": "build_skill_catalog_block(user_id, token) with 0 enabled skills",
+  "expected_skill_catalog_when_zero_skills": "",
+  "invariant": "Plan 13-05 chat.py edits MUST NOT change the OpenRouter request payload when tool_registry_enabled=false. The tools array must equal tool_service.get_available_tools(...) and the skill block must equal build_skill_catalog_block(...) for any (user, history, message) — a property that holds because both paths are gated behind `if settings.tool_registry_enabled:` (else-branch is the byte-identical legacy path)."
+}

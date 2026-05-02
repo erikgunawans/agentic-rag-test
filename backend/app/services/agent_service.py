@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 
 from app.services.tracing_service import traced
 from app.models.agents import AgentDefinition, OrchestratorResult
+from app.models.tools import ToolDefinition
 from app.config import get_settings
 from app.services.redaction.egress import egress_filter
 from app.services.redaction.prompt_guidance import get_pii_guidance_block
@@ -139,6 +140,29 @@ def get_agent_tools(agent: AgentDefinition, all_tools: list[dict]) -> list[dict]
         t for t in all_tools
         if t["function"]["name"] in agent.tool_names
     ]
+
+
+@traced(name="should_filter_tool")
+def should_filter_tool(tool_def: ToolDefinition, agent: AgentDefinition) -> bool:
+    """Phase 13 D-P13-06: predicate for catalog + tool_search result filtering.
+
+    Returns True when the tool MUST be retained for this agent.
+    Returns False to filter the tool out.
+
+    Rules (CONTEXT.md §D-P13-06):
+      - Skills bypass agent filter (skills are user-scoped, not agent-scoped).
+      - tool_search is always-on (every agent must be able to discover tools).
+      - Native + MCP tools are gated by the agent's tool_names allow list.
+
+    NOTE: AgentDefinition's allow-list field is `tool_names` — NOT
+    `allowed_tools` (the latter is informal prose; the model field is
+    `tool_names` per backend/app/models/agents.py:8).
+    """
+    if tool_def.source == "skill":
+        return True
+    if tool_def.name == "tool_search":
+        return True
+    return tool_def.name in agent.tool_names
 
 
 @traced(name="classify_intent")
