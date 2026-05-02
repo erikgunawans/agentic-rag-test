@@ -1,0 +1,154 @@
+# Requirements: LexCore — Milestone v1.2
+
+**Defined:** 2026-05-02
+**Milestone:** v1.2 Advanced Tool Calling & Agent Intelligence
+**Source PRD:** `docs/superpowers/PRD-advanced-tool-calling.md`
+**Core Value:** Indonesian legal teams can manage the full contract lifecycle with confidence that AI outputs are accurate, citable, and traceable, and that sensitive client PII never leaves the control boundary.
+
+## v1.2 Requirements
+
+Requirements for milestone v1.2. Each maps to one roadmap phase. Phase numbering continues from v1.1 → starts at **Phase 12**.
+
+### Context Window Usage Indicator (CTX-*) — PRD Feature 1
+
+- [ ] **CTX-01**: Backend captures token usage via `stream_options: {"include_usage": true}` and tracks cumulative usage across multi-round tool-calling loops (last round's `prompt_tokens` plus accumulated `completion_tokens`).
+- [ ] **CTX-02**: Backend emits a `usage` SSE event containing `prompt_tokens`, `completion_tokens`, and `total_tokens` after each LLM exchange, immediately before the `done` event.
+- [ ] **CTX-03**: System exposes `GET /settings/public` (no auth required) returning `{"context_window": N}` so the frontend stays in sync with the backend without hardcoding the limit.
+- [ ] **CTX-04**: Frontend renders a slim progress bar above the chat input (within the existing `max-w-3xl` container) with green (0–59%), yellow (60–79%), and red (80–100%) color thresholds and `Xk / Yk (Z%)` label.
+- [ ] **CTX-05**: Progress bar appears only after the first message exchange in a thread and resets when switching threads.
+- [ ] **CTX-06**: System gracefully handles providers that ignore `stream_options` — no errors are emitted, and the bar simply does not appear when usage data is absent.
+
+### Chat History Interleaved Rendering (HIST-*) — PRD Feature 2
+
+- [ ] **HIST-01**: Backend persists one database row per agentic round (not one row per exchange), preserving natural ordering via `created_at`.
+- [ ] **HIST-02**: Sub-agent state (mode, document, reasoning, explorer tool calls) is persisted under `tool_calls[n].sub_agent_state` JSONB without a schema migration.
+- [ ] **HIST-03**: Code execution state (code, stdout, stderr, exit code, timing, output files) is persisted under `tool_calls[n].code_execution_state` JSONB without a schema migration.
+- [ ] **HIST-04**: Frontend reconstructs an interleaved `ConversationItem[]` in correct order on history load (text → tool calls → sub-agent panels → code execution panels → text), processing rows sequentially.
+- [ ] **HIST-05**: Reloaded threads display full sub-agent panels and code execution panels with output, visually identical to the live-streaming UX.
+- [ ] **HIST-06**: Multi-row LLM context reconstruction works correctly so follow-up messages in reloaded threads preserve prior agentic context.
+
+### Unified Tool Registry + Search (TOOL-*) — PRD Feature 3
+
+- [ ] **TOOL-01**: System injects a compact tool catalog (≤50 entries, name + one-line description) into the LLM system prompt, capped at ~500 tokens.
+- [ ] **TOOL-02**: LLM can call a `tool_search` meta-tool with a keyword or regex query; the registry returns matching tools with full OpenAI function-calling schemas, and matched tools are added to the active set for the current conversation turn.
+- [ ] **TOOL-03**: Active tools loaded via `tool_search` are ephemeral — reset per request and not persisted across conversations.
+- [ ] **TOOL-04**: Single registry (`dict[str, ToolDefinition]`) stores native (always-on, immediate), skill (deferred), and MCP (deferred) tools with a `source` discriminator.
+- [ ] **TOOL-05**: `TOOL_REGISTRY_ENABLED=false` flag (default) falls back to legacy `build_rag_tools()` with byte-identical behavior — zero behavioral change when disabled.
+- [ ] **TOOL-06**: Tool registration accepts name, description, OpenAI schema, source, loading type (immediate/deferred), and executor callable via a single `register()` API.
+
+### Code Mode via Sandbox HTTP Bridge (BRIDGE-*) — PRD Feature 4
+
+- [ ] **BRIDGE-01**: Custom sandbox Docker image pre-bakes a `ToolClient` Python module that reads `BRIDGE_URL` and `BRIDGE_TOKEN` from environment variables and uses `urllib.request` (stdlib only — no extra dependencies).
+- [ ] **BRIDGE-02**: Backend exposes `/bridge/call` (POST), `/bridge/catalog` (GET), and `/bridge/health` (GET) endpoints under a dedicated FastAPI router.
+- [ ] **BRIDGE-03**: Bridge validates session token on every call, cross-checks user ownership, and dispatches the tool call through the unified tool registry.
+- [ ] **BRIDGE-04**: Typed Python function stubs are generated per active tool and injected into the sandbox at runtime via `execute_command`, giving LLM-generated code IDE-quality API hints.
+- [ ] **BRIDGE-05**: Sandbox container's network is limited to the bridge endpoint only (`host.docker.internal:PORT`); credentials (service-role Supabase client, API keys, MCP connections) live on the host and never enter the container.
+- [ ] **BRIDGE-06**: Backend emits a `code_mode_start` SSE event listing available tools when sandbox execution begins with bridge stubs available.
+- [ ] **BRIDGE-07**: Existing security policy continues to enforce the dangerous-import block list (e.g. process spawning, raw socket I/O, system-shell helpers) for submitted code; bridge client stubs catch errors and return structured error dicts so no exceptions leak from sandbox to host.
+
+### MCP Client Integration (MCP-*) — PRD Feature 5
+
+- [ ] **MCP-01**: System parses `MCP_SERVERS` env var (format: `name:command:args`, e.g. `github:npx:-y @modelcontextprotocol/server-github`) to configure MCP server connections.
+- [ ] **MCP-02**: `MCPClientManager` spawns each configured server via stdio transport using the `mcp` Python SDK at app startup and calls `list_tools()` to discover available tools.
+- [ ] **MCP-03**: MCP tool schemas are eagerly converted to OpenAI function-calling format at connect time (validates schemas early; fails fast on incompatible tools).
+- [ ] **MCP-04**: MCP tools are registered in the unified registry as `source="mcp"`, `loading="deferred"`, with their executor routing through `mcp_client.call_tool(server_name, tool_name, args)`.
+- [ ] **MCP-05**: Disconnected MCP servers are marked unavailable, errors are logged, and reconnection is attempted with exponential backoff.
+- [ ] **MCP-06**: MCP tools appear in the system-prompt catalog and are discoverable via `tool_search` and callable via the bridge from sandbox code — indistinguishable from native tools to the LLM.
+
+### Bundled v1.1 Backlog (REDACT-*, TEST-*, UI-*)
+
+- [ ] **REDACT-01**: PII detection layer suppresses domain-term false positives via a configurable deny list at `backend/app/services/redaction/detection.py` (Fix B from v1.0 close, never implemented).
+- [ ] **TEST-01**: `CodeExecutionPanel.tsx` has component tests covering streaming output, terminal rendering, signed-URL file download, and history reconstruction (replaces the UAT-only coverage shipped in v1.1).
+- [ ] **UI-01**: base-ui wrappers `select.tsx`, `dropdown-menu.tsx`, and `dialog.tsx` accept the `asChild` prop via a render shim consistent with the existing `tooltip.tsx` and `popover.tsx` shims (caught only by `tsc -b` project-references build mode).
+
+## Future Requirements
+
+Acknowledged but deferred. Not in v1.2 scope.
+
+### Auto-detect Context Window
+- **CTX-FUT-01**: Auto-detect context window limits from provider APIs (OpenRouter `/models`, Ollama `/api/show`) instead of relying on `LLM_CONTEXT_WINDOW` env var.
+
+### Persistent Token Usage
+- **CTX-FUT-02**: Persist token usage to database for historical analytics across threads (currently ephemeral, frontend state only).
+
+### Cross-Process Async Lock
+- **D-31**: Replace per-process `asyncio.Lock` in PII registry race-protection with `pg_advisory_xact_lock(hashtext(thread_id))` for horizontal scale-out (deferred until multi-replica Railway scaling triggers a real bug).
+
+### Server-Hardware Performance Verification
+- **PERF-02**: Confirm 500ms anonymization target on server-class hardware (test currently skips at 1939ms on dev hardware).
+
+## Out of Scope
+
+Explicitly excluded. Documented to prevent scope creep.
+
+| Feature | Reason |
+|---------|--------|
+| Database persistence of per-message token counts | Ephemeral frontend state is acceptable for v1.2 indicator; persistence is a future analytics enhancement (CTX-FUT-02). |
+| Auto-detection of LLM context window | Provider-API probing (`/models`, `/api/show`) is a future enhancement (CTX-FUT-01); v1.2 uses the `LLM_CONTEXT_WINDOW` env var. |
+| Separate "Code Mode" tool distinct from simple execution | Single sandbox model — every session gets bridge access by default. If LLM-generated code makes no tool calls, the bridge sits unused with zero overhead. |
+| Schema migration for `tool_calls` JSONB sub-keys | JSONB is schema-flexible — `sub_agent_state` and `code_execution_state` are added under the existing column without a migration. |
+| Backwards-incompatible behavior when feature flags off | All tool-calling work gated behind `TOOL_REGISTRY_ENABLED` and `SANDBOX_ENABLED`. With flags off: 14 hardcoded tools work identically to v1.1, sandbox works identically (no bridge, no stubs), no MCP connections attempted. History rendering improvements (HIST-*) ship unconditionally — purely better, no flag needed. |
+| MCP tools without `inputSchema` | Conversion is eager at connect time; tools with incompatible or missing schemas fail fast (logged, server tools marked unavailable) rather than failing at call time. |
+| Async-lock cross-process upgrade (D-31) | Per-process `asyncio.Lock` is sufficient at current Railway scale; defer until horizontal scale-out triggers a real concurrency bug. |
+| LangChain / LangGraph (project-wide constraint) | Raw SDK calls only. Reason: debugging clarity, deterministic control flow, lower cognitive overhead. (Locked from PROJECT.md.) |
+
+## Traceability
+
+Which phases cover which requirements. Updated during roadmap creation.
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| TOOL-01..06 | TBD | Pending |
+| BRIDGE-01..07 | TBD | Pending |
+| MCP-01..06 | TBD | Pending |
+| CTX-01..06 | TBD | Pending |
+| HIST-01..06 | TBD | Pending |
+| REDACT-01 | TBD | Pending |
+| TEST-01 | TBD | Pending |
+| UI-01 | TBD | Pending |
+
+**Coverage:**
+- v1.2 requirements: **34 total** (CTX×6, HIST×6, TOOL×6, BRIDGE×7, MCP×6, REDACT×1, TEST×1, UI×1)
+- Mapped to phases: 0 (filled by roadmapper)
+- Unmapped: 34 ⏳ pending roadmap
+
+## Dependency Hints from PRD
+
+The PRD specifies build order for tool-calling features (3, 4, 5):
+
+| Order | Requirement Group | Prerequisite |
+|-------|-------------------|--------------|
+| 1st | TOOL-* (Tool Registry + Search) | None |
+| 2nd | BRIDGE-* (Sandbox HTTP Bridge) | TOOL-* (registry needed for tool dispatch) |
+| 2nd | MCP-* (MCP Client) | TOOL-* (registry needed for tool registration) |
+
+Features 1 (CTX-*) and 2 (HIST-*) are independent and can ship in any phase order. Bundled backlog items (REDACT-01, TEST-01, UI-01) are independent of all PRD features.
+
+## New Configuration Surface
+
+| Flag / Env Var | Default | Controls |
+|----------------|---------|----------|
+| `TOOL_REGISTRY_ENABLED` | `false` | Entire tool registry system (TOOL-*, BRIDGE-*, MCP-*). When disabled, falls back to hardcoded `build_rag_tools()`. |
+| `SANDBOX_ENABLED` | `false` | Code execution and bridge (already exists from v1.1; gates BRIDGE-*). |
+| `LLM_CONTEXT_WINDOW` | `128000` | Context window limit for usage indicator (CTX-*). Exposed via `GET /settings/public`. |
+| `MCP_SERVERS` | `""` | MCP server config (`name:command:args`, comma-separated for multiple). |
+| `BRIDGE_URL` | (set per session) | Sandbox env var pointing to `host.docker.internal:PORT`. |
+| `BRIDGE_TOKEN` | (set per session) | Ephemeral session token UUID, expires with session TTL. |
+
+## New Dependencies
+
+| Package | Feature | Notes |
+|---------|---------|-------|
+| `mcp` (Python MCP SDK) | MCP-* | New. `pip install mcp`. |
+
+No new npm packages required for any feature.
+
+## Infrastructure Requirements
+
+- Docker must allow container → host networking (`host.docker.internal` — standard Docker Desktop / Railway behavior).
+- Port 8002 (configurable) available for bridge endpoint.
+- `npx` available for MCP stdio-transport servers (MCP-*).
+
+---
+*Requirements defined: 2026-05-02 from `docs/superpowers/PRD-advanced-tool-calling.md`*
+*Last updated: 2026-05-02 — initial v1.2 scope; bundled v1.1 backlog (Fix B, CodeExecutionPanel tests, asChild shim sweep)*
