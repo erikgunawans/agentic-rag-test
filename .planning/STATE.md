@@ -24,21 +24,21 @@ See: `.planning/PROJECT.md` (updated 2026-05-02 — v1.2 milestone started)
 
 ## Current Position
 
-Phase: Roadmap created (Phases 12–16 defined, no plans yet); Wave A CONTEXT.md captured for Phases 12, 13, 16
+Phase: Wave A planned (Phases 12 + 13 + 16 — 15 plans total); Phases 14, 15 still need discuss-phase
 Plan: —
-Status: Ready to execute
-Resume: `.planning/phases/13-unified-tool-registry-tool-search-meta-tool/13-CONTEXT.md`
-Last activity: 2026-05-02 -- Phase 12 planning complete
+Status: Ready to execute Wave A — Phase 12 (7 plans), Phase 13 (5 plans, plan-checker PASS), Phase 16 (3 plans)
+Resume: `.planning/phases/13-unified-tool-registry-tool-search-meta-tool/13-05-chat-wiring-multi-agent-filter-PLAN.md`
+Last activity: 2026-05-02 — Wave A plan-phase complete (Phase 12 + 16 auto-mode background; Phase 13 interactive with gsd-pattern-mapper + gsd-planner + gsd-plan-checker subagents — VERIFICATION PASSED, 6 non-blocking warnings)
 
 ## Roadmap Snapshot (v1.2)
 
 | Phase | Name | Reqs | Depends on | Status |
 |-------|------|------|------------|--------|
 | 12 | Chat UX — Context Window & Interleaved History | CTX×6 + HIST×6 (12) | — | Planned (7 plans, 2026-05-02) |
-| 13 | Unified Tool Registry & `tool_search` | TOOL×6 (6) | — | Context gathered (2026-05-02) |
+| 13 | Unified Tool Registry & `tool_search` | TOOL×6 (6) | — | Planned (5 plans, 2026-05-02) |
 | 14 | Sandbox HTTP Bridge (Code Mode) | BRIDGE×7 (7) | Phase 13 | Not started |
 | 15 | MCP Client Integration | MCP×6 (6) | Phase 13 | Not started |
-| 16 | v1.1 Backlog Cleanup | REDACT-01 + TEST-01 + UI-01 (3) | — | Context gathered (2026-05-02) |
+| 16 | v1.1 Backlog Cleanup | REDACT-01 + TEST-01 + UI-01 (3) | — | Planned (3 plans, 2026-05-02) |
 
 **Coverage:** 34/34 v1.2 requirements mapped, no orphans.
 
