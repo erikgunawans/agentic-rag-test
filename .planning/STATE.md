@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Advanced Tool Calling & Agent Intelligence
 status: executing
-last_updated: "2026-05-02T16:52:00.000Z"
-last_activity: 2026-05-02 -- Phase 14 context gathered (--auto mode; 9 decisions D-P14-01..09 locked; ready for plan-phase)
+last_updated: "2026-05-02T16:58:41.106Z"
+last_activity: 2026-05-02 -- Phase 15 planning complete
 progress:
   total_phases: 5
   completed_phases: 2
-  total_plans: 16
+  total_plans: 22
   completed_plans: 13
-  percent: 81
+  percent: 59
 ---
 
 # State: LexCore
@@ -26,9 +26,9 @@ See: `.planning/PROJECT.md` (updated 2026-05-02 — v1.2 milestone started)
 
 Phase: 14 (sandbox-http-bridge-code-mode) — CONTEXT GATHERED (--auto mode; 9 decisions locked; ready for `/gsd-plan-phase 14 --auto`)
 Plan: 0 of TBD (not started)
-Status: Phase 14 context complete; Phase 13 EXECUTED + VERIFIED (awaiting user gating before phase-completion)
+Status: Ready to execute
 Resume: `.planning/phases/14-sandbox-http-bridge-code-mode/14-CONTEXT.md`
-Last activity: 2026-05-02 -- Phase 14 context gathered (--auto; 9 decisions D-P14-01..09 locked: bridge port, network isolation, session token lifecycle, stub injection, feature flag interaction, dangerous import scan, code_mode_start SSE, ToolClient module, bridge router auth)
+Last activity: 2026-05-02 -- Phase 15 planning complete
 
 ## Roadmap Snapshot (v1.2)
 
