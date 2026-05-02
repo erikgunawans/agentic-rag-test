@@ -2,14 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Advanced Tool Calling & Agent Intelligence
-status: planning
-last_updated: "2026-05-02T09:54:00.000Z"
-last_activity: 2026-05-02 — Roadmap for v1.2 written; 34/34 requirements mapped to 5 phases (12–16); Wave A discuss-phase complete (Phase 12 + 16 auto-mode, Phase 13 interactive)
+status: executing
+last_updated: "2026-05-02T09:55:04.793Z"
+last_activity: 2026-05-02 -- Phase 16 planning complete
 progress:
   total_phases: 5
   completed_phases: 0
-  total_plans: 0
+  total_plans: 7
   completed_plans: 0
+  percent: 0
 ---
 
 # State: LexCore
@@ -25,9 +26,9 @@ See: `.planning/PROJECT.md` (updated 2026-05-02 — v1.2 milestone started)
 
 Phase: Roadmap created (Phases 12–16 defined, no plans yet); Wave A CONTEXT.md captured for Phases 12, 13, 16
 Plan: —
-Status: Wave A ready to plan — Phase 12 / 13 / 16 all have CONTEXT.md; Phase 13 has 6 locked decisions (D-P13-01..06)
+Status: Ready to execute
 Resume: `.planning/phases/13-unified-tool-registry-tool-search-meta-tool/13-CONTEXT.md`
-Last activity: 2026-05-02 — Roadmap + REQUIREMENTS for v1.2 written; Wave A discuss-phase complete (Phase 12 + 16 auto-mode, Phase 13 interactive — 4 gray areas, 6 D-P13-* decisions locked)
+Last activity: 2026-05-02 -- Phase 16 planning complete
 
 ## Roadmap Snapshot (v1.2)
 
