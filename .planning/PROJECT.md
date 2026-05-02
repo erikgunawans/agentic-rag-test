@@ -78,16 +78,25 @@ Indonesian legal teams can manage the full contract lifecycle — chat with docu
 
 **v1.1 outcome:** Milestone shipped 26/26 plans across 5 phases (7–11). Skills system, Code Execution Sandbox, persistent tool memory all live in production. Phase 11 verified PASS-WITH-CAVEATS (operational caveats only — Railway sandbox readiness, multi-worker session semantics, missing CodeExecutionPanel component tests). UAT approved 2026-05-02.
 
-## Next Milestone: TBD
+## Current Milestone: v1.2 Advanced Tool Calling & Agent Intelligence
 
-No active milestone. Run `/gsd-new-milestone` to scope v1.2.
+**Goal:** Transform the platform's tool infrastructure from a static, hardcoded system into a dynamic, scalable agent architecture, with chat-UX improvements for context-window visibility and persistent rich history.
 
-**Candidate items already approved or queued (v1.2 backlog pool — not yet committed scope):**
-- Fix B (PII deny list) — domain-term deny list at PII detection layer (`backend/app/services/redaction/detection.py`). Approved during v1.0 close, never implemented.
-- Async-lock cross-process upgrade (D-31) — replace per-process `asyncio.Lock` with `pg_advisory_xact_lock(hashtext(thread_id))` once horizontal scale-out is needed.
-- PERF-02 — confirm 500ms anonymization target on server-class hardware (test skips at 1939ms on dev).
-- Frontend component tests for `CodeExecutionPanel.tsx` (UAT-only coverage today).
-- base-ui `asChild` shim sweep — popover.tsx fix shipped during v1.1 close; remaining wrappers (select, dropdown-menu, dialog) likely need the same shim. Caught only by `tsc -b` (project-references build mode).
+**Source PRD:** `docs/superpowers/PRD-advanced-tool-calling.md`
+
+**Target features (5 PRD + 3 bundled v1.1 backlog):**
+- **Context Window Usage Indicator** — token-usage progress bar in chat input with green/yellow/red thresholds (60%/80%), `usage` SSE event, configurable `LLM_CONTEXT_WINDOW`, `GET /settings/public` endpoint.
+- **Chat History Interleaved Rendering** — per-round message persistence + rich sub-agent / code-execution state in `tool_calls` JSONB → faithful reload of interleaved conversations (no schema migration needed).
+- **Unified Tool Registry + Search** — `tool_search` meta-tool with compact catalog (≤50 entries) in system prompt, native + skill + MCP sources, `TOOL_REGISTRY_ENABLED` flag for byte-identical fallback.
+- **Code Mode via Sandbox HTTP Bridge** — `/bridge/*` FastAPI endpoints, pre-baked `ToolClient` in custom Docker image, runtime-injected typed Python stubs, session-token auth, container network isolated to bridge endpoint only.
+- **MCP Client Integration** — `MCPClientManager` over stdio, `MCP_SERVERS` env, eager schema → OpenAI-tool conversion, registry registration as `source="mcp"`, reconnect-with-backoff resilience.
+- **Bundled v1.1 backlog** — Fix B (PII deny list at `backend/app/services/redaction/detection.py`), `CodeExecutionPanel.tsx` component tests, base-ui `asChild` shim sweep (`select.tsx` / `dropdown-menu.tsx` / `dialog.tsx`).
+
+**Phase numbering:** Continues from v1.1 → starts at **Phase 12**.
+
+**Backlog NOT in v1.2 scope (deferred):**
+- Async-lock cross-process upgrade (D-31) — defer until horizontal scale-out triggers a real concurrency bug. Per-process `asyncio.Lock` is sufficient at current Railway scale.
+- PERF-02 — server-class hardware confirmation; needs Railway test run, not a code change. Re-attempt during v1.2 close if Railway-class hardware available.
 
 ### Out of Scope
 
@@ -173,6 +182,8 @@ This document evolves at phase transitions and milestone boundaries.
 *Last updated: 2026-04-29 — **Milestone v1.0 PII Redaction System COMPLETE** ✅ — All 54 v1.0 REQ-IDs shipped (53 full + PERF-02 partial pending hardware). 6 phases, 44 plans, 352 tests, 5 migrations (029–033). Privacy invariant end-to-end: no real PII reaches cloud-LLM payloads. Active requirements moved to Validated. Key Decisions updated.*
 
 *Last updated: 2026-05-02 — **Milestone v1.1 Agent Skills & Code Execution COMPLETE** ✅ — All 26 v1.1 REQ-IDs shipped. 5 phases (7–11), 26 plans, ~314 tests, 3 migrations (034–036). Skills system + Code Execution Sandbox + Persistent Tool Memory all live in prod as v0.5.0.0. Privacy invariant preserved (sandbox stdout/stderr anonymized through registry-based filter before reaching cloud LLM). Phase 11 verified PASS-WITH-CAVEATS (operational caveats only). Production smoke 5/5 green. Full archive: `.planning/milestones/v1.1-ROADMAP.md` and `.planning/milestones/v1.1-REQUIREMENTS.md`. No active milestone — `/gsd-new-milestone` to scope v1.2.*
+
+*Last updated: 2026-05-02 — **Milestone v1.2 Advanced Tool Calling & Agent Intelligence started** (`/gsd-new-milestone`). Source PRD: `docs/superpowers/PRD-advanced-tool-calling.md`. Scope: 5 PRD features (Context Window Indicator, Interleaved History Rendering, Tool Registry + Search, Sandbox HTTP Bridge, MCP Client) + 3 bundled v1.1 backlog items (Fix B PII deny list, CodeExecutionPanel tests, base-ui asChild shim sweep). Phase numbering continues from 11 → starts at Phase 12. All tool-calling features ship dark behind `TOOL_REGISTRY_ENABLED` and `SANDBOX_ENABLED` flags.*
 
 *Last updated: 2026-04-29 — Milestone v1.1 Agent Skills & Code Execution started (`/gsd-new-milestone`)*
 
