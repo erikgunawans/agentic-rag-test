@@ -203,6 +203,7 @@ class Settings(BaseSettings):
     - Test 14: `build_llm_tools(...)` excludes a tool whose name is "web_search" when `web_search_enabled=False`.
     - Test 15: `build_llm_tools(...)` excludes a tool whose name is "execute_code" when `sandbox_enabled=False`.
     - Test 16: With `agent_allowed_tools=["search_documents"]` plus a registered skill "legal_review", `build_llm_tools(...)` returns BOTH schemas (skills bypass agent filter per D-P13-06).
+    - Test 16b (plan-checker warning A — tool_search always-on under restrictive agent filter): Register an immediate native "tool_search" plus an immediate native "restricted_tool". With `agent_allowed_tools=["search_documents"]` (note: "tool_search" is NOT in this list), `build_llm_tools(active_set=set(), web_search_enabled=True, sandbox_enabled=True, agent_allowed_tools=["search_documents"])` returns the schema for `tool_search` (always-on per D-P13-06) and EXCLUDES `restricted_tool`. Locks the always-on rule at the LLM-tools-array layer; Task 3's `_passes_agent_filter` covers the catalog-table layer.
   </behavior>
   <action>
     1. Create `backend/app/services/tool_registry.py` with:

@@ -262,7 +262,7 @@ def get_agent_tools(agent: AgentDefinition, all_tools: list[dict]) -> list[dict]
            _registry_active_set = tool_registry.make_active_set()
        ```
 
-       Place this near the start of the generator scope (well above line 617). Pick a location that is unambiguously inside the per-request flow.
+       Place this immediately after the existing `user_id`/`token` extraction inside the SSE `event_generator` (around chat.py line ~600) and BEFORE the existing tools-array block at line 617 (plan-checker warning F fix — the prior wording "near the start of the generator scope" was ambiguous). When applying the Edit, anchor on the unique line `user_id = current_user["id"]` (or the line immediately following it inside the generator body) so the executor places the active-set initialization at a deterministic spot. The flag-off path leaves `_registry_active_set = None` and never imports `tool_registry`.
 
     3. Splice 1 — tools array @ chat.py:617-623. Replace the existing block:
        ```python
@@ -365,10 +365,21 @@ def get_agent_tools(agent: AgentDefinition, all_tools: list[dict]) -> list[dict]
 
        NOTE: chat.py may construct multiple `context` dicts for different tool-loop call sites. Inspect the file and apply the addition at every site that dispatches tool calls when `settings.tools_enabled` is True. Use grep to enumerate: `grep -n "context = {" backend/app/routers/chat.py | head`. Each site must be patched the same way.
 
-       IMPORTANT: when the flag is on but the legacy `_run_tool_loop` is still used (because Wave 3 does not refactor the loop itself), the executor of `tool_search` was registered in 13-04 to delegate via the registry. Confirm during execution that `_run_tool_loop` finds and calls `tool_search` via the registry — if `_run_tool_loop` looks up by name in `TOOL_DEFINITIONS` only, a small additional shim is needed:
-       - Option A: extend the loop's lookup to consult `tool_registry._REGISTRY` first when flag is on.
-       - Option B: register a `tool_search` dispatch branch in `tool_service.execute_tool` that forwards into the registry's `tool_search` function (executor stays internal).
-       Prefer Option A as more general. Implement it as a small flag-gated branch inside `_run_tool_loop` (one if/else; ≤ 15 LOC). Document the choice in the SUMMARY.
+       IMPORTANT (plan-checker warning D fix — Option A is COMMITTED, not optional): the legacy `_run_tool_loop` looks up tools by name; when the flag is on, the lookup MUST consult `tool_registry._REGISTRY` FIRST so the registry's executor abstraction (including `tool_search` and any future skill/MCP executors) drives dispatch. Implementation:
+
+       1. Locate `_run_tool_loop` (or the inline tool dispatch site) inside chat.py — search for `tool_service.execute_tool(` to find the dispatch location(s).
+       2. Add a flag-gated prefix to the dispatch (≤ 15 LOC):
+          ```python
+          # Phase 13 D-P13-05: registry-first dispatch when flag is on.
+          if settings.tool_registry_enabled and tool_name in tool_registry._REGISTRY:
+              tool_def = tool_registry._REGISTRY[tool_name]
+              tool_output = await tool_def.executor(arguments, user_id, context)
+          else:
+              tool_output = await tool_service.execute_tool(tool_name, arguments, user_id, context)
+          ```
+       3. The else-branch preserves byte-identical legacy behavior for TOOL-05 (flag-off goes straight to `tool_service.execute_tool`; flag-on but tool not in registry — e.g., a future native not yet adapter-wrapped — also falls through to legacy).
+
+       The previously-listed "Option B" (a `tool_search` dispatch branch inside `tool_service.execute_tool`) is REJECTED — it bypasses the registry's executor abstraction and would force every future deferred-loaded source (skill, MCP) to also need a `tool_service.execute_tool` shim. Option A is the only path. Document the literal Option-A wording in the per-plan SUMMARY for traceability.
 
     7. Create `backend/tests/api/test_chat_tool_registry_flag.py` with the 6 behavior tests:
        - For Test 1 (snapshot): use `unittest.mock.patch("app.routers.chat.openrouter_service.stream_chat", new_callable=AsyncMock)` (or whichever client is used) to capture call kwargs. Run a chat request via FastAPI TestClient. Snapshot the captured `messages` + `tools` to a fixture file under `backend/tests/api/fixtures/chat_v1_1_reference.json` on first run; subsequent runs compare. The fixture MUST be captured with `TOOL_REGISTRY_ENABLED=false` and committed.
