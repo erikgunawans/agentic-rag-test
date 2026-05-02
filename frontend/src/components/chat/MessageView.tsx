@@ -3,7 +3,7 @@ import { GitFork, ChevronLeft, ChevronRight, ShieldAlert } from 'lucide-react'
 import { StreamingMessage } from './StreamingMessage'
 import { ThinkingIndicator } from './ThinkingIndicator'
 import { ToolCallCard, ToolCallList } from './ToolCallCard'
-import { AgentBadge } from './AgentBadge'
+import { AgentBadge, DeepModeBadge } from './AgentBadge'
 import { buildChildrenMap } from '@/lib/messageTree'
 import { useI18n } from '@/i18n/I18nContext'
 import type { Message, ToolStartEvent, ToolResultEvent } from '@/lib/database.types'
@@ -104,6 +104,9 @@ export function MessageView({
               {msg.role === 'assistant' && msg.tool_calls?.agent && (
                 <AgentBadge agent={msg.tool_calls.agent} />
               )}
+              {/* Phase 17 / DEEP-04 / D-23: Deep Mode badge on assistant messages
+                  with messages.deep_mode=true (from migration 038 column). */}
+              {msg.role === 'assistant' && msg.deep_mode && <DeepModeBadge />}
               {msg.role === 'assistant' && msg.tool_calls?.calls && msg.tool_calls.calls.length > 0 && (
                 <ToolCallList
                   toolCalls={msg.tool_calls.calls}
