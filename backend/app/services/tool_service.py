@@ -1281,3 +1281,66 @@ class ToolService:
             "files": result.get("files", []),
             "status": status,
         }
+
+
+# ---------------------------------------------------------------------------
+# Phase 13 D-P13-01 adapter wrap (TOOL-04, TOOL-05).
+#
+# Register every native TOOL_DEFINITIONS entry with the unified registry as
+# source="native", loading="immediate". The executor is a thin closure that
+# delegates back into ToolService.execute_tool — no logic is re-implemented
+# here. When settings.tool_registry_enabled is False, this function is a
+# no-op AND tool_registry is never imported (TOOL-05 byte-identical fallback).
+# ---------------------------------------------------------------------------
+def _register_natives_with_registry() -> None:
+    """D-P13-01: enumerate TOOL_DEFINITIONS once and register each as a native tool.
+
+    Idempotent on a clean registry. If the registry already has an entry for
+    a given name, register() logs a WARNING and skips (first-write-wins).
+    Gated by settings.tool_registry_enabled — early return when False so
+    neither the registry module nor the closures are instantiated on flag-off
+    deployments (TOOL-05 invariant).
+    """
+    if not settings.tool_registry_enabled:
+        return
+    # Lazy import: the registry module must NOT be imported when the flag is
+    # off (TOOL-05 byte-identical fallback). Verified by test_no_import_when_flag_off.
+    from app.services import tool_registry
+
+    # Module-local ToolService instance for executor delegation. chat.py owns
+    # its own `tool_service` singleton (chat.py:207); registry executors use a
+    # private instance so registration happens at import time without depending
+    # on the chat.py instantiation order (Plan 13-05 wiring).
+    _svc = ToolService()
+
+    for tool in TOOL_DEFINITIONS:
+        fn = tool["function"]
+        name = fn["name"]
+        description = fn.get("description", "")
+
+        # Closure captures `name` via default-arg binding so each closure
+        # holds its own tool name (avoids late-binding bug on the loop var).
+        async def _executor(
+            arguments: dict,
+            user_id: str,
+            context: dict | None = None,
+            *,
+            _name: str = name,
+            **kwargs,
+        ) -> dict | str:
+            return await _svc.execute_tool(
+                _name, arguments, user_id, context, **kwargs
+            )
+
+        tool_registry.register(
+            name=name,
+            description=description,
+            schema=tool,  # full top-level dict, includes type=function
+            source="native",
+            loading="immediate",
+            executor=_executor,
+        )
+
+
+# Run the adapter wrap at module load. No-op when flag is off.
+_register_natives_with_registry()
