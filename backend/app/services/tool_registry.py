@@ -1,6 +1,7 @@
 """Phase 13: Unified Tool Registry & tool_search Meta-Tool — registry foundation.
 
 Plan 13-01 (TOOL-04, TOOL-06; D-P13-01..D-P13-06).
+Plan 13-04 (TOOL-02, TOOL-03): tool_search meta-tool added at the bottom.
 
 Single source of truth for native tools, skills (Phase 8), and MCP tools (future).
 This module owns the in-process backing store and the system-prompt formatter
@@ -262,10 +263,221 @@ async def build_catalog_block(
 
 
 def _clear_for_tests() -> None:  # pragma: no cover
-    """TEST-ONLY — never call from production. Empties the registry between tests.
+    """TEST-ONLY — never call from production. Resets registry to a clean state.
 
-    Exposed so the unit-test autouse fixture can guarantee per-test isolation.
+    After Plan 13-04 lands, the production registry always contains
+    `tool_search` at module load (self-registration). To match production
+    state between tests, we re-register tool_search after clearing. Tests
+    that want a truly empty registry can call `_REGISTRY.clear()` directly.
+
     A leak into production would break the first-write-wins guarantee that
     natives cannot be clobbered by later registrations.
     """
     _REGISTRY.clear()
+    _register_tool_search()
+
+
+# ---------------------------------------------------------------------------
+# Phase 13 Plan 04 — tool_search meta-tool (TOOL-02, TOOL-03; D-P13-05).
+#
+# tool_search lets the LLM discover deferred-loading tools by keyword (case-
+# insensitive substring) or regex (re.search, IGNORECASE). Matched tools are
+# added to the per-request active_set so they appear in the LLM tools array
+# for the rest of the turn (D-P13-04 invariant — set is caller-owned and
+# ephemeral; tool_search never persists state across requests).
+# ---------------------------------------------------------------------------
+
+import re
+
+_REGEX_MAX_LEN = 200  # Catastrophic-backtracking guard.
+_SEARCH_RESULT_CAP = 10  # CONTEXT.md §Discretion §tool_search result cap.
+
+
+def _score_match(
+    tool: ToolDefinition, query: str, *, is_regex: bool
+) -> tuple[int, int, str]:
+    """Rank a match. Returned tuple is consumed by sort:
+       (match_class, neg_span_len, name_lower).
+
+    match_class: 2 = matched in name, 1 = matched only in description, 0 = no match.
+    neg_span_len: -span_length so longer spans sort first under ascending sort.
+    name_lower: alphabetical tiebreaker.
+
+    Caller filters out (0, ...) entries before returning matches.
+    """
+    name = tool.name
+    desc = tool.description or ""
+    name_lc = name.lower()
+    desc_lc = desc.lower()
+    if is_regex:
+        try:
+            pattern = re.compile(query, re.IGNORECASE)
+        except re.error:
+            return (0, 0, name_lc)
+        m_name = pattern.search(name)
+        m_desc = pattern.search(desc)
+        name_match = m_name is not None
+        desc_match = m_desc is not None
+        if m_name:
+            span_len = m_name.end() - m_name.start()
+        elif m_desc:
+            span_len = m_desc.end() - m_desc.start()
+        else:
+            span_len = 0
+    else:
+        q = query.lower()
+        name_match = q in name_lc
+        desc_match = q in desc_lc
+        span_len = len(q) if (name_match or desc_match) else 0
+    if name_match:
+        return (2, -span_len, name_lc)
+    if desc_match:
+        return (1, -span_len, name_lc)
+    return (0, 0, name_lc)
+
+
+@traced(name="tool_search")
+async def tool_search(
+    *,
+    keyword: str | None = None,
+    regex: str | None = None,
+    active_set: set[str] | None = None,
+    agent_allowed_tools: list[str] | None = None,
+) -> dict:
+    """D-P13-05: discover registry tools by keyword (substring) or regex.
+
+    Both null → structured error. Both passed → regex wins (logged via `hint`).
+    Returns {"matches": [<full openai schema>...], "hint": str|None, "error": str|None}.
+    Side effect: matched tool names added to `active_set` (mutate by reference).
+
+    Self-exclusion: tool_search never includes itself in matches (D-P13-04).
+    Agent filter: D-P13-06 — skill bypass + tool_search always-on (irrelevant
+    here because tool_search excludes itself); native/mcp gated by agent.tool_names.
+    Regex safety: pattern length capped at _REGEX_MAX_LEN; re.compile errors
+    return as a structured error rather than raising.
+    """
+    if keyword is None and regex is None:
+        return {
+            "matches": [],
+            "hint": None,
+            "error": "either keyword or regex required",
+        }
+
+    hint: str | None = None
+    if keyword is not None and regex is not None:
+        hint = "regex wins when both keyword and regex are passed"
+
+    is_regex = regex is not None
+    query = regex if is_regex else keyword
+    assert query is not None  # for type-checker; both-null returns early above
+
+    if is_regex:
+        if len(query) > _REGEX_MAX_LEN:
+            return {
+                "matches": [],
+                "hint": hint,
+                "error": f"regex pattern too long (max {_REGEX_MAX_LEN} chars)",
+            }
+        try:
+            re.compile(query)
+        except re.error as e:
+            return {"matches": [], "hint": hint, "error": f"invalid regex: {e}"}
+
+    candidates: list[tuple[tuple[int, int, str], ToolDefinition]] = []
+    for tool in _REGISTRY.values():
+        if tool.name == "tool_search":
+            continue  # self-exclusion (D-P13-04)
+        if not _passes_agent_filter(tool, agent_allowed_tools):
+            continue
+        score = _score_match(tool, query, is_regex=is_regex)
+        if score[0] == 0:
+            continue
+        # Negate match_class so higher class sorts first; span_len already negative.
+        candidates.append(((-score[0], score[1], score[2]), tool))
+
+    candidates.sort(key=lambda x: x[0])
+    top = candidates[:_SEARCH_RESULT_CAP]
+
+    matches = [tool.schema for _, tool in top]
+    if active_set is not None:
+        for _, tool in top:
+            active_set.add(tool.name)
+
+    return {"matches": matches, "hint": hint, "error": None}
+
+
+# ---------------------------------------------------------------------------
+# tool_search self-registration (D-P13-04 always-on).
+# ---------------------------------------------------------------------------
+
+_TOOL_SEARCH_SCHEMA = {
+    "type": "function",
+    "function": {
+        "name": "tool_search",
+        "description": (
+            "Find tools in the registry by keyword (case-insensitive substring) "
+            "or regex (Python re.search, IGNORECASE). Returns matching tools' "
+            "OpenAI schemas and adds them to the active set for the rest of the "
+            "current request."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "keyword": {
+                    "type": ["string", "null"],
+                    "description": "Plain substring; case-insensitive. Use for casual searches.",
+                },
+                "regex": {
+                    "type": ["string", "null"],
+                    "description": (
+                        "Python re.search pattern; case-insensitive. Patterns longer "
+                        "than 200 characters are rejected. Examples: '^kb_', 'search$'."
+                    ),
+                },
+            },
+            "required": [],
+        },
+    },
+}
+
+
+def _register_tool_search() -> None:
+    """Self-register tool_search as source='native', loading='immediate'.
+
+    Always-on (D-P13-04): the chat.py wiring in 13-05 includes tool_search in
+    the LLM tools array on every request when the flag is on, and the catalog
+    formatter excludes it from rows so it appears only in the meta-callout
+    line.
+
+    The executor adapter forwards `arguments` (the LLM-supplied params) and
+    reads `active_set` / `agent_allowed_tools` from the per-request `context`
+    dict, which Plan 13-05's chat.py registry dispatcher populates.
+    """
+
+    async def _executor(
+        arguments: dict,
+        user_id: str,
+        context: dict | None = None,
+        **kwargs,
+    ):
+        ctx = context or {}
+        return await tool_search(
+            keyword=arguments.get("keyword"),
+            regex=arguments.get("regex"),
+            active_set=ctx.get("active_set"),
+            agent_allowed_tools=ctx.get("agent_allowed_tools"),
+        )
+
+    register(
+        name="tool_search",
+        description=_TOOL_SEARCH_SCHEMA["function"]["description"],
+        schema=_TOOL_SEARCH_SCHEMA,
+        source="native",
+        loading="immediate",
+        executor=_executor,
+    )
+
+
+# Run self-registration at module load. The chat.py flag-off path never imports
+# this module, so this is effectively gated by settings.tool_registry_enabled.
+_register_tool_search()

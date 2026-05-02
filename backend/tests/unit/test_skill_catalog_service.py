@@ -227,8 +227,11 @@ async def test_register_user_skills_two_skills(_reset_registry):
     ):
         await register_user_skills("u1", "tok")
 
-    assert len(tool_registry._REGISTRY) == 2
-    for name in ("legal_review", "compliance_check"):
+    # After Plan 13-04 lands, _clear_for_tests leaves tool_search registered
+    # too — assert subset (skills present) rather than count-equality.
+    skill_names = {"legal_review", "compliance_check"}
+    assert skill_names <= set(tool_registry._REGISTRY.keys())
+    for name in skill_names:
         td = tool_registry._REGISTRY[name]
         assert td.source == "skill"
         assert td.loading == "deferred"
@@ -276,7 +279,11 @@ async def test_register_user_skills_falsy_token_returns_silent(_reset_registry):
         await register_user_skills("u1", None)  # type: ignore[arg-type]
 
     mock_client_factory.assert_not_called()
-    assert tool_registry._REGISTRY == {}
+    # tool_search auto-registered (Plan 13-04); no skill names should be present.
+    skill_names_present = {
+        n for n, td in tool_registry._REGISTRY.items() if td.source == "skill"
+    }
+    assert skill_names_present == set()
 
 
 @pytest.mark.asyncio
@@ -303,7 +310,10 @@ async def test_register_user_skills_db_error_fail_soft(_reset_registry, caplog):
     assert any(
         "register_user_skills failed" in rec.getMessage() for rec in caplog.records
     )
-    assert tool_registry._REGISTRY == {}
+    skill_names_present = {
+        n for n, td in tool_registry._REGISTRY.items() if td.source == "skill"
+    }
+    assert skill_names_present == set()
 
 
 @pytest.mark.asyncio
@@ -318,7 +328,10 @@ async def test_register_user_skills_zero_rows_no_registration(_reset_registry):
         return_value=client,
     ):
         await register_user_skills("u1", "tok")
-    assert tool_registry._REGISTRY == {}
+    skill_names_present = {
+        n for n, td in tool_registry._REGISTRY.items() if td.source == "skill"
+    }
+    assert skill_names_present == set()
 
 
 @pytest.mark.asyncio
@@ -372,11 +385,17 @@ async def test_register_user_skills_idempotent_first_write_wins(_reset_registry,
         return_value=client,
     ), caplog.at_level("WARNING"):
         await register_user_skills("u1", "tok")
-        assert len(tool_registry._REGISTRY) == 2
+        skill_count_first = sum(
+            1 for td in tool_registry._REGISTRY.values() if td.source == "skill"
+        )
+        assert skill_count_first == 2
         await register_user_skills("u1", "tok")
 
-    # Still 2 entries (first-write-wins)
-    assert len(tool_registry._REGISTRY) == 2
+    # Still 2 skills (first-write-wins)
+    skill_count_second = sum(
+        1 for td in tool_registry._REGISTRY.values() if td.source == "skill"
+    )
+    assert skill_count_second == 2
     # WARNINGs emitted for each duplicate
     duplicate_warnings = [
         r for r in caplog.records if "duplicate name" in r.getMessage()

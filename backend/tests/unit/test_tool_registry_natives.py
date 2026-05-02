@@ -181,9 +181,10 @@ def test_register_idempotent_on_clean_registry(_flag_on):
     expected = {entry["function"]["name"] for entry in TOOL_DEFINITIONS}
     assert expected <= first_names
 
-    # Clear and re-run
+    # Clear and re-run. After Plan 13-04 lands, _clear_for_tests leaves
+    # tool_search registered (matches production module-load state); the
+    # idempotency check is the subset of native names, not registry equality.
     tool_registry._clear_for_tests()
-    assert tool_registry._REGISTRY == {}
     _register_natives_with_registry()
     second_names = set(tool_registry._REGISTRY.keys())
     assert expected <= second_names

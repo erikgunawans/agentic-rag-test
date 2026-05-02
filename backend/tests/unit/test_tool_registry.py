@@ -136,11 +136,17 @@ def test_settings_flag_env_override(monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-def test_registry_empty_at_module_load():
-    """Behavior 7: _REGISTRY is empty by default (no auto-register in 13-01)."""
+def test_registry_only_contains_tool_search_at_clean_state():
+    """Behavior 7 (updated by Plan 13-04): after Plan 13-04 self-registers
+    `tool_search` at module load, the clean state is `{tool_search}` rather
+    than `{}`. The autouse `_clear_for_tests` fixture re-registers tool_search
+    to mirror production module-load behavior.
+    """
     from app.services import tool_registry
 
-    assert tool_registry._REGISTRY == {}
+    assert set(tool_registry._REGISTRY.keys()) == {"tool_search"}
+    assert tool_registry._REGISTRY["tool_search"].source == "native"
+    assert tool_registry._REGISTRY["tool_search"].loading == "immediate"
 
 
 def test_register_inserts_entry():
@@ -223,7 +229,9 @@ def _register(name: str, source: str, loading: str, schema: dict | None = None):
 
 @pytest.mark.asyncio
 async def test_build_llm_tools_empty_registry():
-    """Behavior 11: empty registry returns []."""
+    """Behavior 11 (updated by Plan 13-04): with only tool_search auto-registered,
+    build_llm_tools returns just the tool_search schema. Pre-13-04 this test
+    expected `[]`; tool_search self-registration changes the clean baseline."""
     from app.services import tool_registry
 
     out = await _maybe_await(
@@ -234,7 +242,8 @@ async def test_build_llm_tools_empty_registry():
             agent_allowed_tools=None,
         )
     )
-    assert out == []
+    names = _names_from_schemas(out)
+    assert names == {"tool_search"}
 
 
 @pytest.mark.asyncio
