@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Advanced Tool Calling & Agent Intelligence
 status: executing
-last_updated: "2026-05-02T11:15:00.000Z"
-last_activity: 2026-05-02 -- Phase 13 ALL 5 PLANS EXECUTED + VERIFIED (78 tests pass, --no-transition: not advanced)
+last_updated: "2026-05-02T18:45:00.000Z"
+last_activity: 2026-05-02 -- Phase 12 plan 12-07 EXECUTED (frontend interleaved history reconstruction; 16 new vitest tests; phase 12 now 7/7)
 progress:
   total_phases: 5
   completed_phases: 0
   total_plans: 16
-  completed_plans: 9
-  percent: 56
+  completed_plans: 10
+  percent: 63
 ---
 
 # State: LexCore
@@ -34,7 +34,7 @@ Last activity: 2026-05-02 -- Phase 13 all 5 plans executed, 78 tests passing, by
 
 | Phase | Name | Reqs | Depends on | Status |
 |-------|------|------|------------|--------|
-| 12 | Chat UX — Context Window & Interleaved History | CTX×6 + HIST×6 (12) | — | Planned (7 plans, 2026-05-02) |
+| 12 | Chat UX — Context Window & Interleaved History | CTX×6 + HIST×6 (12) | — | Planned (7 plans, 7 of 7 executed, 2026-05-02) |
 | 13 | Unified Tool Registry & `tool_search` | TOOL×6 (6) | — | Planned (5 plans, 2026-05-02) |
 | 14 | Sandbox HTTP Bridge (Code Mode) | BRIDGE×7 (7) | Phase 13 | Not started |
 | 15 | MCP Client Integration | MCP×6 (6) | Phase 13 | Not started |
