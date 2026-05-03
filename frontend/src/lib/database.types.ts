@@ -49,12 +49,18 @@ export interface ToolStartEvent {
   type: 'tool_start'
   tool: string
   input?: Record<string, unknown>  // Phase 5 D-89: omitted in skeleton mode when redaction is ON
+  // Phase 19 / D-06: optional task_id for nested sub-agent tool calls.
+  task_id?: string
+  tool_call_id?: string
 }
 
 export interface ToolResultEvent {
   type: 'tool_result'
   tool: string
   output?: Record<string, unknown>  // Phase 5 D-89: omitted in skeleton mode when redaction is ON
+  // Phase 19 / D-06: optional task_id for nested sub-agent tool calls.
+  task_id?: string
+  tool_call_id?: string
 }
 
 export interface AgentStartEvent {
@@ -123,6 +129,12 @@ export type SSEEvent =
   | CodeStderrEvent       // Phase 11 SANDBOX-07
   | UsageEvent            // Phase 12 / CTX-01
   | TodosUpdatedEvent     // Phase 17 / TODO-03
+  | WorkspaceUpdatedEvent // Phase 18 / WS-07
+  | AgentStatusEvent      // Phase 19 / STATUS-01
+  | TaskStartEvent        // Phase 19 / TASK-07
+  | TaskCompleteEvent     // Phase 19 / TASK-07
+  | TaskErrorEvent        // Phase 19 / TASK-07
+  | AskUserEvent          // Phase 19 / ASK-02
 
 export interface DocumentMetadata {
   title: string
@@ -193,4 +205,48 @@ export type Todo = {
 export interface TodosUpdatedEvent {
   type: 'todos_updated'
   todos: Todo[]
+}
+
+// Phase 19 / STATUS-01 / D-24: agent run status chip events.
+export interface AgentStatusEvent {
+  type: 'agent_status'
+  status: 'working' | 'waiting_for_user' | 'complete' | 'error'
+  detail?: string
+}
+
+// Phase 19 / TASK-07 / D-25: sub-agent task lifecycle events.
+export interface TaskStartEvent {
+  type: 'task_start'
+  task_id: string
+  description: string
+  context_files?: string[]
+}
+
+export interface TaskCompleteEvent {
+  type: 'task_complete'
+  task_id: string
+  result: string
+}
+
+export interface TaskErrorEvent {
+  type: 'task_error'
+  task_id: string
+  error: string
+  code: string
+  detail?: string
+}
+
+// Phase 19 / ASK-02 / D-14 / D-27: ask_user tool invocation event.
+export interface AskUserEvent {
+  type: 'ask_user'
+  question: string
+}
+
+// Phase 18 / WS-07 / WS-08: workspace file update event.
+export interface WorkspaceUpdatedEvent {
+  type: 'workspace_updated'
+  file_path: string
+  operation: 'create' | 'update' | 'delete'
+  size_bytes: number
+  source: 'agent' | 'sandbox' | 'upload'
 }

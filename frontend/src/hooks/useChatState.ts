@@ -15,6 +15,27 @@ export type WorkspaceFile = {
   updated_at: string
 }
 
+// Phase 19 / D-24: agent run status chip state.
+export type AgentStatus = 'working' | 'waiting_for_user' | 'complete' | 'error' | null
+
+// Phase 19 / D-24: sub-agent task types for TaskPanel.
+export type TaskToolCall = {
+  toolCallId: string
+  tool: string
+  input?: Record<string, unknown>
+  output?: Record<string, unknown> | string
+}
+
+export type TaskState = {
+  taskId: string
+  description: string
+  contextFiles: string[]
+  toolCalls: TaskToolCall[]
+  status: 'running' | 'complete' | 'error'
+  result?: string
+  error?: { error: string; code: string; detail?: string }
+}
+
 export function useChatState() {
   const [threads, setThreads] = useState<Thread[]>([])
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null)
@@ -68,6 +89,10 @@ export function useChatState() {
   // WorkspacePanel is visible whenever workspaceFiles.length > 0 (WS-11),
   // decoupled from Deep Mode.
   const [workspaceFiles, setWorkspaceFiles] = useState<WorkspaceFile[]>([])
+  // Phase 19 / D-24: Header chip status — tracks current agent run state.
+  const [agentStatus, setAgentStatus] = useState<AgentStatus>(null)
+  // Phase 19 / D-24: Sub-agent task panel state (Map keyed by task_id).
+  const [tasks, setTasks] = useState<Map<string, TaskState>>(new Map())
 
   const loadThreads = useCallback(async () => {
     setLoadingThreads(true)
@@ -123,6 +148,13 @@ export function useChatState() {
       .then((r) => r.json() as Promise<WorkspaceFile[]>)
       .then((data) => setWorkspaceFiles(data ?? []))
       .catch(() => setWorkspaceFiles([]))
+  }, [activeThreadId])
+
+  // Phase 19 / D-24: reset agent status and tasks on thread switch.
+  // Prevents stale chip/panel state from a previous thread leaking into the new one.
+  useEffect(() => {
+    setAgentStatus(null)
+    setTasks(new Map())
   }, [activeThreadId])
 
   function rebuildVisibleMessages(all: Message[], selections: Map<string, string>) {
@@ -233,6 +265,10 @@ export function useChatState() {
     // the bar reflects only this turn's tokens. SSE 'usage' event re-populates.
     setUsage(null)
     setForkParentId(null)
+    // Phase 19 / D-24: clear agent status and tasks at send-start so prior
+    // turn's chip/panel don't leak into the new exchange.
+    setAgentStatus(null)
+    setTasks(new Map())
 
     try {
       // Phase 17 / DEEP-01 / DEEP-03: only include deep_mode in payload when true.
@@ -285,14 +321,32 @@ export function useChatState() {
           } else if (event.type === 'agent_done') {
             setActiveAgent(null)
           } else if (event.type === 'tool_start') {
-            setActiveTools((prev) => [...prev, event])
+            // Phase 19 / D-06: polymorphic — when task_id present, route to tasks slice;
+            // otherwise fall through to existing setActiveTools path.
+            if ('task_id' in event && event.task_id) {
+              setTasks((prev) => {
+                const next = new Map(prev)
+                const t = next.get(event.task_id!)
+                if (t) next.set(event.task_id!, { ...t, toolCalls: [...t.toolCalls, { toolCallId: event.tool_call_id ?? '', tool: event.tool, input: event.input }] })
+                return next
+              })
+            } else {
+              setActiveTools((prev) => [...prev, event])
+            }
           } else if (event.type === 'tool_result') {
-            setActiveTools((prev) => {
-              const idx = prev.findIndex((t) => t.tool === event.tool)
-              if (idx >= 0) return [...prev.slice(0, idx), ...prev.slice(idx + 1)]
-              return prev
-            })
-            setToolResults((prev) => [...prev, event])
+            // Phase 19 / D-06: polymorphic — when task_id present, route to tasks slice;
+            // otherwise fall through to existing setToolResults path.
+            if ('task_id' in event && event.task_id) {
+              // tool_result with task_id — currently no per-tool-call output update needed
+              // (task_complete carries the final result). No-op for tasks slice here.
+            } else {
+              setActiveTools((prev) => {
+                const idx = prev.findIndex((t) => t.tool === event.tool)
+                if (idx >= 0) return [...prev.slice(0, idx), ...prev.slice(idx + 1)]
+                return prev
+              })
+              setToolResults((prev) => [...prev, event])
+            }
           } else if (event.type === 'redaction_status') {
             // Phase 5 D-88: status spinner state during the buffer window.
             setRedactionStage(event.stage)
@@ -344,13 +398,7 @@ export function useChatState() {
             // operation: 'create' | 'update' — prepend / move-to-top.
             // operation: 'delete' — remove from list.
             // Keyed by file_path (unique per thread).
-            const { file_path, operation, size_bytes, source } = event as {
-              type: 'workspace_updated'
-              file_path: string
-              operation: 'create' | 'update' | 'delete'
-              size_bytes: number
-              source: WorkspaceFile['source']
-            }
+            const { file_path, operation, size_bytes, source } = event
             setWorkspaceFiles((prev) => {
               const idx = prev.findIndex((f) => f.file_path === file_path)
               if (operation === 'delete') {
@@ -371,6 +419,39 @@ export function useChatState() {
               const next = [...prev]
               next.splice(idx, 1)
               return [newEntry, ...next]
+            })
+          } else if (event.type === 'agent_status') {
+            // Phase 19 / STATUS-01 / D-24: update agent run status chip.
+            setAgentStatus(event.status)
+          } else if (event.type === 'task_start') {
+            // Phase 19 / TASK-07 / D-25: new sub-agent task card.
+            setTasks((prev) => {
+              const next = new Map(prev)
+              const newTask: TaskState = {
+                taskId: event.task_id,
+                description: event.description,
+                contextFiles: event.context_files ?? [],
+                toolCalls: [],
+                status: 'running',
+              }
+              next.set(event.task_id, newTask)
+              return next
+            })
+          } else if (event.type === 'task_complete') {
+            // Phase 19 / TASK-07 / D-25: task completed — update card to complete.
+            setTasks((prev) => {
+              const next = new Map(prev)
+              const t = next.get(event.task_id)
+              if (t) next.set(event.task_id, { ...t, status: 'complete', result: event.result })
+              return next
+            })
+          } else if (event.type === 'task_error') {
+            // Phase 19 / TASK-07 / D-25: task failed — update card to error state.
+            setTasks((prev) => {
+              const next = new Map(prev)
+              const t = next.get(event.task_id)
+              if (t) next.set(event.task_id, { ...t, status: 'error', error: { error: event.error, code: event.code, detail: event.detail } })
+              return next
             })
           } else {
             const delta = 'delta' in event ? event.delta : ''
@@ -454,6 +535,9 @@ export function useChatState() {
     todos,                       // Phase 17 / TODO-06 / D-26
     isCurrentMessageDeepMode,    // Phase 17 / D-22
     workspaceFiles,              // Phase 18 / WS-07 / WS-11
+    agentStatus,                 // Phase 19 / D-24
+    setAgentStatus,              // Phase 19 — used by AgentStatusChip auto-fade effect
+    tasks,                       // Phase 19 / D-24
     handleSelectThread,
     handleCreateThread,
     handleDeleteThread,
