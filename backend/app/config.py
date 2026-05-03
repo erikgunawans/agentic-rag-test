@@ -175,6 +175,12 @@ class Settings(BaseSettings):
     # SSE workspace_updated events not emitted. Default OFF — opt-in via WORKSPACE_ENABLED env var.
     workspace_enabled: bool = False
 
+    # Phase 19 / v1.3 (TASK-*, ASK-*, STATUS-*; D-17): Sub-Agent Delegation feature flag.
+    # When False: task and ask_user tools NOT registered, agent_runs unused, resume-detection
+    # branch in /chat short-circuits, no task_*/agent_status SSE events emitted. Default OFF —
+    # opt-in via SUB_AGENT_ENABLED env var. Mirrors WORKSPACE_ENABLED dark-launch precedent.
+    sub_agent_enabled: bool = False
+
     @model_validator(mode="after")
     def _validate_local_embedding(self) -> "Settings":
         # CR-02 fix: catch EMBEDDING_PROVIDER=local + empty LOCAL_EMBEDDING_BASE_URL at startup.
