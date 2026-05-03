@@ -73,32 +73,32 @@
 
 ### Harness Engine Core (HARN-*)
 
-- [ ] **HARN-01**: System persists harness execution state in `harness_runs` table (FK `thread_id`, `harness_type`, status pending/running/paused/completed/failed, `current_phase` index, `phase_results` JSONB, `input_file_ids`, RLS, unique active run per thread)
-- [ ] **HARN-02**: Harness engine dispatches phases by `PhaseType` enum: `programmatic`, `llm_single`, `llm_agent`, `llm_batch_agents`, `llm_human_input`
-- [ ] **HARN-03**: Phases pass context via workspace files (no inline `$prior_results` dumps); orchestrator passes file paths only
-- [ ] **HARN-04**: Orchestrator stays thin (~5k tokens) regardless of contract size — context offloaded to workspace
-- [ ] **HARN-05**: `llm_single` phases enforce structured output via OpenAI/OpenRouter `response_format: { type: "json_schema" }` + Pydantic validation before advancing
-- [ ] **HARN-06**: Each phase enforces a configurable timeout (120s `llm_single`, 300s `llm_agent` defaults) — timeout = phase failure
-- [ ] **HARN-07**: Engine checks cancellation event between rounds/phases; clean shutdown on client disconnect
-- [ ] **HARN-08**: Engine supports a dict-based harness registry — adding a new harness = adding a file to `harnesses/` and registering it
-- [ ] **HARN-09**: Engine emits SSE events: `harness_phase_start`, `harness_phase_complete`, `harness_phase_error`, `harness_complete`, `harness_batch_start`, `harness_batch_complete`, `harness_sub_agent_start`, `harness_sub_agent_complete`, `harness_human_input_required`
-- [ ] **HARN-10**: Each phase definition is a typed dataclass with: name, description, phase_type, system_prompt_template (5-15 lines), tools list (curated), output_schema (Pydantic), validator (optional), workspace_inputs, workspace_output, batch_size, post_execute (optional async callback)
+- [x] **HARN-01**: System persists harness execution state in `harness_runs` table (FK `thread_id`, `harness_type`, status pending/running/paused/completed/failed, `current_phase` index, `phase_results` JSONB, `input_file_ids`, RLS, unique active run per thread)
+- [x] **HARN-02**: Harness engine dispatches phases by `PhaseType` enum: `programmatic`, `llm_single`, `llm_agent`, `llm_batch_agents`, `llm_human_input`
+- [x] **HARN-03**: Phases pass context via workspace files (no inline `$prior_results` dumps); orchestrator passes file paths only
+- [x] **HARN-04**: Orchestrator stays thin (~5k tokens) regardless of contract size — context offloaded to workspace
+- [x] **HARN-05**: `llm_single` phases enforce structured output via OpenAI/OpenRouter `response_format: { type: "json_schema" }` + Pydantic validation before advancing
+- [x] **HARN-06**: Each phase enforces a configurable timeout (120s `llm_single`, 300s `llm_agent` defaults) — timeout = phase failure
+- [x] **HARN-07**: Engine checks cancellation event between rounds/phases; clean shutdown on client disconnect
+- [x] **HARN-08**: Engine supports a dict-based harness registry — adding a new harness = adding a file to `harnesses/` and registering it
+- [x] **HARN-09**: Engine emits SSE events: `harness_phase_start`, `harness_phase_complete`, `harness_phase_error`, `harness_complete`, `harness_batch_start`, `harness_batch_complete`, `harness_sub_agent_start`, `harness_sub_agent_complete`, `harness_human_input_required`
+- [x] **HARN-10**: Each phase definition is a typed dataclass with: name, description, phase_type, system_prompt_template (5-15 lines), tools list (curated), output_schema (Pydantic), validator (optional), workspace_inputs, workspace_output, batch_size, post_execute (optional async callback)
 
 ### Gatekeeper LLM (GATE-*)
 
-- [ ] **GATE-01**: System runs a stateless conversational gatekeeper before each user message when no active/completed harness run exists
-- [ ] **GATE-02**: Gatekeeper uses `[TRIGGER_HARNESS]` sentinel — strips before display, harness begins in same SSE stream
-- [ ] **GATE-03**: Gatekeeper supports multi-turn dialogue (e.g., "Please upload your contract first")
-- [ ] **GATE-04**: Each harness defines `HarnessPrerequisites` dataclass (`requires_upload`, `upload_description`, `harness_intro`)
-- [ ] **GATE-05**: Harnesses without prerequisites skip the gatekeeper entirely
+- [x] **GATE-01**: System runs a stateless conversational gatekeeper before each user message when no active/completed harness run exists
+- [x] **GATE-02**: Gatekeeper uses `[TRIGGER_HARNESS]` sentinel — strips before display, harness begins in same SSE stream
+- [x] **GATE-03**: Gatekeeper supports multi-turn dialogue (e.g., "Please upload your contract first")
+- [x] **GATE-04**: Each harness defines `HarnessPrerequisites` dataclass (`requires_upload`, `upload_description`, `harness_intro`)
+- [x] **GATE-05**: Harnesses without prerequisites skip the gatekeeper entirely
 
 ### Post-Harness Response (POST-*)
 
-- [ ] **POST-01**: After harness completion, system loads phase results into a separate LLM call's system prompt (not as fabricated user message)
-- [ ] **POST-02**: LLM streams a concise (~500 token) summary referencing the workspace report
-- [ ] **POST-03**: Summary persisted as a separate assistant message
-- [ ] **POST-04**: Follow-up messages route through normal LLM loop with phase results available in context
-- [ ] **POST-05**: System truncates phase results when total exceeds 30,000 chars (last 2 phases kept in full)
+- [x] **POST-01**: After harness completion, system loads phase results into a separate LLM call's system prompt (not as fabricated user message)
+- [x] **POST-02**: LLM streams a concise (~500 token) summary referencing the workspace report
+- [x] **POST-03**: Summary persisted as a separate assistant message
+- [x] **POST-04**: Follow-up messages route through normal LLM loop with phase results available in context
+- [x] **POST-05**: System truncates phase results when total exceeds 30,000 chars (last 2 phases kept in full)
 
 ### Human-in-the-Loop Context Gathering (HIL-*)
 
@@ -119,17 +119,17 @@
 
 ### File Upload (UPL-*)
 
-- [ ] **UPL-01**: User can upload DOCX and PDF files via `POST /threads/{thread_id}/files/upload`
-- [ ] **UPL-02**: Binary file uploaded to Supabase Storage, metadata stored in `workspace_files` with `source='upload'`
-- [ ] **UPL-03**: System extracts text via `python-docx` (DOCX) and `PyPDF2` (PDF) for harness consumption
-- [ ] **UPL-04**: User sees a file upload button in chat input when a harness mode is active
+- [x] **UPL-01**: User can upload DOCX and PDF files via `POST /threads/{thread_id}/files/upload`
+- [x] **UPL-02**: Binary file uploaded to Supabase Storage, metadata stored in `workspace_files` with `source='upload'`
+- [x] **UPL-03**: System extracts text via `python-docx` (DOCX) and `PyPDF2` (PDF) for harness consumption
+- [x] **UPL-04**: User sees a file upload button in chat input when a harness mode is active
 
 ### Plan Panel Harness Integration (PANEL-*)
 
-- [ ] **PANEL-01**: Harness engine writes phases to `agent_todos` with content prefix (e.g., `[Contract Review] Clause Extraction`)
-- [ ] **PANEL-02**: Plan Panel shows harness phases progressing pending → in_progress → completed
-- [ ] **PANEL-03**: System strips `write_todos` / `read_todos` tools from harness phase LLM calls (LLM cannot modify plan)
-- [ ] **PANEL-04**: Plan Panel header shows lock icon for harness runs (communicates immutability)
+- [x] **PANEL-01**: Harness engine writes phases to `agent_todos` with content prefix (e.g., `[Contract Review] Clause Extraction`)
+- [x] **PANEL-02**: Plan Panel shows harness phases progressing pending → in_progress → completed
+- [x] **PANEL-03**: System strips `write_todos` / `read_todos` tools from harness phase LLM calls (LLM cannot modify plan)
+- [x] **PANEL-04**: Plan Panel header shows lock icon for harness runs (communicates immutability)
 
 ### Contract Review Harness — First Domain Implementation (CR-*)
 
@@ -157,21 +157,21 @@
 
 - [x] **MIG-01**: Migration adds `agent_todos` table with RLS (thread-ownership scope)
 - [x] **MIG-02**: Migration adds `workspace_files` table with RLS, unique `(thread_id, file_path)` constraint
-- [ ] **MIG-03**: Migration adds `harness_runs` table with RLS, unique active run per thread
+- [x] **MIG-03**: Migration adds `harness_runs` table with RLS, unique active run per thread
 - [x] **MIG-04**: Migration adds `messages.deep_mode` boolean and `messages.harness_mode` text columns
 
 ### Security & Privacy (SEC-*)
 
 - [x] **SEC-01**: All new tables (`agent_todos`, `workspace_files`, `harness_runs`) enforce RLS — users only see their own threads' data
-- [ ] **SEC-02**: Sub-agents operate within parent user's auth context (no privilege escalation)
-- [ ] **SEC-03**: Model provider API keys remain server-side only (no exposure to sandbox or sub-agents)
-- [ ] **SEC-04**: All new agent paths route LLM payloads through existing PII redaction egress filter — privacy invariant preserved (no real PII to cloud LLM)
+- [x] **SEC-02**: Sub-agents operate within parent user's auth context (no privilege escalation)
+- [x] **SEC-03**: Model provider API keys remain server-side only (no exposure to sandbox or sub-agents)
+- [x] **SEC-04**: All new agent paths route LLM payloads through existing PII redaction egress filter — privacy invariant preserved (no real PII to cloud LLM)
 
 ### Observability (OBS-*)
 
-- [ ] **OBS-01**: Harness engine writes single-writer `progress.md` workspace file after each phase transition (status + intermediate detail — classification summary, clause count, risk tally, redline count)
-- [ ] **OBS-02**: All harness operations include `thread_id` correlation logging (consistent with existing v1.0 redaction logging)
-- [ ] **OBS-03**: Existing LangSmith tracing covers new agent loop and harness phases (no instrumentation gaps)
+- [x] **OBS-01**: Harness engine writes single-writer `progress.md` workspace file after each phase transition (status + intermediate detail — classification summary, clause count, risk tally, redline count)
+- [x] **OBS-02**: All harness operations include `thread_id` correlation logging (consistent with existing v1.0 redaction logging)
+- [x] **OBS-03**: Existing LangSmith tracing covers new agent loop and harness phases (no instrumentation gaps)
 
 ### Configuration (CONF-*)
 
