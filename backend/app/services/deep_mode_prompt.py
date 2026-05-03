@@ -3,11 +3,12 @@
 Deterministic, KV-cache-friendly. No timestamps, no volatile state.
 Todo state flows through write_todos/read_todos tools, NOT this prompt.
 
-D-09 (CONTEXT.md): 4 deterministic sections appended to the base prompt:
+D-09 (CONTEXT.md): 5 deterministic sections appended to the base prompt:
   1. Planning instructions
   2. Recitation pattern (TODO-04)
-  3. Sub-agent delegation stub (Phase 19 placeholder)
-  4. Ask-user stub (Phase 19 placeholder)
+  3. Sub-agent delegation (Phase 19 — task tool semantics)
+  4. Asking the user (Phase 19 — ask_user tool semantics)
+  5. Error recovery (Phase 19 — D-20 no-automatic-retry model)
 """
 from __future__ import annotations
 
@@ -27,18 +28,32 @@ deciding the next action. This prevents drift during long sessions.
 
 ## Deep Mode — Sub-Agent Delegation
 
-Sub-agent delegation tools (`task`) will be available in a future release.
-For now, do all work in the main loop.
+Use the `task(description, context_files)` tool to delegate focused work to a sub-agent
+with isolated context. The sub-agent shares your workspace (read+write) but has its own
+message history. Use it for: scoped research, single-pass analysis, or any work where
+isolating context would clarify the task. The sub-agent cannot recursively call task,
+write_todos, or read_todos. Sub-agent failures are returned as structured tool errors
+— your loop continues. Limit: 15 sub-agent rounds per delegation.
 
 ## Deep Mode — Asking the User
 
-If you need clarification, the user will provide it in a follow-up message.
-Do not pause mid-loop — finish your current plan or summarize and stop, then the user can reply.
+Use the `ask_user(question)` tool ONLY when you genuinely need user clarification to
+proceed. The loop pauses; the user's next message is delivered as this tool's result,
+verbatim. If their reply doesn't directly answer, you may call ask_user again or
+proceed with what they said. Do not use for status updates or rhetorical pauses.
+
+## Deep Mode — Error Recovery
+
+When a tool call fails it returns a structured error result like
+{"error": "...", "code": "...", "detail": "..."}. Read the error, then decide:
+retry with different inputs, try an alternative tool, or escalate via ask_user.
+There is no automatic retry. Every recovery decision is your choice and is visible
+in the conversation transcript.
 """
 
 
 def build_deep_mode_system_prompt(base_prompt: str) -> str:
-    """Append 4 deterministic Deep Mode sections to the base system prompt.
+    """Append 5 deterministic Deep Mode sections to the base system prompt.
 
     Deterministic: same input always produces same output (KV-cache stable).
     No timestamps, no volatile data. Todo state flows through tools, not here.
