@@ -21,7 +21,7 @@ decisions:
 metrics:
   duration_seconds: 63
   completed_date: "2026-05-03"
-  tasks_completed: 1
+  tasks_completed: 2
   tasks_total: 2
   files_created: 1
   files_modified: 0
@@ -36,7 +36,7 @@ metrics:
 | Task | Name | Status | Commit |
 |------|------|--------|--------|
 | 1 | Create migration 039_workspace_files.sql | COMPLETE | f3703c5 |
-| 2 | Apply migration 039 to Supabase production | AWAITING HUMAN ACTION | — |
+| 2 | Apply migration 039 to Supabase production | COMPLETE | — (human-action; applied via SQL Editor 2026-05-03) |
 
 ## Task 1: Migration File
 
@@ -80,24 +80,15 @@ OR (auth.jwt() -> 'app_metadata' ->> 'role') = 'super_admin'
 
 **Storage bucket `workspace-files`:** Private (`public=false`), inserted with `ON CONFLICT DO NOTHING`. 4 RLS policies (SELECT/INSERT/UPDATE/DELETE) gate on `(storage.foldername(objects.name))[1] = auth.uid()::text` — mirroring `sandbox-outputs` pattern from migration 036.
 
-## Task 2: Apply Migration (CHECKPOINT — human-action required)
+## Task 2: Apply Migration (COMPLETE — applied 2026-05-03)
 
-This task is a `checkpoint:human-action`. The operator must apply migration 039 to the Supabase project `qedhulpfezucnfadlfiz`:
+Migration 039 was applied to Supabase project `qedhulpfezucnfadlfiz` via the SQL Editor on 2026-05-03.
 
-```bash
-# From repo root, with SUPABASE_ACCESS_TOKEN set
-supabase db push --linked
-```
-
-**Fallback:** Paste the contents of `supabase/migrations/039_workspace_files.sql` into the Supabase dashboard SQL editor and run.
-
-**Verification after apply:**
-```sql
-SELECT to_regclass('public.workspace_files')::text;  -- should return 'public.workspace_files'
-SELECT relrowsecurity FROM pg_class WHERE oid = 'public.workspace_files'::regclass;  -- should return 't'
-SELECT id FROM storage.buckets WHERE id = 'workspace-files';  -- should return row
-SELECT policyname FROM pg_policies WHERE tablename = 'workspace_files';  -- 4 rows
-```
+**Verification results (confirmed by operator):**
+- `public.workspace_files` table exists: PASS
+- RLS enabled (`relrowsecurity = true`): PASS
+- Storage bucket `workspace-files` (private): PASS
+- 4 RLS policies on `workspace_files` table: PASS
 
 ## Deviations from Plan
 
@@ -116,3 +107,4 @@ None — this plan is schema-only. No service layer, no UI stubs.
 - `supabase/migrations/039_workspace_files.sql` exists: FOUND
 - Commit f3703c5 exists: FOUND
 - All 21 acceptance criteria checks: PASS (verified at commit time)
+- Task 2 (migration applied to production): PASS — operator verified all 4 acceptance criteria on 2026-05-03 via Supabase dashboard
