@@ -524,6 +524,7 @@ class ToolService:
                 user_id=user_id,
                 thread_id=(context or {}).get("thread_id"),
                 stream_callback=stream_callback,
+                token=token,
             )
         else:
             return {"error": f"Unknown tool: {name}"}
@@ -1185,6 +1186,7 @@ class ToolService:
         user_id: str,
         thread_id: str | None,
         stream_callback: Callable | None,
+        token: str | None = None,
     ) -> dict:
         """SANDBOX-01/02/04/06: dispatch to SandboxService, persist log, emit audit.
 
@@ -1220,6 +1222,7 @@ class ToolService:
                 code=code,
                 thread_id=thread_id,
                 user_id=user_id,
+                token=token,
                 stream_callback=stream_callback,
             )
         except Exception as exc:
