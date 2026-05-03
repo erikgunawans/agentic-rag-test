@@ -4,6 +4,17 @@ import { apiFetch, fetchThreadTodos } from '@/lib/api'
 import { buildChildrenMap, getActivePath } from '@/lib/messageTree'
 import type { Thread, Message, SSEEvent, ToolStartEvent, ToolResultEvent, Todo } from '@/lib/database.types'
 
+// Phase 18 / WS-07 / WS-08 / WS-11: workspace virtual filesystem types.
+// Reflects the shape returned by GET /threads/{id}/files and the
+// workspace_updated SSE event payload (plan 18-04 / 18-06).
+export type WorkspaceFile = {
+  file_path: string
+  size_bytes: number
+  source: 'agent' | 'sandbox' | 'upload'
+  mime_type: string | null
+  updated_at: string
+}
+
 export function useChatState() {
   const [threads, setThreads] = useState<Thread[]>([])
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null)
@@ -51,6 +62,12 @@ export function useChatState() {
   // (i.e. the most recent send) used deep mode. Used for Plan Panel visibility
   // when todos.length === 0 (e.g. first deep-mode turn before LLM writes todos).
   const [isCurrentMessageDeepMode, setIsCurrentMessageDeepMode] = useState(false)
+  // Phase 18 / WS-07 / WS-11: per-thread workspace file list.
+  // Populated from GET /threads/{id}/files on thread switch (initial hydration)
+  // and kept up-to-date in real time via workspace_updated SSE events.
+  // WorkspacePanel is visible whenever workspaceFiles.length > 0 (WS-11),
+  // decoupled from Deep Mode.
+  const [workspaceFiles, setWorkspaceFiles] = useState<WorkspaceFile[]>([])
 
   const loadThreads = useCallback(async () => {
     setLoadingThreads(true)
@@ -93,6 +110,19 @@ export function useChatState() {
           // Non-blocking: leave todos as [] if fetch fails
         })
     })
+  }, [activeThreadId])
+
+  // Phase 18 / WS-07 / WS-11: hydrate workspace files on thread switch.
+  // Immediately resets to [] (prevents stale files from a previous thread
+  // appearing briefly while the new fetch is in flight).
+  useEffect(() => {
+    setWorkspaceFiles([])
+    if (!activeThreadId) return
+
+    apiFetch(`/threads/${activeThreadId}/files`)
+      .then((r) => r.json() as Promise<WorkspaceFile[]>)
+      .then((data) => setWorkspaceFiles(data ?? []))
+      .catch(() => setWorkspaceFiles([]))
   }, [activeThreadId])
 
   function rebuildVisibleMessages(all: Message[], selections: Map<string, string>) {
@@ -309,6 +339,39 @@ export function useChatState() {
             // todo list. Fired after every write_todos or read_todos LLM tool call
             // (D-18: fires AFTER DB write commits, BEFORE tool_result).
             setTodos(event.todos)
+          } else if (event.type === 'workspace_updated') {
+            // Phase 18 / WS-07 / WS-08: real-time workspace file list updates.
+            // operation: 'create' | 'update' — prepend / move-to-top.
+            // operation: 'delete' — remove from list.
+            // Keyed by file_path (unique per thread).
+            const { file_path, operation, size_bytes, source } = event as {
+              type: 'workspace_updated'
+              file_path: string
+              operation: 'create' | 'update' | 'delete'
+              size_bytes: number
+              source: WorkspaceFile['source']
+            }
+            setWorkspaceFiles((prev) => {
+              const idx = prev.findIndex((f) => f.file_path === file_path)
+              if (operation === 'delete') {
+                return prev.filter((f) => f.file_path !== file_path)
+              }
+              const newEntry: WorkspaceFile = {
+                file_path,
+                size_bytes,
+                source,
+                mime_type: null, // server didn't send; refreshed on next list fetch
+                updated_at: new Date().toISOString(),
+              }
+              if (idx === -1) {
+                // create — prepend (most recent first)
+                return [newEntry, ...prev]
+              }
+              // update — replace in place and move to top
+              const next = [...prev]
+              next.splice(idx, 1)
+              return [newEntry, ...next]
+            })
           } else {
             const delta = 'delta' in event ? event.delta : ''
             const isDone = 'done' in event ? event.done : false
@@ -361,6 +424,8 @@ export function useChatState() {
     setRedactionStage(null)
     // Phase 12 D-P12-08: clear usage on new-chat (no thread is active).
     setUsage(null)
+    // Phase 18 / WS-11: clear workspace files when no thread is active.
+    setWorkspaceFiles([])
   }
 
   async function handleSendFirstMessage(content: string, opts?: { deepMode?: boolean }) {
@@ -388,6 +453,7 @@ export function useChatState() {
     setWebSearchEnabled,
     todos,                       // Phase 17 / TODO-06 / D-26
     isCurrentMessageDeepMode,    // Phase 17 / D-22
+    workspaceFiles,              // Phase 18 / WS-07 / WS-11
     handleSelectThread,
     handleCreateThread,
     handleDeleteThread,

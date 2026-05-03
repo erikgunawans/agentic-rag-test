@@ -5,6 +5,7 @@ import { MessageView } from '@/components/chat/MessageView'
 import { MessageInput } from '@/components/chat/MessageInput'
 import { WelcomeScreen } from '@/components/chat/WelcomeScreen'
 import { PlanPanel } from '@/components/chat/PlanPanel'
+import { WorkspacePanel } from '@/components/chat/WorkspacePanel'
 
 export function ChatPage() {
   const location = useLocation()
@@ -23,6 +24,7 @@ export function ChatPage() {
     activeAgent,
     redactionStage,
     sandboxStreams,
+    workspaceFiles, // Phase 18 / WS-07 / WS-11
     handleSendMessage,
     handleSendFirstMessage,
     handleSwitchBranch,
@@ -80,6 +82,9 @@ export function ChatPage() {
       </div>
       {/* Phase 17 Plan Panel — visible when deep mode active or thread has todos (D-22) */}
       <PlanPanel />
+      {/* Phase 18 Workspace Panel — visible whenever thread has workspace files (WS-11).
+          Decoupled from Deep Mode — appears for any thread with files. */}
+      <WorkspacePanel threadId={activeThreadId} files={workspaceFiles} />
     </div>
   )
 }
