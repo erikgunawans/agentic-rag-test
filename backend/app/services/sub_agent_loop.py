@@ -272,24 +272,10 @@ async def _run_sub_agent_loop_inner(
             })
             current_tools = []  # force terminal text round
 
-        # D-21: egress filter — apply to every LLM payload using PARENT's registry
-        if redaction_on and registry is not None:
-            payload = json.dumps(loop_messages, ensure_ascii=False)
-            egress_result = egress_filter(payload, registry, None)
-            if egress_result.tripped:
-                logger.warning(
-                    "egress_blocked event=egress_blocked feature=sub_agent_loop "
-                    "task_id=%s iteration=%d match_count=%d",
-                    task_id, _iteration, egress_result.match_count,
-                )
-                yield {"_terminal_result": {
-                    "error": "egress_blocked",
-                    "code": "PII_EGRESS_BLOCKED",
-                    "detail": "PII detected in sub-agent payload — request blocked.",
-                }}
-                return
-        elif registry is not None:
-            # Always apply egress filter when registry is available (D-21 privacy invariant)
+        # D-21: egress filter — apply to every LLM payload using PARENT's registry.
+        # Collapsed to a single guard: registry is only non-None when redaction is on
+        # (parent loop sets it that way), so the former elif was unreachable (W-02).
+        if registry is not None:
             payload = json.dumps(loop_messages, ensure_ascii=False)
             egress_result = egress_filter(payload, registry, None)
             if egress_result.tripped:
