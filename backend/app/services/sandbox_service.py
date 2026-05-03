@@ -231,6 +231,7 @@ class SandboxService:
         code: str,
         thread_id: str,
         user_id: str,
+        token: str | None = None,
         stream_callback: Callable[[str, str], Awaitable[None]] | None = None,
     ) -> dict:
         """Run `code` in the thread's sandbox container.
@@ -355,6 +356,7 @@ class SandboxService:
             user_id=user_id,
             thread_id=thread_id,
             execution_id=execution_id,
+            token=token,
         )
 
         return {
@@ -376,6 +378,7 @@ class SandboxService:
         user_id: str,
         thread_id: str,
         execution_id: str,
+        token: str | None = None,
     ) -> list[dict]:
         """List files in /sandbox/output/, upload each to Storage, return signed-URL list.
 
@@ -383,6 +386,10 @@ class SandboxService:
         Signed URL TTL (D-P10-14): 3600 seconds.
 
         Returns list of {filename, size_bytes, signed_url, storage_path}.
+
+        Phase 18 / WS-05: after upload, each file is registered as a workspace_files
+        row via register_sandbox_files() when workspace_enabled=True and token is present.
+        This is non-fatal: workspace registration failure does NOT break the tool result.
 
         Security note (T-10-19): _list_output_files returns flat filenames via
         os.listdir("/sandbox/output/"). No recursion — nested paths are NOT
@@ -430,6 +437,31 @@ class SandboxService:
             except Exception as exc:
                 logger.warning(
                     "sandbox upload failed file=%s err=%s", filename, exc
+                )
+
+        # Phase 18 / WS-05: register each sandbox-uploaded file as a workspace_files row.
+        # Backward compat: existing `uploaded` shape (filename, size_bytes, signed_url, storage_path) is unchanged.
+        # Idempotent: register_sandbox_files upserts on (thread_id, file_path).
+        # Non-fatal: workspace registration failure must NOT break the sandbox tool result.
+        _settings = get_settings()
+        if _settings.workspace_enabled and token and uploaded:
+            try:
+                from app.services.workspace_service import register_sandbox_files, SandboxFileEntry
+                entries = [
+                    SandboxFileEntry(
+                        filename=u["filename"],
+                        size_bytes=u["size_bytes"],
+                        storage_path=u["storage_path"],
+                        mime_type=None,  # Could be detected from filename ext in a future pass
+                    )
+                    for u in uploaded
+                ]
+                await register_sandbox_files(token=token, thread_id=thread_id, files=entries)
+            except Exception as exc:
+                # Non-fatal: workspace registration failure should not break sandbox tool result.
+                logger.warning(
+                    "workspace registration failed thread=%s execution=%s err=%s",
+                    thread_id, execution_id, exc,
                 )
 
         return uploaded
