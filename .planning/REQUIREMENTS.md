@@ -33,17 +33,17 @@
 
 ### Agent Workspace / Virtual Filesystem (WS-*)
 
-- [ ] **WS-01**: System persists per-thread workspace files in `workspace_files` table (FK `thread_id`, `file_path`, `content` for text, `storage_path` for binary, `source` discriminator agent/sandbox/upload, unique `(thread_id, file_path)`, RLS)
-- [ ] **WS-02**: Agent can call `write_file` (create/overwrite), `read_file`, `edit_file` (exact string replacement), `list_files` LLM tools
-- [ ] **WS-03**: System validates workspace paths — relative only, forward slashes, no path traversal, no leading `/`, no backslash, max 500 chars, max 1MB text
-- [ ] **WS-04**: System uses dual storage — text content in DB (<100ms reads), binary in Supabase Storage (with metadata in DB)
-- [ ] **WS-05**: System auto-creates `workspace_files` entries with `source="sandbox"` for sandbox-generated files (fixes existing problem of disappearing sandbox download links)
-- [ ] **WS-06**: Sub-agents share parent thread's workspace (read context, write results)
-- [ ] **WS-07**: User sees Workspace Panel sidebar with file list, sizes, source indicators
-- [ ] **WS-08**: User can click text file to view, click binary to download
-- [ ] **WS-09**: System exposes REST endpoints `GET /threads/{id}/files` (list) and `GET /threads/{id}/files/{path}` (read/download)
-- [ ] **WS-10**: System emits real-time SSE events on workspace mutations
-- [ ] **WS-11**: Workspace Panel is decoupled from Deep Mode — visible whenever a thread has workspace files (allows harness engine to use workspace independently)
+- [x] **WS-01**: System persists per-thread workspace files in `workspace_files` table (FK `thread_id`, `file_path`, `content` for text, `storage_path` for binary, `source` discriminator agent/sandbox/upload, unique `(thread_id, file_path)`, RLS)
+- [x] **WS-02**: Agent can call `write_file` (create/overwrite), `read_file`, `edit_file` (exact string replacement), `list_files` LLM tools
+- [x] **WS-03**: System validates workspace paths — relative only, forward slashes, no path traversal, no leading `/`, no backslash, max 500 chars, max 1MB text
+- [x] **WS-04**: System uses dual storage — text content in DB (<100ms reads), binary in Supabase Storage (with metadata in DB)
+- [x] **WS-05**: System auto-creates `workspace_files` entries with `source="sandbox"` for sandbox-generated files (fixes existing problem of disappearing sandbox download links)
+- [x] **WS-06**: Sub-agents share parent thread's workspace (read context, write results)
+- [x] **WS-07**: User sees Workspace Panel sidebar with file list, sizes, source indicators
+- [x] **WS-08**: User can click text file to view, click binary to download
+- [x] **WS-09**: System exposes REST endpoints `GET /threads/{id}/files` (list) and `GET /threads/{id}/files/{path}` (read/download)
+- [x] **WS-10**: System emits real-time SSE events on workspace mutations
+- [x] **WS-11**: Workspace Panel is decoupled from Deep Mode — visible whenever a thread has workspace files (allows harness engine to use workspace independently)
 
 ### Sub-Agent Delegation (TASK-*)
 
@@ -156,7 +156,7 @@
 ### Migrations & Data Model (MIG-*)
 
 - [x] **MIG-01**: Migration adds `agent_todos` table with RLS (thread-ownership scope)
-- [ ] **MIG-02**: Migration adds `workspace_files` table with RLS, unique `(thread_id, file_path)` constraint
+- [x] **MIG-02**: Migration adds `workspace_files` table with RLS, unique `(thread_id, file_path)` constraint
 - [ ] **MIG-03**: Migration adds `harness_runs` table with RLS, unique active run per thread
 - [x] **MIG-04**: Migration adds `messages.deep_mode` boolean and `messages.harness_mode` text columns
 
