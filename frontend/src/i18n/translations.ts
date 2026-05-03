@@ -672,6 +672,18 @@ export const translations: Record<Locale, Record<string, string>> = {
     redactionBlockedBody:
       'Permintaan ini berisi data sensitif yang tidak boleh dikirim ke layanan eksternal. Coba ulangi tanpa nama atau lokasi spesifik, matikan toggle Web, atau nonaktifkan PII redaction di Pengaturan Admin.',
 
+    // Phase 18 — Workspace Panel (WS-07, WS-08, WS-11).
+    // Indonesian copy.
+    'workspace.title': 'Ruang Kerja',
+    'workspace.empty': 'Belum ada berkas',
+    'workspace.source.agent': 'agen',
+    'workspace.source.sandbox': 'sandbox',
+    'workspace.source.upload': 'unggahan',
+    'workspace.download': 'Unduh',
+    'workspace.view': 'Lihat',
+    'workspace.collapse': 'Sembunyikan',
+    'workspace.expand': 'Tampilkan',
+
     // Phase 11 — Code Execution Panel (SANDBOX-07).
     // Indonesian copy per UI-SPEC §Copywriting Contract.
     'sandbox.status.pending': 'Menunggu…',
@@ -1362,6 +1374,18 @@ export const translations: Record<Locale, Record<string, string>> = {
     redactionBlockedTitle: 'Message blocked by PII redaction',
     redactionBlockedBody:
       'This request contains sensitive data that cannot be sent to an external service. Try rephrasing without specific names or locations, turn off the Web toggle, or disable PII redaction in Admin Settings.',
+
+    // Phase 18 — Workspace Panel (WS-07, WS-08, WS-11).
+    // English copy.
+    'workspace.title': 'Workspace',
+    'workspace.empty': 'No files yet',
+    'workspace.source.agent': 'agent',
+    'workspace.source.sandbox': 'sandbox',
+    'workspace.source.upload': 'upload',
+    'workspace.download': 'Download',
+    'workspace.view': 'View',
+    'workspace.collapse': 'Collapse',
+    'workspace.expand': 'Expand',
 
     // Phase 11 — Code Execution Panel (SANDBOX-07).
     // English copy per UI-SPEC §Copywriting Contract.
