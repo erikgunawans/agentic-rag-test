@@ -18,6 +18,19 @@ export type WorkspaceFile = {
 // Phase 19 / D-24: agent run status chip state.
 export type AgentStatus = 'working' | 'waiting_for_user' | 'complete' | 'error' | null
 
+// Phase 20 / PANEL-01 / PANEL-04: harness run slice shape (W10 full type safety).
+// Declared here so PlanPanel.tsx (Plan 20-08) can read it without `as any`.
+// Plan 20-09 owns the reducer arms, thread-switch reset, and SSE wiring.
+export type HarnessRunSlice = null | {
+  id: string
+  harnessType: string
+  status: 'pending' | 'running' | 'paused' | 'completed' | 'cancelled' | 'failed'
+  currentPhase: number
+  phaseCount: number
+  phaseName: string
+  errorDetail: string | null
+}
+
 // Phase 19 / D-24: sub-agent task types for TaskPanel.
 export type TaskToolCall = {
   toolCallId: string
@@ -93,6 +106,13 @@ export function useChatState() {
   const [agentStatus, setAgentStatus] = useState<AgentStatus>(null)
   // Phase 19 / D-24: Sub-agent task panel state (Map keyed by task_id).
   const [tasks, setTasks] = useState<Map<string, TaskState>>(new Map())
+
+  // Phase 20 / PANEL-01 / PANEL-04: harness run slice (W10 full type safety).
+  // Populated from harness_phase_* SSE events (Plan 20-09 owns the reducer arms).
+  // Declared here so Plan 20-08 (PlanPanel locked variant) can read it with full
+  // TypeScript typing without `as any` fallbacks. Plan 20-09 will extend with
+  // reducer arms, thread-switch reset, and GET /threads/{id}/harness/active rehydration.
+  const [harnessRun, setHarnessRun] = useState<HarnessRunSlice>(null)
 
   const loadThreads = useCallback(async () => {
     setLoadingThreads(true)
@@ -538,6 +558,8 @@ export function useChatState() {
     agentStatus,                 // Phase 19 / D-24
     setAgentStatus,              // Phase 19 — used by AgentStatusChip auto-fade effect
     tasks,                       // Phase 19 / D-24
+    harnessRun,                  // Phase 20 / PANEL-04 — read by PlanPanel locked variant
+    setHarnessRun,               // Phase 20 — Plan 20-09 wires SSE reducer arms
     handleSelectThread,
     handleCreateThread,
     handleDeleteThread,
