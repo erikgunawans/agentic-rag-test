@@ -423,6 +423,7 @@ class ToolService:
         registry: "ConversationRegistry | None" = None,  # Phase 5 D-86 / D-91
         token: str | None = None,                        # Phase 8: RLS-scoped DB access for skill tools
         stream_callback: Callable | None = None,         # Phase 10 D-P10-05 — used ONLY by execute_code branch
+        workspace_callback: Callable | None = None,      # Phase 18 WS-10 — used ONLY by execute_code branch
     ) -> dict:
         """Dispatch tool execution by name.
 
@@ -525,6 +526,7 @@ class ToolService:
                 thread_id=(context or {}).get("thread_id"),
                 stream_callback=stream_callback,
                 token=token,
+                workspace_callback=workspace_callback,
             )
         else:
             return {"error": f"Unknown tool: {name}"}
@@ -1187,6 +1189,7 @@ class ToolService:
         thread_id: str | None,
         stream_callback: Callable | None,
         token: str | None = None,
+        workspace_callback: Callable | None = None,
     ) -> dict:
         """SANDBOX-01/02/04/06: dispatch to SandboxService, persist log, emit audit.
 
@@ -1224,6 +1227,7 @@ class ToolService:
                 user_id=user_id,
                 token=token,
                 stream_callback=stream_callback,
+                workspace_callback=workspace_callback,
             )
         except Exception as exc:
             logger.error("execute_code sandbox dispatch failed: %s", exc, exc_info=True)

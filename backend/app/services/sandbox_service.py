@@ -233,6 +233,7 @@ class SandboxService:
         user_id: str,
         token: str | None = None,
         stream_callback: Callable[[str, str], Awaitable[None]] | None = None,
+        workspace_callback: Callable[[dict], None] | None = None,
     ) -> dict:
         """Run `code` in the thread's sandbox container.
 
@@ -357,6 +358,7 @@ class SandboxService:
             thread_id=thread_id,
             execution_id=execution_id,
             token=token,
+            workspace_callback=workspace_callback,
         )
 
         return {
@@ -379,6 +381,7 @@ class SandboxService:
         thread_id: str,
         execution_id: str,
         token: str | None = None,
+        workspace_callback: Callable[[dict], None] | None = None,
     ) -> list[dict]:
         """List files in /sandbox/output/, upload each to Storage, return signed-URL list.
 
@@ -457,6 +460,19 @@ class SandboxService:
                     for u in uploaded
                 ]
                 await register_sandbox_files(token=token, thread_id=thread_id, files=entries)
+
+                # Phase 18 / WS-10: emit one workspace_updated event per registered file.
+                # workspace_callback is a sync put_nowait into the sandbox_event_queue in chat.py.
+                # Gated by workspace_enabled (already in this if-block) and callback presence.
+                if workspace_callback is not None:
+                    for entry in entries:
+                        workspace_callback({
+                            "type": "workspace_updated",
+                            "file_path": f"sandbox/{entry.filename}",
+                            "operation": "create",
+                            "size_bytes": entry.size_bytes,
+                            "source": "sandbox",
+                        })
             except Exception as exc:
                 # Non-fatal: workspace registration failure should not break sandbox tool result.
                 logger.warning(

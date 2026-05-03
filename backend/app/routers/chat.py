@@ -350,6 +350,7 @@ async def stream_chat(
         registry=None,
         token: str | None = None,
         stream_callback=None,
+        workspace_callback=None,
     ):
         """Phase 13 D-P13-05 Option A: registry-first dispatch.
 
@@ -373,10 +374,12 @@ async def stream_chat(
                     registry=registry,
                     token=token,
                     stream_callback=stream_callback,
+                    workspace_callback=workspace_callback,
                 )
         return await tool_service.execute_tool(
             name, arguments, user_id, context,
             registry=registry, token=token, stream_callback=stream_callback,
+            workspace_callback=workspace_callback,
         )
 
     async def _run_tool_loop(
@@ -466,6 +469,7 @@ async def stream_chat(
                 # tool_result while awaiting the execute_tool task.
                 sandbox_event_queue: asyncio.Queue | None = None
                 sandbox_callback = None
+                workspace_event_callback = None
                 if func_name == "execute_code":
                     # Phase 14 / BRIDGE-06 (D-P14-07): emit code_mode_start once per stream
                     if _bridge_active and not _bridge_event_sent:
@@ -512,6 +516,14 @@ async def stream_chat(
 
                     sandbox_callback = sandbox_stream_callback
 
+                    # Phase 18 / WS-10: workspace_callback enqueues workspace_updated
+                    # events into the same queue. Synchronous put_nowait — safe because
+                    # _collect_and_upload_files runs in async context.
+                    def _workspace_event_callback(event: dict) -> None:
+                        sandbox_event_queue.put_nowait(event)
+
+                    workspace_event_callback = _workspace_event_callback
+
                 try:
                     # ADR-0008 defense-in-depth: agent attempted a tool not in
                     # the effective catalog. Skip dispatch and synthesize a
@@ -548,6 +560,7 @@ async def stream_chat(
                                     registry=registry,
                                     token=token,
                                     stream_callback=sandbox_callback,
+                                    workspace_callback=workspace_event_callback,
                                 )
                             )
                             # Drain sandbox events while execute_tool runs.
@@ -603,6 +616,7 @@ async def stream_chat(
                                     func_name, func_args, user_id, tool_context,
                                     token=token,
                                     stream_callback=sandbox_callback,
+                                    workspace_callback=workspace_event_callback,
                                 )
                             )
                             # Drain sandbox events while execute_tool runs.
@@ -1312,6 +1326,7 @@ async def _run_tool_loop_for_test(
             # Phase 10 D-P10-05/06: queue adapter for execute_code streaming.
             sandbox_event_queue: asyncio.Queue | None = None
             sandbox_callback = None
+            workspace_event_callback = None
             if func_name == "execute_code":
                 # Phase 14 / BRIDGE-06 (D-P14-07): emit code_mode_start once per stream
                 # _bridge_active is a closure-local of event_generator; always False here
@@ -1348,6 +1363,12 @@ async def _run_tool_loop_for_test(
 
                 sandbox_callback = sandbox_stream_callback_test
 
+                # Phase 18 / WS-10: workspace_callback for sandbox-emitted workspace_updated.
+                def _workspace_event_callback_test(event: dict) -> None:
+                    sandbox_event_queue.put_nowait(event)
+
+                workspace_event_callback = _workspace_event_callback_test
+
             try:
                 if (
                     available_tool_names is not None
@@ -1371,6 +1392,7 @@ async def _run_tool_loop_for_test(
                                 registry=registry,
                                 token=token,
                                 stream_callback=sandbox_callback,
+                                workspace_callback=workspace_event_callback,
                             )
                         )
                         while not tool_output_task.done():
@@ -1405,6 +1427,7 @@ async def _run_tool_loop_for_test(
                                 func_name, func_args, user_id, tool_context,
                                 token=token,
                                 stream_callback=sandbox_callback,
+                                workspace_callback=workspace_event_callback,
                             )
                         )
                         while not tool_output_task.done():
