@@ -31,6 +31,17 @@ export type HarnessRunSlice = null | {
   errorDetail: string | null
 }
 
+// Phase 20 / Plan 20-10 / UPL-04: in-flight upload tracking for FileUploadButton.
+// One entry per in-progress upload; removed on success, error, or abort.
+export type UploadingFile = {
+  id: string                // client-generated uuid
+  filename: string
+  sizeBytes: number
+  percent: number           // 0..100 (fetch() has no upload progress; stays 0 in v1.3)
+  abort: AbortController
+  error?: string            // populated on failure
+}
+
 // Phase 19 / D-24: sub-agent task types for TaskPanel.
 export type TaskToolCall = {
   toolCallId: string
@@ -120,6 +131,11 @@ export function useChatState() {
   // Plan 20-09 owns the reducer arms, thread-switch reset, and SSE wiring.
   const [harnessRun, setHarnessRun] = useState<HarnessRunSlice>(null)
 
+  // Phase 20 / Plan 20-10 / UPL-04: in-flight upload state.
+  // Keyed by client-generated uuid. Cleaned up on success, error, or abort.
+  // Thread switch aborts all in-flight uploads and resets to empty Map.
+  const [uploadingFiles, setUploadingFiles] = useState<Map<string, UploadingFile>>(new Map())
+
   // Phase 20 / Plan 20-09 / D-02: reject-while-active toast state.
   // Set when the backend returns 409 {error: 'harness_in_progress'} during a chat send.
   // Consumed by the UI (HarnessBanner or a toast renderer) and cleared on next send.
@@ -204,6 +220,15 @@ export function useChatState() {
       return () => clearTimeout(timer)
     }
   }, [harnessRun]) // TERMINAL_HARNESS_STATUSES is module-scoped constant; safe to omit
+
+  // Phase 20 / Plan 20-10 / UPL-04: abort in-flight uploads on thread switch.
+  // AbortController.abort() is idempotent — safe to call even on already-settled uploads.
+  useEffect(() => {
+    setUploadingFiles((prev) => {
+      prev.forEach((u) => u.abort.abort())
+      return new Map()
+    })
+  }, [activeThreadId])
 
   // Phase 20 / Plan 20-09 / HARN-09: reset harnessRun on thread switch + rehydrate
   // from GET /threads/{id}/harness/active. Prevents stale harness state leaking
@@ -676,6 +701,42 @@ export function useChatState() {
     }
   }
 
+  // Phase 20 / Plan 20-10 / UPL-04: uploadingFiles helper functions.
+  // FileUploadButton calls these to manage in-flight upload state.
+  function startUpload(meta: { id: string; filename: string; sizeBytes: number; abort: AbortController }) {
+    setUploadingFiles((prev) => {
+      const m = new Map(prev)
+      m.set(meta.id, { ...meta, percent: 0 })
+      return m
+    })
+  }
+
+  function updateUploadProgress(id: string, percent: number) {
+    setUploadingFiles((prev) => {
+      const m = new Map(prev)
+      const entry = m.get(id)
+      if (entry) m.set(id, { ...entry, percent })
+      return m
+    })
+  }
+
+  function completeUpload(id: string) {
+    setUploadingFiles((prev) => {
+      const m = new Map(prev)
+      m.delete(id)
+      return m
+    })
+  }
+
+  function failUpload(id: string, error: string) {
+    setUploadingFiles((prev) => {
+      const m = new Map(prev)
+      const entry = m.get(id)
+      if (entry) m.set(id, { ...entry, error })
+      return m
+    })
+  }
+
   async function handleSendMessage(content: string, opts?: { deepMode?: boolean }) {
     if (!activeThreadId || isStreaming) return
     await sendMessageToThread(activeThreadId, content, opts)
@@ -728,6 +789,11 @@ export function useChatState() {
     setHarnessRun,               // Phase 20 — Plan 20-09 wires SSE reducer arms
     harnessToast,                // Phase 20 / Plan 20-09 / D-02 — 409 reject-while-active toast
     setHarnessToast,             // Phase 20 — lets HarnessBanner clear toast after display
+    uploadingFiles,              // Phase 20 / Plan 20-10 / UPL-04 — in-flight upload tracking
+    startUpload,                 // Phase 20 / Plan 20-10 — add entry to uploadingFiles Map
+    updateUploadProgress,        // Phase 20 / Plan 20-10 — update percent for in-flight upload
+    completeUpload,              // Phase 20 / Plan 20-10 — remove completed upload from Map
+    failUpload,                  // Phase 20 / Plan 20-10 — mark upload as failed with error msg
     handleSelectThread,
     handleCreateThread,
     handleDeleteThread,

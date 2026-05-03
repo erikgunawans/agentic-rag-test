@@ -187,6 +187,9 @@ export interface DocumentFolder {
 export interface PublicSettings {
   context_window: number
   deep_mode_enabled: boolean
+  // Phase 18 / D-08 + Phase 20 / UPL-04 / W6: workspace feature flag for
+  // FileUploadButton (paperclip) visibility gating (D-13).
+  workspace_enabled?: boolean
 }
 
 // Phase 17 / TODO-06 / D-04: per-thread planning todo item.

@@ -38,4 +38,8 @@ async def get_public_settings() -> dict:
     return {
         "context_window": settings.llm_context_window,
         "deep_mode_enabled": settings.deep_mode_enabled,
+        # Phase 18 / D-08 + Phase 20 / UPL-04 / W6: expose workspace_enabled so the
+        # frontend can gate the FileUploadButton (paperclip) visibility. Non-sensitive
+        # boolean — appropriate for the no-auth endpoint (T-12-02-1 invariant holds).
+        "workspace_enabled": settings.workspace_enabled,
     }

@@ -18,6 +18,9 @@ const API_BASE_URL = ((import.meta.env.VITE_API_BASE_URL as string | undefined) 
 interface PublicSettingsState {
   contextWindow: number | null
   deepModeEnabled: boolean
+  // Phase 18 / D-08 + Phase 20 / UPL-04 / W6: workspace feature flag.
+  // False when undefined (old backend versions or workspace_enabled=false).
+  workspaceEnabled: boolean
   error: Error | null
 }
 
@@ -35,14 +38,20 @@ async function fetchPublicSettings(): Promise<PublicSettingsState> {
       // Explicitly NOT 'Authorization: Bearer ...' — endpoint is unauth.
     })
     if (!resp.ok) {
-      return { contextWindow: null, deepModeEnabled: false, error: new Error(`HTTP ${resp.status}`) }
+      return { contextWindow: null, deepModeEnabled: false, workspaceEnabled: false, error: new Error(`HTTP ${resp.status}`) }
     }
     const body = (await resp.json()) as PublicSettings
-    return { contextWindow: body.context_window, deepModeEnabled: body.deep_mode_enabled ?? false, error: null }
+    return {
+      contextWindow: body.context_window,
+      deepModeEnabled: body.deep_mode_enabled ?? false,
+      workspaceEnabled: body.workspace_enabled ?? false,
+      error: null,
+    }
   } catch (err) {
     return {
       contextWindow: null,
       deepModeEnabled: false,
+      workspaceEnabled: false,
       error: err instanceof Error ? err : new Error(String(err)),
     }
   }
@@ -52,7 +61,7 @@ export function usePublicSettings(): PublicSettingsState {
   // Initialize from module-level cache when available — no effect-driven
   // setState needed for the synchronous-cache-hit path.
   const [state, setState] = useState<PublicSettingsState>(
-    () => cachedState ?? { contextWindow: null, deepModeEnabled: false, error: null }
+    () => cachedState ?? { contextWindow: null, deepModeEnabled: false, workspaceEnabled: false, error: null }
   )
 
   useEffect(() => {
