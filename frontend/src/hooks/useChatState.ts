@@ -49,6 +49,14 @@ export type TaskState = {
   error?: { error: string; code: string; detail?: string }
 }
 
+// Phase 20 / Plan 20-09: harness status sets — module-level constants so the
+// terminal-fade useEffect doesn't need them in its dependency array.
+const ACTIVE_HARNESS_STATUSES = new Set<string>(['pending', 'running', 'paused'])
+const TERMINAL_HARNESS_STATUSES = new Set<string>(['completed', 'cancelled', 'failed'])
+// Suppress "declared but never read" for ACTIVE_HARNESS_STATUSES — kept for
+// documentation and future use by HarnessBanner / PlanPanel.
+void ACTIVE_HARNESS_STATUSES
+
 export function useChatState() {
   const [threads, setThreads] = useState<Thread[]>([])
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null)
@@ -121,12 +129,6 @@ export function useChatState() {
     currentPhase: number
     phaseCount: number
   } | null>(null)
-
-  // Phase 20 / Plan 20-09: status sets that drive the terminal-fade useEffect.
-  // Defined here (not in component) so they are the single source of truth for
-  // the 3000ms fade logic. ACTIVE_HARNESS_STATUSES unused outside tests but
-  // kept for symmetry and future reference.
-  const TERMINAL_HARNESS_STATUSES = new Set<string>(['completed', 'cancelled', 'failed'])
 
   const loadThreads = useCallback(async () => {
     setLoadingThreads(true)

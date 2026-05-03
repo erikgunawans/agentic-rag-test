@@ -8,6 +8,7 @@ import { PlanPanel } from '@/components/chat/PlanPanel'
 import { WorkspacePanel } from '@/components/chat/WorkspacePanel'
 import { AgentStatusChip } from '@/components/chat/AgentStatusChip'
 import { TaskPanel } from '@/components/chat/TaskPanel'
+import { HarnessBanner } from '@/components/chat/HarnessBanner'
 
 export function ChatPage() {
   const location = useLocation()
@@ -62,6 +63,13 @@ export function ChatPage() {
     <div className="flex flex-1 min-h-0 flex-row">
       {/* Main chat column */}
       <div className="flex flex-1 min-h-0 flex-col min-w-0">
+        {/* Phase 20 / Plan 20-09 — HarnessBanner: full-width sticky band above chat scroll
+            region. Renders above AgentStatusChip (z-20 > z-10). When harnessRun=null,
+            the banner renders an sr-only stub (zero height) so AgentStatusChip isn't
+            displaced. Placed in ChatPage (NOT AppLayout) per UI-SPEC L124 slot decision. */}
+        <div className="sticky top-0 z-20 w-full">
+          <HarnessBanner />
+        </div>
         {/* Phase 19 / STATUS-01 / D-26: AgentStatusChip — sticky at top of chat column.
             Rendered here (NOT in AppLayout) — UI-SPEC L455 prohibits adding to AppLayout.
             Component is always mounted; internal visibility rule handles null state. */}

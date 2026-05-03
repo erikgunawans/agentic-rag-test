@@ -73,13 +73,6 @@ function mockStreamResponse(events: Array<Record<string, unknown>>) {
   mockApiFetch.mockResolvedValueOnce(mockResponse)
 }
 
-function mockStreamResponseWith409(body: Record<string, unknown>) {
-  const err = new Error('Harness in progress') as Error & { status?: number; body?: Record<string, unknown> }
-  err.status = 409
-  err.body = body
-  mockApiFetch.mockRejectedValueOnce(err)
-}
-
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
