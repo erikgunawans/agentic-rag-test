@@ -39,6 +39,12 @@ from app.services import agent_runs_service
 # and 'app.routers.chat.harness_registry'. When harness_enabled is False none of
 # the new branches activate (byte-identical OFF mode).
 from app.services import harness_runs_service, harness_registry
+# Phase 20 / Plan 20-05: post-harness summary + gatekeeper + engine — imported at module
+# level so tests can patch 'app.routers.chat.run_gatekeeper',
+# 'app.routers.chat.run_harness_engine', and 'app.routers.chat.summarize_harness_run'.
+from app.services.gatekeeper import run_gatekeeper
+from app.services.harness_engine import run_harness_engine
+from app.services.post_harness import summarize_harness_run
 from fastapi.responses import JSONResponse
 
 logger = logging.getLogger(__name__)
@@ -1731,13 +1737,11 @@ async def _gatekeeper_stream_wrapper(
     passes_same_registry_to_gatekeeper_and_engine). This ensures SEC-04 egress coverage
     is consistent across all 4 LLM call sites.
 
-    Plan 20-05 (post_harness) will REPLACE the trailing done event with
-    run_post_harness_summary, sharing the same registry instance.
+    Post-harness summary (Plan 20-05) fires inline after harness_complete,
+    sharing the same registry instance (B4 invariant).
     """
-    from app.services.gatekeeper import run_gatekeeper
-    from app.services.harness_engine import run_harness_engine
-
-    # B4 fix: single canonical registry — used by gatekeeper, engine, and (Plan 20-05) post_harness.
+    # B4 fix: single canonical registry — used by gatekeeper, engine, and post_harness.
+    # All 4 LLM call sites of this turn share this SAME object instance.
     registry = await _get_or_build_conversation_registry(thread_id, sys_settings)
 
     triggered = False
@@ -1771,13 +1775,28 @@ async def _gatekeeper_stream_wrapper(
         user_id=user_id,
         user_email=user_email,
         token=token,
-        registry=registry,   # SAME registry — B4 invariant for SEC-04 across all 4 LLM call sites
+        registry=registry,   # SAME registry — B4 invariant (SEC-04 across all 4 LLM call sites)
         cancellation_event=cancellation_event,
     ):
         yield f"data: {json.dumps(ev)}\n\n"
 
-    # Plan 20-05 (post_harness) replaces this trailing done with run_post_harness_summary.
-    # For now, emit done to close the SSE stream.
+    # Plan 20-05 / D-09: inline post-harness summary handoff.
+    # B4 invariant: REUSE the `registry` instance built at the top of this wrapper —
+    # do NOT call _get_or_build_conversation_registry again (would create a fresh
+    # registry, splitting egress state across the 4 LLM call sites of this turn).
+    refreshed = await harness_runs_service.get_run_by_id(run_id=harness_run_id, token=token)
+    if refreshed is not None:
+        async for ev in summarize_harness_run(
+            harness=harness,
+            harness_run=refreshed,
+            thread_id=thread_id,
+            user_id=user_id,
+            user_email=user_email,
+            token=token,
+            registry=registry,  # B4 — SAME object as gatekeeper + engine
+        ):
+            yield f"data: {json.dumps(ev)}\n\n"
+
     yield f"data: {json.dumps({'type': 'done'})}\n\n"
 
 

@@ -531,19 +531,21 @@ async def test_get_or_build_conversation_registry_returns_none_when_redaction_of
 @pytest.mark.asyncio
 async def test_gatekeeper_stream_wrapper_passes_same_registry_to_gatekeeper_and_engine():
     """B4: the SAME registry object (by identity) is passed to both run_gatekeeper
-    and run_harness_engine from _gatekeeper_stream_wrapper."""
+    and run_harness_engine from _gatekeeper_stream_wrapper.
+
+    Simplified after Plan 20-05 moved gatekeeper/engine/post_harness imports to
+    module level in chat.py — simple monkeypatch on 'app.routers.chat.*' works.
+    """
     from app.routers.chat import _gatekeeper_stream_wrapper
 
     harness = _make_harness(n_phases=2)
-    mock_registry = MagicMock()
-    mock_registry.__class__.__name__ = "ConversationRegistry"
+    mock_registry = MagicMock(name="RegistrySentinel")
 
     gk_registry_received = []
     engine_registry_received = []
 
-    async def mock_run_gatekeeper(**kwargs):
+    async def _mock_gatekeeper(**kwargs):
         gk_registry_received.append(kwargs.get("registry"))
-        # Simulate sentinel trigger
         yield {
             "type": "gatekeeper_complete",
             "triggered": True,
@@ -553,84 +555,36 @@ async def test_gatekeeper_stream_wrapper_passes_same_registry_to_gatekeeper_and_
             "assistant_message_id": "amsg-1",
         }
 
-    async def mock_run_harness_engine(**kwargs):
+    async def _mock_engine(**kwargs):
         engine_registry_received.append(kwargs.get("registry"))
         yield {"type": "harness_complete", "harness_run_id": "run-99", "status": "completed"}
+
+    async def _mock_summarize(**kwargs):
+        yield {"type": "summary_complete", "assistant_message_id": None}
 
     sys_settings = {"pii_redaction_enabled": True}
 
     with patch("app.routers.chat._get_or_build_conversation_registry", new_callable=AsyncMock, return_value=mock_registry), \
-         patch("app.routers.chat._gatekeeper_stream_wrapper.__wrapped__", None, create=True), \
-         patch("app.services.gatekeeper.run_gatekeeper", side_effect=mock_run_gatekeeper), \
-         patch("app.services.harness_engine.run_harness_engine", side_effect=mock_run_harness_engine):
+         patch("app.routers.chat.run_gatekeeper", side_effect=_mock_gatekeeper), \
+         patch("app.routers.chat.run_harness_engine", side_effect=_mock_engine), \
+         patch("app.routers.chat.summarize_harness_run", side_effect=_mock_summarize), \
+         patch("app.routers.chat.harness_runs_service.get_run_by_id", new_callable=AsyncMock, return_value={"id": "run-99", "phase_results": {}}):
 
-        # Patch within the wrapper's local import scope
-        with patch("app.routers.chat._get_or_build_conversation_registry", new_callable=AsyncMock, return_value=mock_registry):
-            # Directly import and patch the functions used inside _gatekeeper_stream_wrapper
-            import app.routers.chat as chat_module
-
-            # Patch the lazy imports inside _gatekeeper_stream_wrapper
-            orig_gatekeeper = None
-            orig_engine = None
-
-            async def _wrapped_gk(**kwargs):
-                gk_registry_received.append(kwargs.get("registry"))
-                yield {
-                    "type": "gatekeeper_complete",
-                    "triggered": True,
-                    "harness_run_id": "run-99",
-                    "phase_count": 2,
-                    "user_message_id": "umsg-1",
-                    "assistant_message_id": "amsg-1",
-                }
-
-            async def _wrapped_engine(**kwargs):
-                engine_registry_received.append(kwargs.get("registry"))
-                yield {
-                    "type": "harness_complete",
-                    "harness_run_id": "run-99",
-                    "status": "completed",
-                }
-
-            with patch("app.services.gatekeeper.run_gatekeeper"), \
-                 patch("app.services.harness_engine.run_harness_engine"):
-
-                # We need to patch within the function's lazy import namespace.
-                # Use sys.modules approach:
-                import sys
-                import types
-
-                mock_gatekeeper_module = types.ModuleType("app.services.gatekeeper")
-                mock_gatekeeper_module.run_gatekeeper = _wrapped_gk
-                mock_engine_module = types.ModuleType("app.services.harness_engine")
-                mock_engine_module.run_harness_engine = _wrapped_engine
-
-                orig_gk_module = sys.modules.get("app.services.gatekeeper")
-                orig_engine_module = sys.modules.get("app.services.harness_engine")
-
-                sys.modules["app.services.gatekeeper"] = mock_gatekeeper_module
-                sys.modules["app.services.harness_engine"] = mock_engine_module
-
-                try:
-                    events = await _drain_async_gen(
-                        _gatekeeper_stream_wrapper(
-                            harness=harness,
-                            thread_id="thread-b4-3",
-                            user_id="user-1",
-                            user_email="user@test.com",
-                            user_message="Go.",
-                            token="tok",
-                            sys_settings=sys_settings,
-                        )
-                    )
-                finally:
-                    if orig_gk_module is not None:
-                        sys.modules["app.services.gatekeeper"] = orig_gk_module
-                    if orig_engine_module is not None:
-                        sys.modules["app.services.harness_engine"] = orig_engine_module
+        events = await _drain_async_gen(
+            _gatekeeper_stream_wrapper(
+                harness=harness,
+                thread_id="thread-b4-3",
+                user_id="user-1",
+                user_email="user@test.com",
+                user_message="Go.",
+                token="tok",
+                sys_settings=sys_settings,
+            )
+        )
 
     # Both gatekeeper and engine should have received a registry
     assert len(gk_registry_received) == 1
     assert len(engine_registry_received) == 1
     # SAME object identity — B4 invariant
     assert gk_registry_received[0] is engine_registry_received[0]
+    assert gk_registry_received[0] is mock_registry
