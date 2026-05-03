@@ -377,7 +377,7 @@ def test_agent_runs_handle_updated_at_trigger():
 
 
 def test_agent_runs_rls_user_isolation():
-    """T-19-03: User A cannot SELECT User B's agent_runs rows.
+    """T-19-03: User A (non-admin) cannot SELECT User B's agent_runs rows.
 
     User B creates a thread + agent_runs row via service-role.
     User A's JWT-scoped client attempts SELECT → must return 0 rows (RLS filters).
@@ -385,12 +385,16 @@ def test_agent_runs_rls_user_isolation():
     Mirrors threat T-19-03 mitigation: RLS uses
     thread_id IN (SELECT id FROM threads WHERE user_id = auth.uid()) form.
     Fails before migration 040 is applied (RED).
-    """
-    user_a_id = _get_user_id(TEST_EMAIL, TEST_PASSWORD)
-    user_b_id = _get_user_id(TEST_EMAIL_2, TEST_PASSWORD_2)
 
-    # User A's JWT-scoped client
-    token_a = _login(TEST_EMAIL, TEST_PASSWORD)
+    NOTE: User A must be non-admin (test-2@test.com). Using super_admin as User A
+    would trigger the RLS super_admin bypass and always return rows.
+    """
+    # User A = non-admin (test-2), User B = admin whose data A cannot see
+    user_a_id = _get_user_id(TEST_EMAIL_2, TEST_PASSWORD_2)  # noqa: F841 — kept for clarity
+    user_b_id = _get_user_id(TEST_EMAIL, TEST_PASSWORD)
+
+    # User A's JWT-scoped client (non-admin)
+    token_a = _login(TEST_EMAIL_2, TEST_PASSWORD_2)
     client_a = get_supabase_authed_client(token_a)
 
     # Service-role client to set up User B's data
