@@ -1,10 +1,11 @@
 ---
 phase: 19
 slug: sub-agent-delegation-ask-user-status-recovery
-status: draft
+status: approved
 shadcn_initialized: true
 preset: detected-from-components.json
 created: 2026-05-03
+reviewed_at: 2026-05-03
 ---
 
 # Phase 19 — UI Design Contract
