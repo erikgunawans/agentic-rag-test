@@ -718,6 +718,29 @@ export const translations: Record<Locale, Record<string, string>> = {
     'sandbox.error.oom': 'Memori tidak cukup',
     'sandbox.error.unknown': 'Terjadi kesalahan',
     'sandbox.truncated': '…[terpotong, {bytes} byte lagi]',
+
+    // Phase 20 — Harness Engine + Locked Plan Panel + File Upload
+    // i18n keys per UI-SPEC §Copywriting Contract L168-198
+    'common.cancel': 'Batal',
+    'harness.banner.running': '{harnessType} berjalan — fase {n} dari {m} ({phaseName})',
+    'harness.banner.cancelled': '{harnessType} dibatalkan',
+    'harness.banner.failed': '{harnessType} gagal — {detail}',
+    'harness.lock.tooltip': 'Rencana sistem — tidak dapat diubah saat berjalan',
+    'harness.cancel.confirmTitle': 'Batalkan {harnessType}?',
+    'harness.cancel.confirmBody':
+      'Pekerjaan yang sudah selesai akan disimpan di Ruang Kerja. Fase saat ini akan berhenti pada titik aman berikutnya.',
+    'harness.cancel.confirmAction': 'Hentikan',
+    'harness.cancel.keepRunning': 'Lanjutkan',
+    'harness.reject.toast': '{harnessType} berjalan (fase {n}/{m}) — mohon tunggu',
+    'harness.type.contract-review': 'Tinjauan Kontrak',
+    'harness.type.smoke-echo': 'Smoke Echo',
+    'chat.attachFile': 'Lampirkan berkas',
+    'chat.attachFile.tooltip': 'Lampirkan DOCX atau PDF (maks 25 MB)',
+    'upload.tooLarge': 'Berkas terlalu besar — maks {max} MB',
+    'upload.wrongMime': 'Hanya berkas DOCX dan PDF yang didukung',
+    'upload.serverError': 'Gagal mengunggah — mohon coba lagi',
+    'upload.cancelled': 'Unggahan dibatalkan',
+    'upload.inProgress': 'Mengunggah {filename} — {percent}%',
   },
   en: {
     // Welcome screen
@@ -1436,5 +1459,28 @@ export const translations: Record<Locale, Record<string, string>> = {
     'sandbox.error.oom': 'Out of memory',
     'sandbox.error.unknown': 'An error occurred',
     'sandbox.truncated': '…[truncated, {bytes} more bytes]',
+
+    // Phase 20 — Harness Engine + Locked Plan Panel + File Upload
+    // i18n keys per UI-SPEC §Copywriting Contract L168-198
+    'common.cancel': 'Cancel',
+    'harness.banner.running': '{harnessType} running — phase {n} of {m} ({phaseName})',
+    'harness.banner.cancelled': '{harnessType} cancelled',
+    'harness.banner.failed': '{harnessType} failed — {detail}',
+    'harness.lock.tooltip': 'System-driven plan — cannot be modified during execution',
+    'harness.cancel.confirmTitle': 'Cancel {harnessType}?',
+    'harness.cancel.confirmBody':
+      'Completed work will be saved to the workspace. The current phase will stop at the next checkpoint.',
+    'harness.cancel.confirmAction': 'Cancel run',
+    'harness.cancel.keepRunning': 'Keep running',
+    'harness.reject.toast': '{harnessType} running (phase {n}/{m}) — please wait',
+    'harness.type.contract-review': 'Contract Review',
+    'harness.type.smoke-echo': 'Smoke Echo',
+    'chat.attachFile': 'Attach file',
+    'chat.attachFile.tooltip': 'Attach DOCX or PDF (max 25 MB)',
+    'upload.tooLarge': 'File too large — max {max} MB',
+    'upload.wrongMime': 'Only DOCX and PDF files are supported',
+    'upload.serverError': 'Upload failed — please try again',
+    'upload.cancelled': 'Upload cancelled',
+    'upload.inProgress': 'Uploading {filename} — {percent}%',
   },
 }
