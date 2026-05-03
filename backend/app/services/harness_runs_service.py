@@ -134,6 +134,34 @@ async def get_active_run(*, thread_id: str, token: str) -> HarnessRunRecord | No
     return rows[0] if rows else None
 
 
+async def get_run_by_id(*, run_id: str, token: str) -> HarnessRunRecord | None:
+    """Return a harness run by its primary key, or None if not found.
+
+    Used by the engine's B3 cross-request cancel poll: before each phase dispatch
+    the engine calls this to check harness_runs.status == 'cancelled' set by a
+    separate /cancel-harness POST on a different HTTP request.
+
+    Args:
+        run_id: UUID of the harness_runs row.
+        token:  JWT access token for RLS-scoped client.
+
+    Returns:
+        HarnessRunRecord if found; None otherwise.
+    """
+    client = get_supabase_authed_client(token)
+    result = (
+        client.table("harness_runs")
+        .select(
+            "id, thread_id, user_id, harness_type, status, current_phase, "
+            "phase_results, input_file_ids, error_detail, created_at, updated_at"
+        )
+        .eq("id", run_id)
+        .execute()
+    )
+    rows = result.data or []
+    return rows[0] if rows else None
+
+
 async def get_latest_for_thread(*, thread_id: str, token: str) -> HarnessRunRecord | None:
     """Return the most-recently created harness run for a thread (any status).
 
