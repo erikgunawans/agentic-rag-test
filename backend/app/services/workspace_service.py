@@ -26,6 +26,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from app.database import get_supabase_authed_client, get_supabase_client
+from app.services import audit_service
 
 logger = logging.getLogger(__name__)
 
@@ -448,6 +449,90 @@ class WorkspaceService:
             "size_bytes": len(content_bytes),
             "file_path": file_path,
             "storage_path": storage_path,
+        }
+
+    # ------------------------------------------------------------------
+    # register_uploaded_file  (Phase 20 / Plan 20-06 — UPL-01, UPL-02, OBS-02)
+    # ------------------------------------------------------------------
+
+    async def register_uploaded_file(
+        self,
+        *,
+        thread_id: str,
+        file_path: str,          # workspace-relative path (no leading /)
+        content_bytes: bytes,
+        mime_type: str,
+        user_id: str,
+        user_email: str,
+    ) -> dict:
+        """Store binary in WORKSPACE_BUCKET + metadata row in workspace_files (source='upload').
+
+        Sibling of register_sandbox_files — same upsert-on-conflict pattern,
+        source='upload' discriminator, audit-logged.
+
+        Returns {ok: True, file_path, size_bytes, storage_path, ...} on success
+        or raises WorkspaceValidationError for invalid path,
+        or returns {error: code, detail: str, file_path} on storage/DB failure.
+        """
+        # 1. Validate path (raises WorkspaceValidationError — caller catches)
+        validate_workspace_path(file_path)
+
+        # 2. Storage write (delegates to existing write_binary_file)
+        write_result = await self.write_binary_file(
+            thread_id=thread_id,
+            file_path=file_path,
+            content_bytes=content_bytes,
+            mime_type=mime_type,
+            user_id=user_id,
+            source="upload",
+        )
+        if isinstance(write_result, dict) and "error" in write_result:
+            return {"error": "storage_write_failed", "detail": write_result.get("detail", ""), "file_path": file_path}
+
+        storage_path = write_result.get("storage_path") or f"{user_id}/{thread_id}/{file_path}"
+        size_bytes = len(content_bytes)
+
+        # 3. Metadata upsert with source='upload' (idempotent — reinforces discriminator)
+        client = get_supabase_authed_client(self._token)
+        try:
+            insert_result = client.table("workspace_files").upsert(
+                {
+                    "thread_id": thread_id,
+                    "file_path": file_path,
+                    "content": None,
+                    "storage_path": storage_path,
+                    "storage_bucket": WORKSPACE_BUCKET,
+                    "source": "upload",
+                    "size_bytes": size_bytes,
+                    "mime_type": mime_type,
+                },
+                on_conflict="thread_id,file_path",
+            ).execute()
+            row_id = (insert_result.data or [{}])[0].get("id", "")
+        except Exception as exc:
+            logger.error(
+                "register_uploaded_file db error file=%s thread=%s exc=%s",
+                file_path, thread_id, exc,
+            )
+            return {"error": "db_error", "detail": str(exc)[:500], "file_path": file_path}
+
+        # 4. Audit log (OBS-02 thread_id correlation via resource_id)
+        audit_service.log_action(
+            user_id=user_id,
+            user_email=user_email,
+            action="workspace_file_uploaded",
+            resource_type="workspace_files",
+            resource_id=row_id or file_path,
+        )
+
+        return {
+            "ok": True,
+            "id": row_id,
+            "file_path": file_path,
+            "size_bytes": size_bytes,
+            "storage_path": storage_path,
+            "mime_type": mime_type,
+            "source": "upload",
         }
 
 
