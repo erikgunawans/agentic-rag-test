@@ -1732,23 +1732,10 @@ async def run_deep_mode_loop(
         + [{"role": "user", "content": anonymized_message}]
     )
 
-    # --- Phase 19 / 19-06 / D-16 Site A: agent_runs lifecycle + working emission ---
-    # ALL site A behavior (agent_runs.start_run + agent_status yield) gated by
-    # settings.sub_agent_enabled per D-17 byte-identical fallback invariant.
-    # Phase 19 / D-16 Site B (waiting_for_user) — OWNED by 19-05's ask_user dispatch handler.
-    # This plan does NOT emit a second waiting_for_user event. The verify gate below
-    # asserts exactly 1 emission location across chat.py (in the ask_user handler).
-    if settings.sub_agent_enabled:
-        if resume_run_id is None:
-            run_record = await agent_runs_service.start_run(
-                thread_id=thread_id, user_id=user_id, user_email=user_email, token=token,
-            )
-            run_id = run_record["id"]
-        else:
-            run_id = resume_run_id
-        yield f"data: {json.dumps({'type': 'agent_status', 'status': 'working'})}\n\n"
-    else:
-        run_id = None  # SUB_AGENT_ENABLED off — no agent_runs lifecycle, no agent_status
+    # run_id is initialised below inside the try block (Site A).
+    # Declared here so the except handler's `if run_id is not None` guard always
+    # has a binding, even if the try block raises before Site A executes.
+    run_id = None
 
     # --- Phase 19 / D-04/D-15: resume injection ---
     # When resuming from a waiting_for_user pause, inject the user's reply as the
@@ -1810,6 +1797,25 @@ async def run_deep_mode_loop(
     tool_loop_buffer: list[dict] = []
 
     try:
+        # --- Phase 19 / 19-06 / D-16 Site A: agent_runs lifecycle + working emission ---
+        # ALL site A behavior (agent_runs.start_run + agent_status yield) gated by
+        # settings.sub_agent_enabled per D-17 byte-identical fallback invariant.
+        # Phase 19 / D-16 Site B (waiting_for_user) — OWNED by 19-05's ask_user dispatch handler.
+        # This plan does NOT emit a second waiting_for_user event. The verify gate below
+        # asserts exactly 1 emission location across chat.py (in the ask_user handler).
+        # IMPORTANT: kept INSIDE try so start_run DB errors are caught by the except
+        # handler below and a proper agent_status:error + done event is emitted (C-01 fix).
+        if settings.sub_agent_enabled:
+            if resume_run_id is None:
+                run_record = await agent_runs_service.start_run(
+                    thread_id=thread_id, user_id=user_id, user_email=user_email, token=token,
+                )
+                run_id = run_record["id"]
+            else:
+                run_id = resume_run_id
+            yield f"data: {json.dumps({'type': 'agent_status', 'status': 'working'})}\n\n"
+        # else: run_id stays None — SUB_AGENT_ENABLED off, no agent_runs lifecycle
+
         for _iteration in range(max_iterations):
             # --- Phase 17 / DEEP-06: force summarize on final iteration ---
             if _iteration == max_iterations - 1 and current_tools:
