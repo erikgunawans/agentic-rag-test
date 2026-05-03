@@ -48,7 +48,7 @@ All values are multiples of 4. Existing project scale confirmed from PlanPanel.t
 
 | Token | Value | Usage |
 |-------|-------|-------|
-| xs | 4px | Icon-to-label gap inside chips, inline badge padding (`px-1.5 py-0.5`) |
+| xs | 4px | Icon-to-label gap inside chips, inline badge padding (`px-1.5 py-1`) |
 | sm | 8px | Gap between badges in TaskPanel header row, gap between tool call rows |
 | md | 16px | Panel horizontal padding (`px-4`), default element spacing |
 | lg | 24px | Panel section vertical padding (`py-3`) |
@@ -57,7 +57,6 @@ All values are multiples of 4. Existing project scale confirmed from PlanPanel.t
 | 3xl | 64px | Not used in Phase 19 new components |
 
 Exceptions:
-- Status chip internal padding: `px-2 py-0.5` (8px / 2px) — chip-fit constraint requires tighter vertical padding than the 8px base sm token.
 - Touch target minimum for collapse button: 24px square (`h-6 w-6`), matching PlanPanel and WorkspacePanel precedent.
 - Question-bubble border-left: 3px solid accent stripe — not a spacing token, it is a decorative edge.
 
@@ -70,11 +69,11 @@ Inherited from existing design system. Phase 19 introduces no new type sizes; al
 | Role | Size | Weight | Line Height | Used In |
 |------|------|--------|-------------|---------|
 | Body | 14px (text-sm) | 400 (regular) | 1.5 | TaskPanel task descriptions, tool call labels, question-bubble text |
-| Label | 11px (text-[11px]) | 500 (medium) | 1.4 | TaskPanel mode/source badges, context_files chips, tool call IDs — matches SubAgentPanel.tsx `text-[11px] font-medium` precedent |
+| Label | 11px (text-[11px]) | 400 (regular) | 1.4 | TaskPanel mode/source badges, context_files chips, tool call IDs — size contrast (11px vs 14px) provides sufficient visual differentiation without a heavier weight |
 | Heading | 14px (text-sm) | 600 (semibold) | 1.3 | AgentStatusChip text, TaskPanel header title, panel section headers — matches PlanPanel.tsx `text-sm font-semibold` precedent |
 | Mono | 11px (font-mono text-[11px]) | 400 (regular) | 1.4 | Tool call names inside nested tool list — matches SubAgentPanel.tsx `font-mono text-[11px]` precedent |
 
-Max 4 type sizes declared. Max 2 weights declared (400 regular, 600 semibold; 500 medium used only for badge labels as in existing SubAgentPanel).
+Max 4 type sizes declared. Exactly 2 weights declared: 400 (regular) and 600 (semibold).
 
 ---
 
@@ -132,7 +131,7 @@ All new components introduced by Phase 19.
 **Chip anatomy:**
 ```
 [icon 14px] [label text-sm font-semibold] 
-px-2 py-0.5 rounded-full inline-flex items-center gap-1.5
+px-2 py-1 rounded-full inline-flex items-center gap-1.5
 border border-current/20
 ```
 
@@ -175,7 +174,7 @@ collapse button: h-6 w-6 rounded hover:bg-accent transition-colors
 rounded-lg border bg-muted/40 p-3 text-sm space-y-2
   [Row 1] status icon (16px) + description (text-sm text-foreground leading-tight)
   [Row 2] context_files chips (if any):
-    each chip: bg-zinc-200 dark:bg-zinc-800 px-2 py-0.5 rounded-full text-[11px] font-medium
+    each chip: bg-zinc-200 dark:bg-zinc-800 px-2 py-1 rounded-full text-[11px] font-normal
     max-w truncation with title tooltip (base-ui tooltip, render prop pattern)
   [Row 3] nested tool calls (if any, indented pl-4):
     each row: font-mono text-[11px] text-muted-foreground + tool_call_id text-[10px] opacity-60
