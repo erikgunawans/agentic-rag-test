@@ -5,6 +5,7 @@ import { useChatContext } from '@/contexts/ChatContext'
 import { usePublicSettings } from '@/hooks/usePublicSettings'
 import { ContextWindowBar } from './ContextWindowBar'
 import { InputActionBar } from './InputActionBar'
+import { FileUploadButton } from './FileUploadButton'
 
 interface MessageInputProps {
   // Phase 17 / DEEP-01 / D-24: onSend accepts an optional options bag.
@@ -72,15 +73,21 @@ export function MessageInput({ onSend, disabled, forkParentId, onCancelFork }: M
           disabled={disabled}
           rows={1}
         />
-        <InputActionBar
-          onSend={handleSend}
-          disabled={disabled || !value.trim()}
-          webSearchEnabled={webSearchEnabled}
-          onToggleWebSearch={() => setWebSearchEnabled((v) => !v)}
-          deepModeEnabled={deepModeEnabled}
-          deepMode={deepMode}
-          onToggleDeepMode={() => setDeepMode((v) => !v)}
-        />
+        {/* Phase 20 / Plan 20-10 / UPL-04: relative wrapper positions the
+            FileUploadButton's in-flight progress card (absolute bottom-full).
+            FileUploadButton is self-contained — reads its own context. */}
+        <div className="relative">
+          <FileUploadButton />
+          <InputActionBar
+            onSend={handleSend}
+            disabled={disabled || !value.trim()}
+            webSearchEnabled={webSearchEnabled}
+            onToggleWebSearch={() => setWebSearchEnabled((v) => !v)}
+            deepModeEnabled={deepModeEnabled}
+            deepMode={deepMode}
+            onToggleDeepMode={() => setDeepMode((v) => !v)}
+          />
+        </div>
       </div>
     </div>
   )

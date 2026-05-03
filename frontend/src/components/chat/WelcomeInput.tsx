@@ -3,6 +3,7 @@ import { useI18n } from '@/i18n/I18nContext'
 import { useChatContext } from '@/contexts/ChatContext'
 import { usePublicSettings } from '@/hooks/usePublicSettings'
 import { InputActionBar } from './InputActionBar'
+import { FileUploadButton } from './FileUploadButton'
 
 interface WelcomeInputProps {
   // Phase 17 / DEEP-01 / D-24 (form duplication rule — CLAUDE.md):
@@ -46,16 +47,22 @@ export function WelcomeInput({ onSend, disabled }: WelcomeInputProps) {
         disabled={disabled}
         rows={2}
       />
-      <InputActionBar
-        onSend={handleSend}
-        disabled={disabled || !value.trim()}
-        showVersion
-        webSearchEnabled={webSearchEnabled}
-        onToggleWebSearch={() => setWebSearchEnabled((v) => !v)}
-        deepModeEnabled={deepModeEnabled}
-        deepMode={deepMode}
-        onToggleDeepMode={() => setDeepMode((v) => !v)}
-      />
+      {/* Phase 20 / Plan 20-10 / UPL-04 (form-duplication rule per CLAUDE.md):
+          FileUploadButton mirrors the MessageInput slot. The relative wrapper
+          positions the in-flight progress card (absolute bottom-full). */}
+      <div className="relative">
+        <FileUploadButton />
+        <InputActionBar
+          onSend={handleSend}
+          disabled={disabled || !value.trim()}
+          showVersion
+          webSearchEnabled={webSearchEnabled}
+          onToggleWebSearch={() => setWebSearchEnabled((v) => !v)}
+          deepModeEnabled={deepModeEnabled}
+          deepMode={deepMode}
+          onToggleDeepMode={() => setDeepMode((v) => !v)}
+        />
+      </div>
     </div>
   )
 }
