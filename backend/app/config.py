@@ -181,6 +181,19 @@ class Settings(BaseSettings):
     # opt-in via SUB_AGENT_ENABLED env var. Mirrors WORKSPACE_ENABLED dark-launch precedent.
     sub_agent_enabled: bool = False
 
+    # Phase 20 / v1.3 (HARN-*, GATE-*, POST-*, PANEL-*, UPL-*; D-16): Harness Engine feature flag.
+    # When False: HarnessRegistry empty + gatekeeper/engine never invoked,
+    # POST /threads/{id}/files/upload returns 404, locked Plan Panel variant inert,
+    # post-harness summary path inert. Codebase byte-identical to pre-Phase-20.
+    # Mirrors SUB_AGENT_ENABLED dark-launch precedent.
+    harness_enabled: bool = False
+
+    # Phase 20 / v1.3 (D-16): Smoke-echo harness independent flag.
+    # Allows prod to run harness_enabled=True while only registering Contract Review
+    # (Phase 22), keeping the smoke-echo developer/admin diagnostic out of production.
+    # Default False everywhere; flip True in dev/test environments.
+    harness_smoke_enabled: bool = False
+
     @model_validator(mode="after")
     def _validate_local_embedding(self) -> "Settings":
         # CR-02 fix: catch EMBEDDING_PROVIDER=local + empty LOCAL_EMBEDDING_BASE_URL at startup.
