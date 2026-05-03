@@ -13,7 +13,9 @@ export function WelcomeScreen() {
   const { handleSendFirstMessage, isStreaming } = useChatContext()
 
   const displayName = user?.email ? deriveDisplayName(user.email) : ''
-  const logoSrc = resolvedTheme === 'light' ? '/lc-light.png' : '/lc-dark.png'
+  // lc-dark.png is the dark-colored mark — used on light backgrounds.
+  // lc-light.png is the light-colored mark — used on dark backgrounds.
+  const logoSrc = resolvedTheme === 'light' ? '/lc-dark.png' : '/lc-light.png'
 
   return (
     <div className="flex flex-1 flex-col items-center justify-center px-4 relative overflow-hidden">
