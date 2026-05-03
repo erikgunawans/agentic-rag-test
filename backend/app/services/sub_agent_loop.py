@@ -272,24 +272,10 @@ async def _run_sub_agent_loop_inner(
             })
             current_tools = []  # force terminal text round
 
-        # D-21: egress filter — apply to every LLM payload using PARENT's registry
-        if redaction_on and registry is not None:
-            payload = json.dumps(loop_messages, ensure_ascii=False)
-            egress_result = egress_filter(payload, registry, None)
-            if egress_result.tripped:
-                logger.warning(
-                    "egress_blocked event=egress_blocked feature=sub_agent_loop "
-                    "task_id=%s iteration=%d match_count=%d",
-                    task_id, _iteration, egress_result.match_count,
-                )
-                yield {"_terminal_result": {
-                    "error": "egress_blocked",
-                    "code": "PII_EGRESS_BLOCKED",
-                    "detail": "PII detected in sub-agent payload — request blocked.",
-                }}
-                return
-        elif registry is not None:
-            # Always apply egress filter when registry is available (D-21 privacy invariant)
+        # D-21: egress filter — apply to every LLM payload using PARENT's registry.
+        # Collapsed to a single guard: registry is only non-None when redaction is on
+        # (parent loop sets it that way), so the former elif was unreachable (W-02).
+        if registry is not None:
             payload = json.dumps(loop_messages, ensure_ascii=False)
             egress_result = egress_filter(payload, registry, None)
             if egress_result.tripped:
@@ -463,6 +449,27 @@ async def run_sub_agent_loop(
     Yields:
         dict events tagged with task_id. Final event: {"_terminal_result": {...}}
     """
+    # W-01: sub_agent_loop requires tool_registry_enabled. When the registry is
+    # disabled every _execute_tool_call returns an error dict, making all tool
+    # calls silently fail. Catch the invalid flag combination early and return a
+    # structured terminal error so the parent loop surfaces a clear message rather
+    # than exhausting iteration rounds with no useful output.
+    if not settings.tool_registry_enabled:
+        logger.error(
+            "run_sub_agent_loop called with tool_registry_enabled=False — "
+            "sub-agent requires the tool registry; task_id=%s",
+            task_id,
+        )
+        yield {"_terminal_result": {
+            "error": "tool_registry_disabled",
+            "code": "CONFIG_CONFLICT",
+            "detail": (
+                "sub_agent_enabled=True requires tool_registry_enabled=True. "
+                "Enable the tool registry or disable sub-agents."
+            ),
+        }}
+        return
+
     try:
         async for event in _run_sub_agent_loop_inner(
             description=description,

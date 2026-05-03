@@ -18,9 +18,12 @@ function isAskUserQuestion(
   const calls = msg.tool_calls?.calls ?? []
   for (const c of calls) {
     if (c.tool === 'ask_user') {
-      // Check if there is a matching tool_result for this call
+      // Match by tool_call_id when available so multiple concurrent ask_user
+      // calls in the same render pass are not incorrectly suppressed (W-03).
+      // Falls back to name-only match when either side lacks a tool_call_id.
       const matched = toolResults.some(
-        (tr) => tr.tool === 'ask_user'
+        (tr) => tr.tool === 'ask_user' &&
+          (!c.tool_call_id || !tr.tool_call_id || tr.tool_call_id === c.tool_call_id)
       )
       if (!matched) {
         const q = (c.input as { question?: string } | undefined)?.question ?? ''
