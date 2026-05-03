@@ -139,7 +139,7 @@ class TestSubAgentHappyPath:
             return events
 
         with patch("app.services.sub_agent_loop.settings", _make_settings()):
-            events = asyncio.get_event_loop().run_until_complete(_run())
+            events = asyncio.run(_run())
 
         terminal_events = [e for e in events if isinstance(e, dict) and "_terminal_result" in e]
         assert terminal_events, "Loop must yield at least one _terminal_result event"
@@ -214,7 +214,7 @@ class TestSubAgentContextFilesPreload:
             return events, captured_messages
 
         with patch("app.services.sub_agent_loop.settings", _make_settings()):
-            _, messages = asyncio.get_event_loop().run_until_complete(_run())
+            _, messages = asyncio.run(_run())
 
         user_messages = [m for m in messages if m.get("role") == "user"]
         assert user_messages, "Loop must send at least one user message to LLM"
@@ -263,7 +263,7 @@ class TestSubAgentFailureIsolation:
             return events
 
         with patch("app.services.sub_agent_loop.settings", _make_settings()):
-            events = asyncio.get_event_loop().run_until_complete(_run())
+            events = asyncio.run(_run())
 
         terminal_events = [e for e in events if isinstance(e, dict) and "_terminal_result" in e]
         assert terminal_events, "Failure must produce a _terminal_result event (D-12)"
@@ -338,7 +338,7 @@ class TestSubAgentLoopCap:
                         events.append(evt)
             return events
 
-        events = asyncio.get_event_loop().run_until_complete(_run())
+        events = asyncio.run(_run())
 
         # The final call (index max_rounds-1) must have empty tools list
         assert len(captured_calls) >= max_rounds, \
@@ -416,7 +416,7 @@ class TestSubAgentToolExclusion:
                         events.append(evt)
             return events
 
-        asyncio.get_event_loop().run_until_complete(_run())
+        asyncio.run(_run())
 
         tool_names = [t["function"]["name"] for t in captured_tools]
         assert "task" not in tool_names, \
@@ -490,7 +490,7 @@ class TestSubAgentEgressFilterUsesParentRegistry:
                             events.append(evt)
             return events
 
-        events = asyncio.get_event_loop().run_until_complete(_run())
+        events = asyncio.run(_run())
 
         # Egress filter must have been called
         assert egress_call_args, "egress_filter must be called for sub-agent LLM payloads (D-21)"
@@ -556,7 +556,7 @@ class TestSubAgentInheritsParentJWT:
                         events.append(evt)
             return events
 
-        asyncio.get_event_loop().run_until_complete(_run())
+        asyncio.run(_run())
 
         assert ws_init_tokens, \
             "WorkspaceService must be instantiated when context_files are present"
@@ -612,7 +612,7 @@ class TestSubAgentBinaryFileError:
                         events.append(evt)
             return events
 
-        events = asyncio.get_event_loop().run_until_complete(_run())
+        events = asyncio.run(_run())
 
         terminal_events = [e for e in events if isinstance(e, dict) and "_terminal_result" in e]
         assert terminal_events, "Binary file must yield _terminal_result error event"
@@ -678,7 +678,7 @@ class TestSubAgentMessagePersistence:
                         events.append(evt)
             return events
 
-        asyncio.get_event_loop().run_until_complete(_run())
+        asyncio.run(_run())
 
         if persist_calls:
             # All persist calls that happen inside sub_agent_loop must carry parent_task_id
@@ -758,7 +758,7 @@ class TestSubAgentRetainsAskUser:
                         events.append(evt)
             return events
 
-        asyncio.get_event_loop().run_until_complete(_run())
+        asyncio.run(_run())
 
         tool_names = [t["function"]["name"] for t in captured_tools]
 
