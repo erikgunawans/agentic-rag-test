@@ -23,7 +23,7 @@ cd frontend && npm install && npm run dev
 
 ## Architecture
 
-### Backend (22 routers in `backend/app/routers/`)
+### Backend (27 routers in `backend/app/routers/`)
 - **Core**: `chat.py` (SSE streaming + tool-calling loop), `threads.py`, `documents.py`
 - **Document tools**: `document_tools.py` (create/compare/compliance/analyze with LLM)
 - **Phase 1**: `clause_library.py`, `document_templates.py`, `approvals.py`, `obligations.py`, `audit_trail.py`, `user_management.py`
@@ -32,7 +32,7 @@ cd frontend && npm install && npm run dev
 - **Phase 3**: `compliance_snapshots.py` (point-in-time compliance), `pdp.py` (UU PDP toolkit)
 - **Settings**: `admin_settings.py` (system-wide), `user_preferences.py` (per-user)
 
-### Frontend (24 pages in `frontend/src/pages/`)
+### Frontend (25 pages in `frontend/src/pages/`)
 - Layout: `AppLayout` with `IconRail` (60px) + collapsible sidebar (340px) + content
 - State: `useChatState` hook + `ChatContext`, `useSidebar` for panel collapse
 - i18n: Indonesian (default) + English via `I18nProvider`
@@ -79,9 +79,18 @@ curl -s https://api-production-cde1.up.railway.app/health  # Verify
 - **Backend**: https://api-production-cde1.up.railway.app
 - **Supabase project**: `qedhulpfezucnfadlfiz`
 
-## Planning
-- Plans saved to `~/.claude/plans/` (session-scoped) or `.agent/plans/` (legacy)
-- Complexity indicators: simple, medium, complex
+## GSD Workflow
+
+Primary planning lives in `.planning/` (committed to git):
+- `.planning/PROJECT.md` — milestone scope and decisions
+- `.planning/STATE.md` — current status (auto-maintained by `gsd-sdk`)
+- `.planning/ROADMAP.md` — phases, dependencies, success criteria
+- `.planning/REQUIREMENTS.md` — REQ-IDs mapped to phases
+- `.planning/phases/{NN}-{slug}/` — per-phase `CONTEXT.md`, `PLAN.md`, `SUMMARY.md`, `VERIFICATION.md`, `UI-SPEC.md`, `PATTERNS.md`
+
+Slash commands (run in this order per phase): `/gsd-discuss-phase {N}` → `/gsd-ui-phase {N}` (frontend phases) → `/gsd-plan-phase {N}` → `/gsd-execute-phase {N}` → `/gsd-verify-phase {N}` → `/gsd-ship`. Use `/gsd-plan-phase {N} --skip-ui` when UI-SPEC.md already exists to bypass the UI gate.
+
+Legacy: `~/.claude/plans/` (session-scoped) and `.agent/plans/` (pre-GSD) — do not write new work there.
 
 ## Plan Verification Protocol
 
@@ -129,13 +138,13 @@ cd backend && source venv/bin/activate && python -c "from app.main import app; p
 - **SSE events**: `agent_start` → `tool_start` → `tool_result` → `delta` (progressive) → `done:true`
 - **Graph reindex**: `POST /documents/{id}/reindex-graph` — re-extracts graph entities for existing documents without re-embedding
 - **RAG eval**: `python -m scripts.eval_rag --base-url <url> --token <jwt>` — 20-query golden set with keyword hit rate + MRR metrics
-- **PII Redaction (v0.3.0.0)**: Conversation-scoped detection + anonymization + de-anonymization. Toggle via `pii_redaction_enabled` system setting. When ON: incoming messages anonymized via Presidio + Faker (xx_ent_wiki_sm spaCy model), surrogates persisted in `entity_registry` table per-thread (migration 029), LLM only sees surrogates, response de-anonymized before user sees it. Cloud egress filter (`backend/app/services/redaction/egress.py`) blocks any cloud-LLM call where registry-known PII would leak. Per-feature provider override (entity resolution, missed-scan, fuzzy de-anon, title-gen, metadata) via admin UI, settings cached 60s. Off-mode is byte-identical to pre-v0.3 behavior (SC#5 invariant). Privacy invariant: real PII never reaches cloud-LLM payloads.
+- **PII Redaction**: Conversation-scoped detection + anonymization + de-anonymization. Toggle via `pii_redaction_enabled` system setting. When ON: incoming messages anonymized via Presidio + Faker (xx_ent_wiki_sm spaCy model), surrogates persisted in `entity_registry` table per-thread (migration 029), LLM only sees surrogates, response de-anonymized before user sees it. Cloud egress filter (`backend/app/services/redaction/egress.py`) blocks any cloud-LLM call where registry-known PII would leak. Per-feature provider override (entity resolution, missed-scan, fuzzy de-anon, title-gen, metadata) via admin UI, settings cached 60s. Off-mode is byte-identical to pre-v0.3 behavior (SC#5 invariant). Privacy invariant: real PII never reaches cloud-LLM payloads.
 
 ## Automations
 - **Hooks**: PostToolUse auto-lints .ts/.tsx (ESLint + tsc) and .py (py_compile + full import check). PreToolUse blocks .env edits and applied migration edits (001-032).
 - **Skills**: `/deploy-lexcore` (full deploy pipeline), `/run-api-tests` (pytest + RAG eval golden set), `/create-migration` (numbered Supabase migration with RLS template)
 - **Agents**: `security-reviewer` (RLS bypass, missing auth, SQL injection, audit gaps), `rag-quality-reviewer` (retrieval pipeline correctness, RPC safety, cache keys)
-- **MCP**: context7 (live docs), Supabase (direct DB), Playwright (browser automation) — configured in `.mcp.json`
+- **MCP**: context7 (live docs), playwright (browser automation), graphify (knowledge-graph queries) — configured in `.mcp.json`. There is no Supabase MCP server; use the project CLI / SDK clients instead.
 
 ## Gotchas
 
@@ -149,8 +158,11 @@ cd backend && source venv/bin/activate && python -c "from app.main import app; p
 - Supabase array containment filter: `.filter("col", "cs", "{value}")` not `.contains()`
 - Search params in PostgREST filters must sanitize commas and parentheses.
 - `get_current_user` makes a `user_profiles` DB call on every request (checks `is_active`, auto-creates for new signups).
-- Migrations are numbered sequentially (`001_` through `032_`). Use `/create-migration` to generate the next one. Never edit applied migrations (hook blocks 001-032).
+- Migrations are numbered sequentially through `039_` (Phase 19 will add `040_agent_runs.sql`). Use `/create-migration` to generate the next one. Never edit applied migrations. **Hook drift footgun:** the PreToolUse regex blocks `001-027` only — 028+ are NOT auto-blocked despite being applied. Treat all numbered migrations as immutable regardless of what the hook lets through.
 - Two `024_*.sql` files exist (knowledge_base_explorer + rag_improvements). Both are applied. Don't renumber.
+- **Tool Registry adapter-wrap invariant (Phase 13 D-P13-01):** Never edit `backend/app/services/tool_service.py` lines 1-1283. New tools register via `tool_registry.register()` adapter-wrap APPENDED below that boundary. Verify with `head -n 1283 backend/app/services/tool_service.py | shasum -a 256` matching the pinned hash in any plan that touches tool dispatch.
+- **Feature flags (all default `False` for dark launch)** in `backend/app/config.py`: `TOOL_REGISTRY_ENABLED` (Phase 13), `SANDBOX_ENABLED` (Phase 11), `DEEP_MODE_ENABLED` (Phase 17), `WORKSPACE_ENABLED` (Phase 18), `SUB_AGENT_ENABLED` (Phase 19, in flight). Off-mode codepath must be byte-identical to pre-feature behavior — tested via snapshot/subprocess fixtures.
+- **Vitest 3.2 required** (frontend). Vite 8 broke compatibility with Vitest 2.x; v1.2 forced the bump. If `npm install` resurrects an older version, pin to `^3.2`.
 - **`EMBEDDING_PROVIDER` switch does NOT trigger re-embedding (Phase 6 / EMBED-02).** Setting `EMBEDDING_PROVIDER=local` and `LOCAL_EMBEDDING_BASE_URL=http://localhost:11434/v1` redirects FUTURE ingestions to the local endpoint (e.g., Ollama bge-m3 / nomic-embed-text). Existing document vectors stay in their original embedding space until manually re-ingested. RAG retrieval quality may degrade for queries that span both old and new chunks. Deployer-managed migration: re-ingest documents (drop + re-upload) when consolidating to a single provider.
 
 ## Workflow
@@ -170,7 +182,9 @@ cd backend && source venv/bin/activate && python -c "from app.main import app; p
 
 ## Progress
 
-Check PROGRESS.md for current status. Phase 1 (7/7), Phase 2 (5/5), Phase 3 (2/2) complete. BJR module shipped. LLM e2e test passed. RAG pipeline complete (8/8 hooks shipped): structure-aware chunking, vision OCR, custom embeddings, metadata pre-filtering, bilingual query expansion, weighted fusion, cross-encoder reranking (Cohere), graph reindex endpoint. **PII Redaction System v1.0 SHIPPED (v0.3.0.0, 2026-04-28)** — Phases 1-5 complete (detection, anonymization, conversation-scoped registry, entity resolution, fuzzy de-anon, chat-loop integration); Phase 6 (cross-process async-lock upgrade per D-31) remains. 32 migrations, 22 routers, 19 services.
+Source of truth: `.planning/STATE.md` (current milestone status), `.planning/ROADMAP.md` (phases + dependencies), `PROGRESS.md` (free-form session checkpoints). Don't restate counts here — they go stale fast; run `ls supabase/migrations | wc -l` etc. to get fresh numbers.
+
+**Shipped landmarks** (chronological): RAG pipeline (8/8 hooks — structure-aware chunking, vision OCR, custom embeddings, metadata pre-filtering, bilingual query expansion, weighted fusion, cross-encoder reranking, graph reindex), PII Redaction v1.0 (Phases 1-5 — detection, anonymization, conversation-scoped registry, entity resolution, fuzzy de-anon, chat-loop integration; Phase 6 cross-process async-lock deferred per D-31), v1.1 Code Execution Sandbox, v1.2 Tool Registry + MCP client + advanced tool calling, v1.3 Phase 17 Deep Mode + Phase 18 Workspace virtual filesystem. Phase 19 (Sub-Agent Delegation + Ask User + Status & Recovery) currently planned, awaiting execution.
 
 ## graphify
 
