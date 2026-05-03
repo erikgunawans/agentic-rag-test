@@ -111,7 +111,7 @@ Full archive: `.planning/milestones/v1.1-ROADMAP.md`
   3. Status indicator surfaces `working` / `waiting_for_user` / `complete` / `error` states in the chat header; failed tool calls remain in conversation context (append-only) so the LLM can recover without retries, and sub-agent failures isolate to the parent (parent loop never crashes).
   4. After every loop round, messages + tool calls + todos + workspace are persisted to DB; user can resume a paused thread by sending a follow-up message and the agent reads existing todos / workspace and continues without re-priming.
   5. No automatic retries are issued anywhere in the loop — every recovery decision (retry, alternative path, `ask_user` escalation) is LLM-driven and visible in the conversation transcript; `task` start / complete SSE events drive the nested sub-agent UI rendering.
-**Plans:** 8/10 plans executed
+**Plans:** 10/10 plans complete
 - [x] 19-01-PLAN.md — Migration 040 (agent_runs + messages.parent_task_id) + RLS + BLOCKING supabase db push
 - [x] 19-02-PLAN.md — agent_runs_service (CRUD + state-machine + resume detection)
 - [x] 19-03-PLAN.md — sub_agent_loop module (async generator, summary fallback, structured-error wrapper) + SUB_AGENT_ENABLED config
@@ -120,8 +120,8 @@ Full archive: `.planning/milestones/v1.1-ROADMAP.md`
 - [x] 19-06-PLAN.md — agent_status SSE emission (4 sites) + agent_runs lifecycle + append-only error contract
 - [x] 19-07-PLAN.md — Frontend: useChatState slices + AgentStatusChip + TaskPanel + MessageView question-bubble + i18n
 - [x] 19-08-PLAN.md — Replace Phase 17 stubs in deep_mode_prompt.py with real sub-agent / ask-user / error-recovery guidance
-- [ ] 19-09-PLAN.md — Backend E2E pytest (12 cases covering all 17 REQ-IDs + RLS isolation + privacy invariant + byte-identical fallback)
-- [ ] 19-10-PLAN.md — Frontend Vitest (AgentStatusChip + TaskPanel + MessageView question-bubble — 22 cases)
+- [x] 19-09-PLAN.md — Backend E2E pytest (12 cases covering all 17 REQ-IDs + RLS isolation + privacy invariant + byte-identical fallback)
+- [x] 19-10-PLAN.md — Frontend Vitest (AgentStatusChip + TaskPanel + MessageView question-bubble — 22 cases)
 **UI hint**: yes
 
 ### Phase 20: Harness Engine Core + Gatekeeper + Post-Harness + File Upload + Locked Plan Panel
@@ -185,7 +185,7 @@ The following capabilities shipped before GSD initialization. Tracked as the Val
 |-------|----------------|--------|-----------|
 | 17. Deep Mode Foundation + Planning Todos + Plan Panel | 7/7 | Complete    | 2026-05-02 |
 | 18. Workspace Virtual Filesystem | 8/8 | Complete    | 2026-05-03 |
-| 19. Sub-Agent Delegation + Ask User + Status & Recovery | 8/10 | In Progress|  |
+| 19. Sub-Agent Delegation + Ask User + Status & Recovery | 10/10 | Complete   | 2026-05-03 |
 | 20. Harness Engine Core + Gatekeeper + Post-Harness + Upload + Locked Panel | 0/0 | Not started | — |
 | 21. Batched Parallel Sub-Agents + Human-in-the-Loop | 0/0 | Not started | — |
 | 22. Contract Review Harness + DOCX Deliverable | 0/0 | Not started | — |
