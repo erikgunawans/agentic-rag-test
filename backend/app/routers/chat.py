@@ -689,6 +689,23 @@ async def stream_chat(
                         "type": "tool_result", "tool": func_name, "output": tool_output,
                     }
 
+                # Phase 18 / WS-10: emit workspace_updated for successful workspace mutations.
+                # Payload contains only metadata (path, size, source) — no file content.
+                # Flows through the same SSE translation layer as tool_start/tool_result.
+                if (
+                    func_name in ("write_file", "edit_file")
+                    and isinstance(tool_output, dict)
+                    and tool_output.get("ok")
+                    and settings.workspace_enabled
+                ):
+                    yield "workspace_updated", {
+                        "type": "workspace_updated",
+                        "file_path": tool_output.get("file_path"),
+                        "operation": tool_output.get("operation"),
+                        "size_bytes": tool_output.get("size_bytes"),
+                        "source": "agent",
+                    }
+
                 messages.append({
                     "role": "assistant",
                     "content": None,
@@ -1440,6 +1457,21 @@ async def _run_tool_loop_for_test(
             else:
                 yield "tool_result", {"type": "tool_result", "tool": func_name, "output": tool_output}
 
+            # Phase 18 / WS-10: emit workspace_updated for successful workspace mutations.
+            if (
+                func_name in ("write_file", "edit_file")
+                and isinstance(tool_output, dict)
+                and tool_output.get("ok")
+                and settings.workspace_enabled
+            ):
+                yield "workspace_updated", {
+                    "type": "workspace_updated",
+                    "file_path": tool_output.get("file_path"),
+                    "operation": tool_output.get("operation"),
+                    "size_bytes": tool_output.get("size_bytes"),
+                    "source": "agent",
+                }
+
             messages.append({
                 "role": "assistant",
                 "content": None,
@@ -1746,6 +1778,26 @@ async def run_deep_mode_loop(
                     tool_loop_buffer.append(tool_result_evt)
                 else:
                     yield f"data: {json.dumps(tool_result_evt)}\n\n"
+
+                # Phase 18 / WS-10: emit workspace_updated for successful workspace mutations.
+                # Deep-mode: emit directly (same pattern as todos_updated at L1709-1714).
+                if (
+                    func_name in ("write_file", "edit_file")
+                    and isinstance(tool_output, dict)
+                    and tool_output.get("ok")
+                    and settings.workspace_enabled
+                ):
+                    workspace_evt = {
+                        "type": "workspace_updated",
+                        "file_path": tool_output.get("file_path"),
+                        "operation": tool_output.get("operation"),
+                        "size_bytes": tool_output.get("size_bytes"),
+                        "source": "agent",
+                    }
+                    if redaction_on:
+                        tool_loop_buffer.append(workspace_evt)
+                    else:
+                        yield f"data: {json.dumps(workspace_evt)}\n\n"
 
                 loop_messages.append({
                     "role": "assistant",
