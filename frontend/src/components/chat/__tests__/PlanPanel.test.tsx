@@ -15,20 +15,34 @@
  *   8. SSE-driven state: todos_updated action → panel re-renders
  *   9. No backdrop-blur on panel root (CLAUDE.md persistent-panel rule)
  *  10. Panel collapsible via toggle affordance
+ *
+ * Phase 20 / PANEL-01 / PANEL-04 — locked variant cases:
+ *  11. (a) renders locked variant when harnessRun.status='running' — lock icon + Cancel button
+ *  12. (b) lock icon tooltip copy matches harness.lock.tooltip (EN)
+ *  13. (c) Cancel button click opens Dialog with confirmTitle + destructive confirm
+ *  14. (d) paused status renders without throwing + lock icon present
+ *  15. (e) renders existing variant when harnessRun=null — no lock icon
+ *  16. (f) Cancel confirm calls apiFetch POST /threads/{id}/harness/cancel
+ *
+ * Phase 20 / PANEL-02 (B2) — phase progression during active harness_run:
+ *  17. (g) todos_updated SSE drives pending→in_progress→completed visual arms
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { I18nProvider } from '@/i18n/I18nContext'
 import { PlanPanel } from '../PlanPanel'
 import type { Todo } from '@/lib/database.types'
+import type { HarnessRunSlice } from '@/hooks/useChatState'
 
 // ---------------------------------------------------------------------------
-// Mock useChatContext — PlanPanel reads todos + isCurrentMessageDeepMode from it
+// Mock useChatContext — PlanPanel reads todos + isCurrentMessageDeepMode +
+// harnessRun + activeThreadId from it
 // ---------------------------------------------------------------------------
 const mockChatContext = {
   todos: [] as Todo[],
   isCurrentMessageDeepMode: false,
-  // Required shape stubs (PlanPanel only reads the two fields above)
+  harnessRun: null as HarnessRunSlice,
+  activeThreadId: 'thread-test-123' as string | null,
 }
 
 vi.mock('@/contexts/ChatContext', () => ({
@@ -36,15 +50,14 @@ vi.mock('@/contexts/ChatContext', () => ({
 }))
 
 // ---------------------------------------------------------------------------
-// Mock fetchThreadTodos — called from useChatState on thread mount
-// (PlanPanel itself doesn't call it directly; the hook does via useEffect)
+// Mock apiFetch + fetchThreadTodos
 // ---------------------------------------------------------------------------
 vi.mock('@/lib/api', () => ({
   apiFetch: vi.fn(),
   fetchThreadTodos: vi.fn().mockResolvedValue({ todos: [] }),
 }))
 
-import { fetchThreadTodos } from '@/lib/api'
+import { apiFetch, fetchThreadTodos } from '@/lib/api'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -70,6 +83,26 @@ const TODO_COMPLETED: Todo = {
   position: 0,
 }
 
+const HARNESS_RUN_RUNNING: HarnessRunSlice = {
+  id: 'run-abc',
+  harnessType: 'smoke-echo',
+  status: 'running',
+  currentPhase: 0,
+  phaseCount: 2,
+  phaseName: 'Echo Phase',
+  errorDetail: null,
+}
+
+const HARNESS_RUN_PAUSED: HarnessRunSlice = {
+  id: 'run-xyz',
+  harnessType: 'smoke-echo',
+  status: 'paused',
+  currentPhase: 1,
+  phaseCount: 2,
+  phaseName: 'Paused Phase',
+  errorDetail: null,
+}
+
 function renderPanel() {
   return render(
     <I18nProvider>
@@ -83,6 +116,8 @@ beforeEach(() => {
   // Reset mock context to defaults
   mockChatContext.todos = []
   mockChatContext.isCurrentMessageDeepMode = false
+  mockChatContext.harnessRun = null
+  mockChatContext.activeThreadId = 'thread-test-123'
 })
 
 // ---------------------------------------------------------------------------
@@ -252,6 +287,198 @@ describe('PlanPanel', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Research legal precedents')).toBeInTheDocument()
+    })
+  })
+
+  // ---------------------------------------------------------------------------
+  // Phase 20 / PANEL-04 — locked variant cases (a–f)
+  // ---------------------------------------------------------------------------
+
+  it('(a) renders locked variant when harnessRun.status=running — lock icon + Cancel button + harness label', () => {
+    mockChatContext.harnessRun = HARNESS_RUN_RUNNING
+    mockChatContext.todos = []
+
+    renderPanel()
+
+    const panel = screen.getByTestId('plan-panel')
+    expect(panel).toBeInTheDocument()
+
+    // Lock icon present
+    expect(screen.getByTestId('harness-lock-icon')).toBeInTheDocument()
+
+    // Cancel button visible
+    expect(screen.getByTestId('harness-cancel-button')).toBeInTheDocument()
+
+    // Harness display label (Smoke Echo — via t('harness.type.smoke-echo'))
+    expect(screen.getByText('Smoke Echo')).toBeInTheDocument()
+  })
+
+  it('(b) lock icon tooltip text matches harness.lock.tooltip', () => {
+    mockChatContext.harnessRun = HARNESS_RUN_RUNNING
+    mockChatContext.todos = []
+
+    const { container } = renderPanel()
+
+    const lockIcon = container.querySelector('[data-testid="harness-lock-icon"]')
+    expect(lockIcon).not.toBeNull()
+
+    // The aria-label on the Lock icon carries the tooltip copy
+    const ariaLabel = lockIcon?.getAttribute('aria-label')
+    // EN locale matches 'System-driven plan — cannot be modified during execution'
+    // ID locale matches 'Rencana sistem — tidak dapat diubah saat berjalan'
+    expect(ariaLabel).toMatch(/System-driven plan|Rencana sistem/)
+  })
+
+  it('(c) Cancel button click opens Dialog with confirmTitle and destructive confirm', async () => {
+    mockChatContext.harnessRun = HARNESS_RUN_RUNNING
+    mockChatContext.todos = []
+
+    renderPanel()
+
+    // Click Cancel button
+    const cancelBtn = screen.getByTestId('harness-cancel-button')
+    fireEvent.click(cancelBtn)
+
+    // Dialog should be open — confirm button visible
+    await waitFor(() => {
+      expect(screen.getByTestId('harness-cancel-confirm')).toBeInTheDocument()
+    })
+
+    // Dialog title contains the harness type (ID: "Batalkan Smoke Echo?" or EN: "Cancel Smoke Echo?")
+    const dialogContent = document.body.textContent ?? ''
+    expect(dialogContent).toMatch(/Smoke Echo/)
+  })
+
+  it('(d) paused status renders without throwing — lock icon present (Phase 21 forward-compat)', () => {
+    mockChatContext.harnessRun = HARNESS_RUN_PAUSED
+    mockChatContext.todos = []
+
+    // Must not throw
+    expect(() => renderPanel()).not.toThrow()
+
+    // Lock icon present (paused renders identically to running)
+    expect(screen.getByTestId('harness-lock-icon')).toBeInTheDocument()
+  })
+
+  it('(e) renders existing variant when harnessRun=null — no lock icon, shows planPanel.title', () => {
+    mockChatContext.harnessRun = null
+    mockChatContext.todos = [TODO_PENDING]
+
+    renderPanel()
+
+    // Lock icon NOT present
+    expect(screen.queryByTestId('harness-lock-icon')).toBeNull()
+
+    // Cancel button NOT present
+    expect(screen.queryByTestId('harness-cancel-button')).toBeNull()
+
+    // Title shown (Indonesian: 'Rencana')
+    expect(screen.getByText('Rencana')).toBeInTheDocument()
+  })
+
+  it('(f) Cancel confirm calls apiFetch POST /threads/{id}/harness/cancel', async () => {
+    const mockApiFetch = apiFetch as ReturnType<typeof vi.fn>
+    mockApiFetch.mockResolvedValue(new Response('{}'))
+
+    mockChatContext.harnessRun = HARNESS_RUN_RUNNING
+    mockChatContext.activeThreadId = 'thread-test-123'
+    mockChatContext.todos = []
+
+    renderPanel()
+
+    // Open dialog
+    const cancelBtn = screen.getByTestId('harness-cancel-button')
+    fireEvent.click(cancelBtn)
+
+    // Click the destructive confirm button
+    await waitFor(() => {
+      expect(screen.getByTestId('harness-cancel-confirm')).toBeInTheDocument()
+    })
+
+    const confirmBtn = screen.getByTestId('harness-cancel-confirm')
+    fireEvent.click(confirmBtn)
+
+    await waitFor(() => {
+      expect(mockApiFetch).toHaveBeenCalledOnce()
+      expect(mockApiFetch).toHaveBeenCalledWith(
+        '/threads/thread-test-123/harness/cancel',
+        { method: 'POST' },
+      )
+    })
+  })
+
+  // ---------------------------------------------------------------------------
+  // Phase 20 / PANEL-02 (B2) — phase progression during active harness_run
+  //
+  // When the Phase 20 engine emits todos_updated during an active harness_run,
+  // the existing Phase 17 todos_updated rendering machinery MUST still work
+  // AND visually differentiate the three status arms (pending → in_progress → completed).
+  // ---------------------------------------------------------------------------
+  it('(g) PANEL-02: todos_updated SSE drives pending→in_progress→completed visual arms during active harness_run', async () => {
+    // Setup: active harness + 3 todos all pending
+    mockChatContext.harnessRun = HARNESS_RUN_RUNNING
+    mockChatContext.todos = [
+      { id: 'p1', content: 'Phase 1: Echo upload', status: 'pending', position: 0 },
+      { id: 'p2', content: 'Phase 2: LLM summary', status: 'pending', position: 1 },
+      { id: 'p3', content: 'Phase 3: Final check', status: 'pending', position: 2 },
+    ]
+
+    const { rerender } = renderPanel()
+
+    // Assertion 1: all three todos show pending visual differentiator
+    const pendingIcons = document.querySelectorAll('[data-testid="status-pending"]')
+    expect(pendingIcons).toHaveLength(3)
+
+    // Action 1: simulate todos_updated SSE — todo[0] flips to in_progress
+    mockChatContext.todos = [
+      { id: 'p1', content: 'Phase 1: Echo upload', status: 'in_progress', position: 0 },
+      { id: 'p2', content: 'Phase 2: LLM summary', status: 'pending', position: 1 },
+      { id: 'p3', content: 'Phase 3: Final check', status: 'pending', position: 2 },
+    ]
+
+    rerender(
+      <I18nProvider>
+        <PlanPanel />
+      </I18nProvider>,
+    )
+
+    // Assertion 2: todo[0] now shows in_progress differentiator (animate-spin Loader2)
+    await waitFor(() => {
+      const inProgressIcons = document.querySelectorAll('[data-testid="status-in-progress"]')
+      expect(inProgressIcons).toHaveLength(1)
+      const inProgressIcon = inProgressIcons[0]
+      const cls = inProgressIcon.getAttribute('class') ?? ''
+      expect(cls).toContain('animate-spin')
+    })
+
+    // Action 2: simulate second todos_updated — todo[0] → completed, todo[1] → in_progress
+    mockChatContext.todos = [
+      { id: 'p1', content: 'Phase 1: Echo upload', status: 'completed', position: 0 },
+      { id: 'p2', content: 'Phase 2: LLM summary', status: 'in_progress', position: 1 },
+      { id: 'p3', content: 'Phase 3: Final check', status: 'pending', position: 2 },
+    ]
+
+    rerender(
+      <I18nProvider>
+        <PlanPanel />
+      </I18nProvider>,
+    )
+
+    // Assertion 3: todo[0] completed differentiator (CheckCircle2), todo[1] in_progress
+    await waitFor(() => {
+      const completedIcons = document.querySelectorAll('[data-testid="status-completed"]')
+      expect(completedIcons).toHaveLength(1)
+      const completedIcon = completedIcons[0]
+      const cls = completedIcon.getAttribute('class') ?? ''
+      expect(cls).toContain('text-green')
+    })
+
+    await waitFor(() => {
+      const inProgressIcons = document.querySelectorAll('[data-testid="status-in-progress"]')
+      expect(inProgressIcons).toHaveLength(1)
+      const inProgressIcon = inProgressIcons[0]
+      const cls = inProgressIcon.getAttribute('class') ?? ''
+      expect(cls).toContain('animate-spin')
     })
   })
 })
