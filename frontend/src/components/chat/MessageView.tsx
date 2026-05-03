@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react'
-import { GitFork, ChevronLeft, ChevronRight, ShieldAlert } from 'lucide-react'
+import { GitFork, ChevronLeft, ChevronRight, ShieldAlert, MessageCircleQuestion } from 'lucide-react'
 import { StreamingMessage } from './StreamingMessage'
 import { ThinkingIndicator } from './ThinkingIndicator'
 import { ToolCallCard, ToolCallList } from './ToolCallCard'
@@ -7,6 +7,29 @@ import { AgentBadge, DeepModeBadge } from './AgentBadge'
 import { buildChildrenMap } from '@/lib/messageTree'
 import { useI18n } from '@/i18n/I18nContext'
 import type { Message, ToolStartEvent, ToolResultEvent } from '@/lib/database.types'
+
+// Phase 19 / ASK-02 / D-14 / D-27: detect whether an assistant message
+// has an unmatched ask_user tool call (i.e., waiting for user reply).
+// Detection is purely at render time — no DB schema change required (UI-SPEC L461).
+function isAskUserQuestion(
+  msg: Message,
+  toolResults: ToolResultEvent[],
+): { is: boolean; question?: string } {
+  const calls = msg.tool_calls?.calls ?? []
+  for (const c of calls) {
+    if (c.tool === 'ask_user') {
+      // Check if there is a matching tool_result for this call
+      const matched = toolResults.some(
+        (tr) => tr.tool === 'ask_user'
+      )
+      if (!matched) {
+        const q = (c.input as { question?: string } | undefined)?.question ?? ''
+        return { is: true, question: q }
+      }
+    }
+  }
+  return { is: false }
+}
 
 interface BranchIndicatorProps {
   branches: Message[]
@@ -122,6 +145,22 @@ export function MessageView({
               >
                 <div className="whitespace-pre-wrap break-words">{msg.content}</div>
               </div>
+              {/* Phase 19 / ASK-02 / D-27: question-bubble for unmatched ask_user tool call.
+                  Rendered AFTER normal content (UI-SPEC L235). No reply-mode UI — UI-SPEC L394. */}
+              {(() => {
+                const askUser = isAskUserQuestion(msg, toolResults)
+                if (!askUser.is || !askUser.question) return null
+                return (
+                  <div
+                    role="note"
+                    aria-label={t('askUser.questionBubble.ariaLabel')}
+                    className="flex items-start gap-2 border-l-[3px] border-primary pl-3 mt-2"
+                  >
+                    <MessageCircleQuestion size={16} className="text-primary shrink-0 mt-1" aria-hidden="true" />
+                    <p className="text-sm text-foreground leading-relaxed">{askUser.question}</p>
+                  </div>
+                )
+              })()}
               <div className="flex items-center gap-2 mt-1">
                 {hasBranches && onSwitchBranch && parentId && (
                   <BranchIndicator

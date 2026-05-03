@@ -7,6 +7,7 @@ import { WelcomeScreen } from '@/components/chat/WelcomeScreen'
 import { PlanPanel } from '@/components/chat/PlanPanel'
 import { WorkspacePanel } from '@/components/chat/WorkspacePanel'
 import { AgentStatusChip } from '@/components/chat/AgentStatusChip'
+import { TaskPanel } from '@/components/chat/TaskPanel'
 
 export function ChatPage() {
   const location = useLocation()
@@ -92,6 +93,9 @@ export function ChatPage() {
       {/* Phase 18 Workspace Panel — visible whenever thread has workspace files (WS-11).
           Decoupled from Deep Mode — appears for any thread with files. */}
       <WorkspacePanel threadId={activeThreadId} files={workspaceFiles} />
+      {/* Phase 19 Task Panel — rightmost panel; visible when tasks.size > 0 (D-25).
+          Rendered here (NOT in AppLayout) — UI-SPEC L457. SubAgentPanel.tsx untouched. */}
+      <TaskPanel />
     </div>
   )
 }
