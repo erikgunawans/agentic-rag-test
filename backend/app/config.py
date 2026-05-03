@@ -170,6 +170,13 @@ class Settings(BaseSettings):
     # SANDBOX_ENABLED dark-launch precedent.
     deep_mode_enabled: bool = False
 
+    # Phase 18 (WS-02, WS-06; D-08): Workspace Virtual Filesystem feature flag.
+    # When False: the four workspace tools (write_file, read_file, edit_file, list_files)
+    # are NOT registered in the tool registry, REST endpoints return 404, and
+    # SSE workspace_updated events are not emitted. Default True — opt-in via env var.
+    # Env var: WORKSPACE_ENABLED.
+    workspace_enabled: bool = True
+
     @model_validator(mode="after")
     def _validate_local_embedding(self) -> "Settings":
         # CR-02 fix: catch EMBEDDING_PROVIDER=local + empty LOCAL_EMBEDDING_BASE_URL at startup.
