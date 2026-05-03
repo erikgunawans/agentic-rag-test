@@ -1354,3 +1354,287 @@ def _register_natives_with_registry() -> None:
 
 # Run the adapter wrap at module load. No-op when flag is off.
 _register_natives_with_registry()
+
+
+# ---------------------------------------------------------------------------
+# Phase 18 / WS-02, WS-06 — workspace tool registration (D-07, D-08).
+#
+# Register write_file, read_file, edit_file, list_files as native tools
+# through the unified Tool Registry (D-P13-01 pattern).
+#
+# Gated by settings.workspace_enabled (D-08 kill-switch). When False, none
+# of the four tools are registered — they remain unreachable through any
+# dispatch path. When True, all four register as source='native',
+# loading='immediate'.
+#
+# Executor signature follows the registry dispatcher shape from chat.py:
+#   executor(arguments, user_id, context, *, token=None, ...)
+#   - arguments: LLM-supplied tool params dict
+#   - user_id: authed user's UUID (from get_current_user)
+#   - context: per-request dict with thread_id, user_email, token, etc.
+#   - token: JWT passed as kwarg by chat.py's _dispatch_tool
+#
+# T-18-12: thread_id is read from ctx (server-set), NEVER from LLM params.
+# T-18-12: WorkspaceService uses get_supabase_authed_client(token) → RLS.
+# ---------------------------------------------------------------------------
+
+async def _workspace_write_file_executor(
+    arguments: dict,
+    user_id: str,
+    context: dict | None = None,
+    *,
+    token: str | None = None,
+    **kwargs,
+) -> dict:
+    """Executor: write_file → WorkspaceService.write_text_file.
+
+    thread_id is server-set from context (T-18-12). source hardcoded to
+    'agent' so the LLM cannot influence the source discriminator (T-18-14).
+    """
+    from app.services.workspace_service import WorkspaceService  # noqa: PLC0415
+
+    ctx = context or {}
+    thread_id = ctx.get("thread_id") or ""
+    resolved_token = token or ctx.get("token") or ""
+    file_path = arguments.get("file_path", "")
+    content = arguments.get("content", "")
+
+    if not thread_id:
+        return {
+            "error": "missing_thread_id",
+            "message": "thread_id is required in context (chat.py must set context['thread_id']).",
+        }
+
+    ws = WorkspaceService(token=resolved_token)
+    return await ws.write_text_file(thread_id, file_path, content, source="agent")
+
+
+async def _workspace_read_file_executor(
+    arguments: dict,
+    user_id: str,
+    context: dict | None = None,
+    *,
+    token: str | None = None,
+    **kwargs,
+) -> dict:
+    """Executor: read_file → WorkspaceService.read_file."""
+    from app.services.workspace_service import WorkspaceService  # noqa: PLC0415
+
+    ctx = context or {}
+    thread_id = ctx.get("thread_id") or ""
+    resolved_token = token or ctx.get("token") or ""
+    file_path = arguments.get("file_path", "")
+
+    if not thread_id:
+        return {
+            "error": "missing_thread_id",
+            "message": "thread_id is required in context (chat.py must set context['thread_id']).",
+        }
+
+    ws = WorkspaceService(token=resolved_token)
+    return await ws.read_file(thread_id, file_path)
+
+
+async def _workspace_edit_file_executor(
+    arguments: dict,
+    user_id: str,
+    context: dict | None = None,
+    *,
+    token: str | None = None,
+    **kwargs,
+) -> dict:
+    """Executor: edit_file → WorkspaceService.edit_file."""
+    from app.services.workspace_service import WorkspaceService  # noqa: PLC0415
+
+    ctx = context or {}
+    thread_id = ctx.get("thread_id") or ""
+    resolved_token = token or ctx.get("token") or ""
+    file_path = arguments.get("file_path", "")
+    old_string = arguments.get("old_string", "")
+    new_string = arguments.get("new_string", "")
+
+    if not thread_id:
+        return {
+            "error": "missing_thread_id",
+            "message": "thread_id is required in context (chat.py must set context['thread_id']).",
+        }
+
+    ws = WorkspaceService(token=resolved_token)
+    return await ws.edit_file(thread_id, file_path, old_string, new_string)
+
+
+async def _workspace_list_files_executor(
+    arguments: dict,
+    user_id: str,
+    context: dict | None = None,
+    *,
+    token: str | None = None,
+    **kwargs,
+) -> dict:
+    """Executor: list_files → WorkspaceService.list_files."""
+    from app.services.workspace_service import WorkspaceService  # noqa: PLC0415
+
+    ctx = context or {}
+    thread_id = ctx.get("thread_id") or ""
+    resolved_token = token or ctx.get("token") or ""
+
+    if not thread_id:
+        return {
+            "error": "missing_thread_id",
+            "message": "thread_id is required in context (chat.py must set context['thread_id']).",
+        }
+
+    ws = WorkspaceService(token=resolved_token)
+    files = await ws.list_files(thread_id)
+    return {"ok": True, "files": files, "count": len(files)}
+
+
+_WORKSPACE_WRITE_FILE_SCHEMA = {
+    "type": "function",
+    "function": {
+        "name": "write_file",
+        "description": (
+            "Create or overwrite a workspace text file scoped to the current chat thread. "
+            "Path is relative (no leading '/', no '\\\\', no '..'), max 500 chars, content max 1 MB. "
+            "Recommended directories: notes/, data/, drafts/, deliverables/. "
+            "Returns {ok, operation, size_bytes, file_path} or a structured {error: ...}."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "file_path": {
+                    "type": "string",
+                    "description": "Relative path within the thread workspace.",
+                },
+                "content": {
+                    "type": "string",
+                    "description": "Full file contents.",
+                },
+            },
+            "required": ["file_path", "content"],
+        },
+    },
+}
+
+_WORKSPACE_READ_FILE_SCHEMA = {
+    "type": "function",
+    "function": {
+        "name": "read_file",
+        "description": (
+            "Read a workspace file scoped to the current chat thread. Returns text content for text "
+            "files. For binary files returns {is_binary: true, signed_url, mime_type, size_bytes} — "
+            "the URL is valid for 1 hour. Returns {error: file_not_found} if the path doesn't exist."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "file_path": {
+                    "type": "string",
+                    "description": "Relative path within the thread workspace.",
+                },
+            },
+            "required": ["file_path"],
+        },
+    },
+}
+
+_WORKSPACE_EDIT_FILE_SCHEMA = {
+    "type": "function",
+    "function": {
+        "name": "edit_file",
+        "description": (
+            "Edit a workspace text file via exact-string replacement. `old_string` MUST appear EXACTLY ONCE; "
+            "if absent or ambiguous the call returns a structured error and the file is unchanged. "
+            "Cannot edit binary files (returns {error: is_binary_file})."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "file_path": {
+                    "type": "string",
+                    "description": "Relative path within the thread workspace.",
+                },
+                "old_string": {
+                    "type": "string",
+                    "description": "Must appear exactly once in the file.",
+                },
+                "new_string": {
+                    "type": "string",
+                    "description": "Replacement text.",
+                },
+            },
+            "required": ["file_path", "old_string", "new_string"],
+        },
+    },
+}
+
+_WORKSPACE_LIST_FILES_SCHEMA = {
+    "type": "function",
+    "function": {
+        "name": "list_files",
+        "description": (
+            "List all workspace files for the current chat thread, ordered by most recently updated. "
+            "Returns [{file_path, size_bytes, source, mime_type, updated_at}, ...]."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+    },
+}
+
+
+def _register_workspace_tools() -> None:
+    """Register the four workspace tools as native tools (Phase 18 / D-07, D-08).
+
+    Gated by settings.workspace_enabled — early return when False so the
+    four tools are completely absent from the registry (D-08 kill-switch).
+    Only runs when tool_registry_enabled is also True (registry must exist).
+    """
+    if not settings.tool_registry_enabled:
+        return
+    if not settings.workspace_enabled:
+        return
+
+    from app.services import tool_registry  # noqa: PLC0415
+
+    tool_registry.register(
+        name="edit_file",
+        description=_WORKSPACE_EDIT_FILE_SCHEMA["function"]["description"],
+        schema=_WORKSPACE_EDIT_FILE_SCHEMA,
+        source="native",
+        loading="immediate",
+        executor=_workspace_edit_file_executor,
+    )
+
+    tool_registry.register(
+        name="list_files",
+        description=_WORKSPACE_LIST_FILES_SCHEMA["function"]["description"],
+        schema=_WORKSPACE_LIST_FILES_SCHEMA,
+        source="native",
+        loading="immediate",
+        executor=_workspace_list_files_executor,
+    )
+
+    tool_registry.register(
+        name="read_file",
+        description=_WORKSPACE_READ_FILE_SCHEMA["function"]["description"],
+        schema=_WORKSPACE_READ_FILE_SCHEMA,
+        source="native",
+        loading="immediate",
+        executor=_workspace_read_file_executor,
+    )
+
+    tool_registry.register(
+        name="write_file",
+        description=_WORKSPACE_WRITE_FILE_SCHEMA["function"]["description"],
+        schema=_WORKSPACE_WRITE_FILE_SCHEMA,
+        source="native",
+        loading="immediate",
+        executor=_workspace_write_file_executor,
+    )
+
+
+# Run at module load. No-op when workspace_enabled or tool_registry_enabled is False.
+_register_workspace_tools()
