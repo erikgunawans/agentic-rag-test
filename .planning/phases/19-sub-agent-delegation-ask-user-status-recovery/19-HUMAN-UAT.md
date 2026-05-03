@@ -1,14 +1,14 @@
 ---
-status: partial
+status: resolved
 phase: 19-sub-agent-delegation-ask-user-status-recovery
 source: [19-VERIFICATION.md]
 started: 2026-05-03T15:30:00+07:00
-updated: 2026-05-03T15:30:00+07:00
+updated: 2026-05-03T16:30:00+07:00
 ---
 
 ## Current Test
 
-Live UI walkthrough pending
+All tests resolved — phase approved by user
 
 ## Tests
 
@@ -26,14 +26,14 @@ result: PASSED — verified in session (23/23, commit 8b52691)
 
 ### 4. Live UI walkthrough — AgentStatusChip, TaskPanel, question-bubble
 expected: Dev server shows AgentStatusChip with 4 state variants, TaskPanel renders task cards, MessageView renders question-bubble with border-l accent
-result: pending
+result: PASSED — approved by user 2026-05-03 (also caught and fixed 3 unrelated UI bugs during walkthrough: settings subtitle i18n, ThreadPanel wordmark light-theme alignment, WelcomeScreen logo replacement — see commits e1189e7 / c66d202)
 
 ## Summary
 
 total: 4
-passed: 3
+passed: 4
 issues: 0
-pending: 1
+pending: 0
 skipped: 0
 blocked: 0
 

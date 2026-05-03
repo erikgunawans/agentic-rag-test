@@ -47,29 +47,29 @@
 
 ### Sub-Agent Delegation (TASK-*)
 
-- [ ] **TASK-01**: Agent can call `task(description: str, context_files: list[str])` LLM tool to delegate work to a sub-agent with isolated context
-- [ ] **TASK-02**: Sub-agent inherits parent tools minus `task` (no recursion) and minus `write_todos`/`read_todos`
-- [ ] **TASK-03**: Sub-agent shares parent thread's workspace (read + write)
-- [ ] **TASK-04**: Sub-agent's last assistant message text returns as the `task` tool result
-- [ ] **TASK-05**: Sub-agent failures return as tool results (never crash parent loop) — failure isolation
-- [ ] **TASK-06**: Existing `analyze_document` and `explore_knowledge_base` sub-agents remain unchanged (additive)
-- [ ] **TASK-07**: Sub-agent emits start/complete SSE events for UI nesting
+- [x] **TASK-01**: Agent can call `task(description: str, context_files: list[str])` LLM tool to delegate work to a sub-agent with isolated context
+- [x] **TASK-02**: Sub-agent inherits parent tools minus `task` (no recursion) and minus `write_todos`/`read_todos`
+- [x] **TASK-03**: Sub-agent shares parent thread's workspace (read + write)
+- [x] **TASK-04**: Sub-agent's last assistant message text returns as the `task` tool result
+- [x] **TASK-05**: Sub-agent failures return as tool results (never crash parent loop) — failure isolation
+- [x] **TASK-06**: Existing `analyze_document` and `explore_knowledge_base` sub-agents remain unchanged (additive)
+- [x] **TASK-07**: Sub-agent emits start/complete SSE events for UI nesting
 
 ### Ask User Mid-Task (ASK-*)
 
-- [ ] **ASK-01**: Agent can call `ask_user(question)` LLM tool to pause execution mid-loop
-- [ ] **ASK-02**: System emits `ask_user` SSE event and sets `agent_status="waiting_for_user"`
-- [ ] **ASK-03**: User's reply is delivered as the `ask_user` tool result (not as a new top-level message)
-- [ ] **ASK-04**: Agent loop resumes after user response
+- [x] **ASK-01**: Agent can call `ask_user(question)` LLM tool to pause execution mid-loop
+- [x] **ASK-02**: System emits `ask_user` SSE event and sets `agent_status="waiting_for_user"`
+- [x] **ASK-03**: User's reply is delivered as the `ask_user` tool result (not as a new top-level message)
+- [x] **ASK-04**: Agent loop resumes after user response
 
 ### Agent Status & Error Handling (STATUS-*)
 
-- [ ] **STATUS-01**: System surfaces agent status indicators — `working`, `waiting_for_user`, `complete`, `error`
-- [ ] **STATUS-02**: Failed tool calls remain in conversation context (append-only) — LLM can learn and recover
-- [ ] **STATUS-03**: System performs no automatic retries — agent decides retry / alternative / `ask_user` escalation
-- [ ] **STATUS-04**: Sub-agent failures isolated — parent loop continues
-- [ ] **STATUS-05**: All loop iteration state (messages + tool calls + todos + workspace) persisted to DB after each round (reconnection-safe)
-- [ ] **STATUS-06**: User can resume a paused thread by sending a follow-up message — agent reads existing todos/workspace to continue
+- [x] **STATUS-01**: System surfaces agent status indicators — `working`, `waiting_for_user`, `complete`, `error`
+- [x] **STATUS-02**: Failed tool calls remain in conversation context (append-only) — LLM can learn and recover
+- [x] **STATUS-03**: System performs no automatic retries — agent decides retry / alternative / `ask_user` escalation
+- [x] **STATUS-04**: Sub-agent failures isolated — parent loop continues
+- [x] **STATUS-05**: All loop iteration state (messages + tool calls + todos + workspace) persisted to DB after each round (reconnection-safe)
+- [x] **STATUS-06**: User can resume a paused thread by sending a follow-up message — agent reads existing todos/workspace to continue
 
 ### Harness Engine Core (HARN-*)
 

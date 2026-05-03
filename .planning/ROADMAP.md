@@ -185,7 +185,7 @@ The following capabilities shipped before GSD initialization. Tracked as the Val
 |-------|----------------|--------|-----------|
 | 17. Deep Mode Foundation + Planning Todos + Plan Panel | 7/7 | Complete    | 2026-05-02 |
 | 18. Workspace Virtual Filesystem | 8/8 | Complete    | 2026-05-03 |
-| 19. Sub-Agent Delegation + Ask User + Status & Recovery | 10/10 | Complete   | 2026-05-03 |
+| 19. Sub-Agent Delegation + Ask User + Status & Recovery | 10/10 | Complete    | 2026-05-03 |
 | 20. Harness Engine Core + Gatekeeper + Post-Harness + Upload + Locked Panel | 0/0 | Not started | — |
 | 21. Batched Parallel Sub-Agents + Human-in-the-Loop | 0/0 | Not started | — |
 | 22. Contract Review Harness + DOCX Deliverable | 0/0 | Not started | — |
