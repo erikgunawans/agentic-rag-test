@@ -48,7 +48,7 @@ All values are multiples of 4. Existing project scale confirmed from PlanPanel.t
 
 | Token | Value | Usage |
 |-------|-------|-------|
-| xs | 4px | Icon-to-label gap inside chips, inline badge padding (`px-1.5 py-1`) |
+| xs | 4px | Icon-to-label gap inside chips, inline badge padding (`px-2 py-1`) |
 | sm | 8px | Gap between badges in TaskPanel header row, gap between tool call rows |
 | md | 16px | Panel horizontal padding (`px-4`), default element spacing |
 | lg | 24px | Panel section vertical padding (`py-3`) |
@@ -131,7 +131,7 @@ All new components introduced by Phase 19.
 **Chip anatomy:**
 ```
 [icon 14px] [label text-sm font-semibold] 
-px-2 py-1 rounded-full inline-flex items-center gap-1.5
+px-2 py-1 rounded-full inline-flex items-center gap-2
 border border-current/20
 ```
 
@@ -234,7 +234,7 @@ When all tasks are `complete` or `error` (no `running` tasks), the panel remains
 **Structural HTML pattern:**
 ```tsx
 <div className="flex items-start gap-2 border-l-[3px] border-primary pl-3">
-  <MessageCircleQuestion size={16} className="text-primary shrink-0 mt-0.5" />
+  <MessageCircleQuestion size={16} className="text-primary shrink-0 mt-1" />
   <p className="text-sm text-foreground leading-relaxed">{question}</p>
 </div>
 ```
