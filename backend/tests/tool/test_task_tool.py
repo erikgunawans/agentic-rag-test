@@ -75,38 +75,48 @@ async def _collect_sse_events(
         "token": user["token"],
     }
 
-    ctx_patches = [
+    # Stub skill registration and catalog (hit during run_deep_mode_loop setup)
+    # register_user_skills is imported lazily inside run_deep_mode_loop, so patch at module level
+    async def _noop_register_user_skills(*a, **kw):
+        pass
+
+    async def _noop_build_catalog_block(*a, **kw):
+        return ""
+
+    all_patches = [
         patch("app.routers.chat.settings", mock_settings),
         patch("app.routers.chat.openrouter_service", mock_openrouter),
-        patch("app.routers.chat.get_supabase_authed_client", return_value=mock_supabase),
+        # run_sub_agent_loop is imported at module level in chat.py — patch the name there
         patch("app.routers.chat.run_sub_agent_loop", stub_sub_gen),
         patch("app.routers.chat._persist_round_message", return_value="new-parent-id"),
-    ]
-    if extra_patches:
-        ctx_patches.extend(extra_patches)
+        patch("app.routers.chat.build_skill_catalog_block", _noop_build_catalog_block),
+        patch("app.services.skill_catalog_service.register_user_skills", _noop_register_user_skills),
+    ] + (extra_patches or [])
 
     events = []
     with (
-        ctx_patches[0],
-        ctx_patches[1],
-        ctx_patches[2],
-        ctx_patches[3],
-        ctx_patches[4],
-        *(extra_patches or []),
+        all_patches[0],
+        all_patches[1],
+        all_patches[2],
+        all_patches[3],
+        all_patches[4],
+        all_patches[5],
     ):
+        # run_deep_mode_loop(messages, user_message, user_id, user_email, token,
+        #                    tool_context, thread_id, user_msg_id, client,
+        #                    sys_settings, web_search_effective)
         gen = run_deep_mode_loop(
-            user=user,
+            messages=[],
+            user_message="do something",
+            user_id=user["id"],
+            user_email=user["email"],
+            token=user["token"],
+            tool_context=tool_context,
             thread_id=thread_id,
             user_msg_id=user_msg_id,
-            body_message="do something",
-            sys_settings={},
-            loop_messages=[{"role": "user", "content": "do something"}],
-            tool_context=tool_context,
-            token=user["token"],
+            client=mock_supabase,
+            sys_settings={"pii_redaction_enabled": False, "llm_model": "test-model"},
             web_search_effective=False,
-            registry=None,
-            redaction_on=False,
-            redaction_service=None,
         )
         async for chunk in gen:
             if chunk.startswith("data: "):
@@ -413,15 +423,15 @@ def test_task_dispatch_persists_audit_log():
     mock_openrouter = _build_mock_openrouter("audit check")
     mock_log_action = MagicMock()
 
-    with patch("app.routers.chat.audit_service") as mock_audit:
-        mock_audit.log_action = mock_log_action
+    # log_action is imported directly in chat.py: `from app.services.audit_service import log_action`
+    with patch("app.routers.chat.log_action", mock_log_action):
         asyncio.run(_collect_sse_events(
             mock_settings=mock_settings,
             mock_openrouter=mock_openrouter,
             stub_sub_gen=_stub_sub_gen,
         ))
 
-    # Verify audit log was called with action="task" and resource_type="agent_runs"
+    # Verify log_action was called with action="task" and resource_type="agent_runs"
     calls = mock_log_action.call_args_list
     task_audit_calls = [
         c for c in calls
@@ -429,7 +439,7 @@ def test_task_dispatch_persists_audit_log():
         or (len(c.args) >= 3 and c.args[2] == "task")
     ]
     assert len(task_audit_calls) >= 1, (
-        f"audit_service.log_action must be called with action='task'; "
+        f"log_action must be called with action='task'; "
         f"all calls were: {[str(c) for c in calls]}"
     )
     # Verify resource_type is agent_runs

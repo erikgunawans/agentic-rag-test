@@ -26,6 +26,10 @@ from app.services.redaction import (
 from app.services.redaction.egress import egress_filter
 from app.services.redaction_service import get_redaction_service
 from app.services.llm_provider import LLMProviderClient
+# Phase 19 / 19-04 (D-30): sub-agent loop — imported at module level so
+# tests can patch 'app.routers.chat.run_sub_agent_loop'. When sub_agent_enabled
+# is False the branch in run_deep_mode_loop never executes (D-17 byte-identical fallback).
+from app.services.sub_agent_loop import run_sub_agent_loop
 
 logger = logging.getLogger(__name__)
 
@@ -1737,7 +1741,62 @@ async def run_deep_mode_loop(
                     yield f"data: {json.dumps(tool_start_evt)}\n\n"
 
                 try:
-                    if func_name not in available_tool_names:
+                    # --- Phase 19 / 19-04: task tool dispatch (D-05, D-06, D-12, D-23) ---
+                    # Intercept BEFORE the standard _dispatch_tool_deep path so the sub-agent
+                    # SSE event forwarding can yield directly to the parent's generator.
+                    if func_name == "task" and settings.sub_agent_enabled:
+                        import uuid as _uuid  # noqa: PLC0415
+                        task_id = str(_uuid.uuid4())  # server-generated UUID (Discretion default)
+                        description = func_args.get("description", "")
+                        context_files = func_args.get("context_files", [])
+
+                        # D-23: audit log — fire-and-forget, never raises
+                        log_action(
+                            user_id=user_id,
+                            user_email=user_email,
+                            action="task",
+                            resource_type="agent_runs",
+                            resource_id=thread_id,
+                            details={"task_id": task_id, "description": description[:200]},
+                        )
+
+                        yield f"data: {json.dumps({'type': 'task_start', 'task_id': task_id, 'description': description, 'context_files': context_files})}\n\n"
+
+                        # Forward sub-agent SSE events, tagging nested events with task_id (D-06)
+                        sub_gen = run_sub_agent_loop(
+                            description=description,
+                            context_files=context_files,
+                            parent_user_id=user_id,
+                            parent_user_email=user_email,
+                            parent_token=token,
+                            parent_tool_context=tool_context,
+                            parent_thread_id=thread_id,
+                            parent_user_msg_id=user_msg_id,
+                            client=client,
+                            sys_settings=sys_settings,
+                            web_search_effective=web_search_effective,
+                            task_id=task_id,
+                            parent_redaction_registry=registry,  # D-21 — share parent's registry
+                        )
+                        final_result = None
+                        async for evt in sub_gen:
+                            if isinstance(evt, dict) and "_terminal_result" in evt:
+                                final_result = evt["_terminal_result"]
+                            else:
+                                # D-06: tag nested tool_start/tool_result events with task_id
+                                tagged = {**evt, "task_id": task_id}
+                                yield f"data: {json.dumps(tagged)}\n\n"
+
+                        if final_result and "error" in final_result:
+                            # D-12: structured error → task_error SSE + parent tool_output
+                            yield f"data: {json.dumps({'type': 'task_error', 'task_id': task_id, **final_result})}\n\n"
+                            tool_output = final_result
+                        else:
+                            text_result = (final_result or {}).get("text", "")
+                            yield f"data: {json.dumps({'type': 'task_complete', 'task_id': task_id, 'result': text_result})}\n\n"
+                            tool_output = {"result": text_result}
+
+                    elif func_name not in available_tool_names:
                         tool_output: dict = {
                             "blocked": True,
                             "reason": f"Tool '{func_name}' is not available for this request.",
