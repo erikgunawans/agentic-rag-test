@@ -40,9 +40,9 @@ settings = get_settings()
 SENTINEL = "[TRIGGER_HARNESS]"
 SENTINEL_RE = re.compile(r"\s*\[TRIGGER_HARNESS\]\s*$")
 
-# Sliding-window size: len(SENTINEL) + 8 for trailing whitespace tolerance
-# 12 + 8 = 20 chars
-_WINDOW_SIZE = len(SENTINEL) + 8
+# Sliding-window size: len(SENTINEL) + 8 leading + 8 trailing whitespace tolerance
+# 17 + 8 + 8 = 33 chars
+_WINDOW_SIZE = len(SENTINEL) + 8 + 8
 
 _EGRESS_REFUSAL = (
     "I cannot process this request — sensitive data detected. "

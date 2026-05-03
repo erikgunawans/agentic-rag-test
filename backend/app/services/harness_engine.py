@@ -181,6 +181,7 @@ async def _run_harness_engine_inner(
         )
 
     # --- 2. Initial progress.md write (OBS-01) ---
+    ws: WorkspaceService | None = None
     try:
         ws = WorkspaceService(token=token)
         await ws.write_text_file(

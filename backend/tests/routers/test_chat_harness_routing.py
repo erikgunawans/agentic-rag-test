@@ -588,3 +588,55 @@ async def test_gatekeeper_stream_wrapper_passes_same_registry_to_gatekeeper_and_
     # SAME object identity — B4 invariant
     assert gk_registry_received[0] is engine_registry_received[0]
     assert gk_registry_received[0] is mock_registry
+
+
+# ---------------------------------------------------------------------------
+# 14. test_409_harness_in_progress_includes_phase_count
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_409_harness_in_progress_includes_phase_count():
+    """CR-03 regression: 409 harness_in_progress response must include phase_count so frontend renders correct N/M fraction."""
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from app.routers.chat import router
+    from app.dependencies import get_current_user
+
+    app = FastAPI()
+    app.include_router(router)
+    app.dependency_overrides[get_current_user] = lambda: _mock_user()
+
+    harness = _make_harness(n_phases=3)
+
+    mock_client = MagicMock()
+    thread_chain = MagicMock()
+    mock_client.table.return_value = thread_chain
+    thread_chain.select.return_value = thread_chain
+    thread_chain.eq.return_value = thread_chain
+    thread_chain.limit.return_value = thread_chain
+    thread_chain.execute.return_value = MagicMock(data=[{"id": "thread-1"}])
+
+    active_run = _make_harness_run_record(harness_type="smoke-echo", current_phase=1)
+
+    with patch("app.routers.chat.get_supabase_client", return_value=mock_client), \
+         patch("app.routers.chat.settings") as mock_settings, \
+         patch("app.routers.chat.harness_runs_service.get_active_run", new_callable=AsyncMock, return_value=active_run), \
+         patch("app.routers.chat.harness_registry.get_harness", return_value=harness):
+        mock_settings.sub_agent_enabled = False
+        mock_settings.deep_mode_enabled = False
+        mock_settings.harness_enabled = True
+
+        client = TestClient(app, raise_server_exceptions=False)
+        response = client.post(
+            "/chat/stream",
+            json={
+                "thread_id": "thread-1",
+                "message": "Hello",
+                "parent_message_id": None,
+            },
+        )
+
+    assert response.status_code == 409
+    payload = response.json()
+    assert payload["error"] == "harness_in_progress"
+    assert payload["phase_count"] == 3

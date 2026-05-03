@@ -383,6 +383,7 @@ async def stream_chat(
                     "harness_type": active_harness["harness_type"],
                     "current_phase": phase_idx,
                     "phase_name": phase_name,
+                    "phase_count": len(h.phases) if h else 0,
                 },
             )
 

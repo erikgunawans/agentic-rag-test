@@ -624,3 +624,53 @@ async def test_run_gatekeeper_complete_event_includes_phase_count():
     assert len(complete_no) == 1
     assert complete_no[0]["phase_count"] == 3
     assert complete_no[0]["triggered"] is False
+
+
+# ---------------------------------------------------------------------------
+# CR-01 regression: test_run_gatekeeper_sentinel_with_9_trailing_spaces_no_leak
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_run_gatekeeper_sentinel_with_9_trailing_spaces_no_leak():
+    """CR-01 regression: 9 trailing spaces after sentinel must not leak [TRIGGER_HARNESS] to delta events."""
+    harness = _make_harness(n_phases=2)
+
+    call_count = [0]
+    def mock_get_client(token):
+        call_count[0] += 1
+        if call_count[0] == 2:
+            return _make_supabase_mock(return_data=[])
+        return _make_supabase_mock(return_data=[{"id": f"row-{call_count[0]}"}])
+
+    # 9 trailing spaces — old _WINDOW_SIZE=25 was insufficient (17+9=26 > 25)
+    stream_text = "Ready to begin. [TRIGGER_HARNESS]" + " " * 9
+    chunks = [_make_stream_chunk(c) for c in stream_text]
+    mock_stream = _async_iter(chunks)
+    mock_completions = AsyncMock()
+    mock_completions.create.return_value = mock_stream
+    mock_or_client = MagicMock()
+    mock_or_client.chat.completions = mock_completions
+    mock_or_svc = MagicMock()
+    mock_or_svc.client = mock_or_client
+
+    with patch("app.services.gatekeeper.get_supabase_authed_client", side_effect=mock_get_client), \
+         patch("app.services.gatekeeper.OpenRouterService", return_value=mock_or_svc), \
+         patch("app.services.gatekeeper.harness_runs_service.start_run", new_callable=AsyncMock, return_value="run-cr01"):
+        events = await _drain(run_gatekeeper(
+            harness=harness,
+            thread_id="thread-cr01",
+            user_id="user-1",
+            user_email="user@test.com",
+            user_message="Start it.",
+            token="tok",
+            registry=None,
+        ))
+
+    # Sentinel must NOT appear in any delta event
+    delta_text = "".join(e["content"] for e in events if e["type"] == "delta")
+    assert "[TRIGGER_HARNESS]" not in delta_text
+
+    # Trigger must have fired despite the trailing spaces
+    complete_events = [e for e in events if e["type"] == "gatekeeper_complete"]
+    assert len(complete_events) == 1
+    assert complete_events[0]["triggered"] is True

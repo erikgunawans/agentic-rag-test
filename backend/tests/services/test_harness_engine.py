@@ -1002,3 +1002,45 @@ async def test_run_harness_engine_db_status_cancelled_halts_at_next_phase_bounda
     complete_ev = next((e for e in events if e["type"] == EVT_COMPLETE), None)
     assert complete_ev is not None
     assert complete_ev["status"] == "cancelled"
+
+
+# ---------------------------------------------------------------------------
+# Test 16 (CR-02 regression): WorkspaceService constructor failure must not raise NameError
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_harness_engine_ws_unbound_does_not_raise_name_error():
+    """CR-02 regression: WorkspaceService constructor failure must not leak NameError — ws must be pre-initialised to None."""
+    harness = HarnessDefinition(
+        name="h",
+        display_name="H",
+        prerequisites=_make_prereqs(),
+        phases=[_make_programmatic_phase()],
+    )
+
+    try:
+        with (
+            patch("app.services.harness_engine.agent_todos_service.write_todos", AsyncMock()),
+            patch("app.services.harness_engine.harness_runs_service.advance_phase", AsyncMock(return_value=True)),
+            patch("app.services.harness_engine.harness_runs_service.complete", AsyncMock(return_value=True)),
+            patch("app.services.harness_engine.harness_runs_service.fail", AsyncMock()),
+            patch("app.services.harness_engine.harness_runs_service.cancel", AsyncMock()),
+            patch("app.services.harness_engine.harness_runs_service.get_run_by_id", AsyncMock(return_value={"status": "running"})),
+            patch("app.services.harness_engine.WorkspaceService", side_effect=RuntimeError("init failed")),
+        ):
+            await _collect(
+                run_harness_engine(
+                    harness=harness,
+                    harness_run_id="run-cr02",
+                    thread_id="thread-cr02",
+                    user_id="user-1",
+                    user_email="u@test.com",
+                    token="tok",
+                    registry=None,
+                    cancellation_event=asyncio.Event(),
+                )
+            )
+    except NameError as e:
+        pytest.fail(f"CR-02 regression: NameError leaked from harness_engine: {e}")
+    except Exception:
+        pass  # RuntimeError or other exceptions are acceptable — only NameError is the bug
