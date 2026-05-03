@@ -1,8 +1,8 @@
 ---
 phase: 18-workspace-virtual-filesystem
 verified: 2026-05-03T02:33:00Z
-status: human_needed
-score: 11/12 must-haves verified
+status: passed
+score: 12/12 must-haves resolved (Tests 1, 2 PASSED; Test 3 DEFERRED to Phase 20)
 overrides_applied: 0
 human_verification:
   - test: "Run the full workspace test suite against a live backend (WORKSPACE_ENABLED=true TOOL_REGISTRY_ENABLED=true) and confirm 16+ passing, 5 skipped"
@@ -15,6 +15,7 @@ human_verification:
     result: "PASSED on 2026-05-03 via Playwright — Deep Mode prompt 'Use the write_file tool to write \"this is a workspace UAT test\" to notes/uat.md, then list_files' produced two tool calls (write_file → list_files) and the WorkspacePanel auto-rendered in the right rail with file row 'notes/uat.md' (28 B, agent source badge, 'just now' timestamp). Clicking the row opened an inline text view rendering the exact content 'this is a workspace UAT test'. Screenshots in .playwright-mcp/uat-08-workspace-flow.png and uat-09-workspace-inline.png. (After OPENAI_API_KEY refresh — initial attempt was blocked by stale key.)"
   - test: "Confirm workspace_enabled flag is enabled in the production deployment environment"
     expected: "WORKSPACE_ENABLED=true (or workspace_enabled=true) is set on the Railway backend; the two workspace routes register and return 200 (not 404)"
+    result: "DEFERRED on 2026-05-03 by operator decision — hold dark until Phase 20 (harness engine) lands so WORKSPACE_ENABLED, SUB_AGENT_ENABLED, and HARNESS_ENABLED are flipped together. The harness's llm_agent phase type reuses workspace, so flipping in lockstep simplifies validation. Tests 1 and 2 both PASSED locally — code is production-ready when the operator chooses to flip the flag."
     why_human: "Config.py shows workspace_enabled defaults to False; the plan requires an operator to flip it on in production before workspace features are live"
 ---
 

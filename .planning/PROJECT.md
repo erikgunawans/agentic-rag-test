@@ -111,6 +111,7 @@ Indonesian legal teams can manage the full contract lifecycle — chat with docu
 - Signed-URL download UX polish (cosmetic, no 404 vs 500 distinction)
 - Multi-worker IPython session semantics for Railway horizontal scale-out
 - Deploy v1.2 features to production (flip `TOOL_REGISTRY_ENABLED=true` + `SANDBOX_ENABLED=true` in Railway env, deploy Docker image, run smoke tests)
+- Deploy v1.3 Phase 17–19 features to production (flip `DEEP_MODE_ENABLED=true` + `WORKSPACE_ENABLED=true` + `SUB_AGENT_ENABLED=true` in Railway env, deploy, run smoke tests). Operator decision on 2026-05-03 to hold dark until Phase 20 lands so the workspace + sub-agent + harness flags can flip together — `llm_agent` phase types in the harness engine reuse workspace, so combined validation is simpler than incremental flips.
 
 ### Out of Scope
 
