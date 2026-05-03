@@ -280,6 +280,8 @@ async def stream_chat(
                 run_id=active_run["id"],
                 new_status="working",
                 token=user["token"],
+                user_id=user["id"],
+                user_email=user.get("email", ""),
             )
             # Reload history for the resumed loop (same as normal path below)
             flat_rows_resume = (

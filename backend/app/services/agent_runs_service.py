@@ -133,6 +133,8 @@ async def transition_status(
     token: str,
     *,
     error_detail: str | None = None,
+    user_id: str | None = None,
+    user_email: str | None = None,
 ) -> None:
     """Update the status of an agent run.
 
@@ -144,6 +146,8 @@ async def transition_status(
         new_status:   Target status — one of 'working', 'waiting_for_user', 'complete', 'error'.
         token:        JWT access token for RLS-scoped client.
         error_detail: Optional error description (used when new_status='error').
+        user_id:      auth.users UUID for audit log (optional for backward compat).
+        user_email:   User's email for audit log (optional for backward compat).
     """
     client = get_supabase_authed_client(token)
     update_payload: dict = {"status": new_status}
@@ -154,8 +158,8 @@ async def transition_status(
     client.table("agent_runs").update(update_payload).eq("id", run_id).execute()
 
     audit_service.log_action(
-        user_id=None,
-        user_email=None,
+        user_id=user_id,
+        user_email=user_email,
         action=f"agent_run_transition_{new_status}",
         resource_type="agent_runs",
         resource_id=run_id,
