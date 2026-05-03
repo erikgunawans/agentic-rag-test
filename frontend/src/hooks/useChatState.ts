@@ -108,11 +108,25 @@ export function useChatState() {
   const [tasks, setTasks] = useState<Map<string, TaskState>>(new Map())
 
   // Phase 20 / PANEL-01 / PANEL-04: harness run slice (W10 full type safety).
-  // Populated from harness_phase_* SSE events (Plan 20-09 owns the reducer arms).
-  // Declared here so Plan 20-08 (PlanPanel locked variant) can read it with full
-  // TypeScript typing without `as any` fallbacks. Plan 20-09 will extend with
-  // reducer arms, thread-switch reset, and GET /threads/{id}/harness/active rehydration.
+  // Populated from harness_phase_* SSE events and GET /threads/{id}/harness/active.
+  // Plan 20-09 owns the reducer arms, thread-switch reset, and SSE wiring.
   const [harnessRun, setHarnessRun] = useState<HarnessRunSlice>(null)
+
+  // Phase 20 / Plan 20-09 / D-02: reject-while-active toast state.
+  // Set when the backend returns 409 {error: 'harness_in_progress'} during a chat send.
+  // Consumed by the UI (HarnessBanner or a toast renderer) and cleared on next send.
+  const [harnessToast, setHarnessToast] = useState<{
+    message: string
+    harnessType: string
+    currentPhase: number
+    phaseCount: number
+  } | null>(null)
+
+  // Phase 20 / Plan 20-09: status sets that drive the terminal-fade useEffect.
+  // Defined here (not in component) so they are the single source of truth for
+  // the 3000ms fade logic. ACTIVE_HARNESS_STATUSES unused outside tests but
+  // kept for symmetry and future reference.
+  const TERMINAL_HARNESS_STATUSES = new Set<string>(['completed', 'cancelled', 'failed'])
 
   const loadThreads = useCallback(async () => {
     setLoadingThreads(true)
@@ -175,6 +189,38 @@ export function useChatState() {
   useEffect(() => {
     setAgentStatus(null)
     setTasks(new Map())
+  }, [activeThreadId])
+
+  // Phase 20 / Plan 20-09 / HARN-09: 3000ms terminal-fade for harnessRun.
+  // When harnessRun transitions to a terminal state (completed/cancelled/failed),
+  // set to null after 3000ms. Mirrors AgentStatusChip auto-fade pattern (D-24).
+  // The single-source-of-truth approach: useChatState owns the timeout, not
+  // HarnessBanner, so the slice is null by the time the next render cycle runs.
+  useEffect(() => {
+    if (harnessRun && TERMINAL_HARNESS_STATUSES.has(harnessRun.status)) {
+      const timer = setTimeout(() => setHarnessRun(null), 3000)
+      return () => clearTimeout(timer)
+    }
+  }, [harnessRun]) // TERMINAL_HARNESS_STATUSES is module-scoped constant; safe to omit
+
+  // Phase 20 / Plan 20-09 / HARN-09: reset harnessRun on thread switch + rehydrate
+  // from GET /threads/{id}/harness/active. Prevents stale harness state leaking
+  // across threads. The /harness/active endpoint returns the current active run (if
+  // any), seeding the banner and locked PlanPanel immediately on reload/thread-switch.
+  // W8: gatekeeper_complete SSE already seeds phaseCount, so the rehydration fetch
+  // mainly fills harnessType + phaseName that gatekeeper_complete omits.
+  useEffect(() => {
+    setHarnessRun(null)
+    if (!activeThreadId) return
+    apiFetch(`/threads/${activeThreadId}/harness/active`)
+      .then((r) => r.json() as Promise<{ harnessRun: HarnessRunSlice }>)
+      .then((data) => {
+        if (data.harnessRun) setHarnessRun(data.harnessRun)
+      })
+      .catch(() => {
+        // Non-fatal: leave harnessRun as null if /harness/active fetch fails.
+        // Backend may not have this endpoint until Plan 20-04 is applied.
+      })
   }, [activeThreadId])
 
   function rebuildVisibleMessages(all: Message[], selections: Map<string, string>) {
@@ -303,10 +349,43 @@ export function useChatState() {
         requestBody.deep_mode = true
       }
 
-      const response = await apiFetch('/chat/stream', {
-        method: 'POST',
-        body: JSON.stringify(requestBody),
-      })
+      let response: Response
+      try {
+        response = await apiFetch('/chat/stream', {
+          method: 'POST',
+          body: JSON.stringify(requestBody),
+        })
+      } catch (fetchErr) {
+        // Phase 20 / Plan 20-09 / D-02: reject-while-active 409 handler.
+        // When the backend returns 409 {error: 'harness_in_progress', ...},
+        // surface a toast with the running harness info and preserve the message draft.
+        // apiFetch now attaches .status and .body to thrown errors.
+        const err = fetchErr as Error & { status?: number; body?: Record<string, unknown> }
+        if (
+          err.status === 409 &&
+          err.body &&
+          err.body.error === 'harness_in_progress'
+        ) {
+          const toastBody = err.body as {
+            error: string
+            harness_type?: string
+            current_phase?: number
+            phase_count?: number
+            phase_name?: string
+          }
+          setHarnessToast({
+            message: `${toastBody.harness_type ?? 'Harness'} running (phase ${toastBody.current_phase ?? 0}/${toastBody.phase_count ?? harnessRun?.phaseCount ?? 1}) — please wait`,
+            harnessType: toastBody.harness_type ?? '',
+            currentPhase: toastBody.current_phase ?? 0,
+            phaseCount: toastBody.phase_count ?? harnessRun?.phaseCount ?? 1,
+          })
+          // Remove the optimistic user message (it never reached the server).
+          setMessages((prev) => prev.filter((m) => !m.id.startsWith('optimistic-')))
+          // NOTE: do NOT clear the message draft — user should be able to retry.
+          return
+        }
+        throw fetchErr
+      }
 
       const reader = response.body!.getReader()
       const decoder = new TextDecoder()
@@ -473,6 +552,91 @@ export function useChatState() {
               if (t) next.set(event.task_id, { ...t, status: 'error', error: { error: event.error, code: event.code, detail: event.detail } })
               return next
             })
+          } else if (event.type === 'harness_phase_start') {
+            // Phase 20 / Plan 20-09 / HARN-09: harness phase started.
+            // Sets status='running', updates currentPhase and phaseName.
+            // phaseCount is typically already seeded by gatekeeper_complete (W8).
+            setHarnessRun((prev) => ({
+              id: event.harness_run_id as string,
+              harnessType: (prev?.harnessType) ?? '',
+              status: 'running',
+              currentPhase: event.phase_index as number,
+              phaseCount: (prev?.phaseCount) ?? 0,
+              phaseName: event.phase_name as string,
+              errorDetail: null,
+            }))
+          } else if (event.type === 'harness_phase_complete') {
+            // Phase 20 / Plan 20-09 / HARN-09: harness phase completed.
+            // Bumps currentPhase by 1.
+            setHarnessRun((prev) => prev ? { ...prev, currentPhase: prev.currentPhase + 1 } : prev)
+          } else if (event.type === 'harness_phase_error') {
+            // Phase 20 / Plan 20-09 / HARN-09: harness phase errored.
+            // code='cancelled' or reason='cancelled_by_user' → cancelled; else → failed.
+            const isCancelled =
+              event.code === 'cancelled' || event.reason === 'cancelled_by_user'
+            setHarnessRun((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    status: isCancelled ? 'cancelled' : 'failed',
+                    errorDetail: isCancelled ? null : ((event.detail as string) ?? null),
+                  }
+                : prev
+            )
+          } else if (event.type === 'harness_complete') {
+            // Phase 20 / Plan 20-09 / HARN-09: harness run finished.
+            // status from payload: 'completed' | 'failed' | 'cancelled'.
+            const terminalStatus = (event.status as HarnessRunSlice extends infer T
+              ? T extends { status: infer S }
+                ? S
+                : never
+              : never) ?? 'completed'
+            setHarnessRun((prev) =>
+              prev ? { ...prev, status: terminalStatus } : prev
+            )
+          } else if (
+            event.type === 'gatekeeper_complete' &&
+            event.triggered &&
+            event.harness_run_id
+          ) {
+            // Phase 20 / Plan 20-09 / W8 fix: gatekeeper fired the harness sentinel.
+            // Seed harnessRun immediately from event payload so the banner shows
+            // "phase 1 of N" fraction on the very first harness_phase_start tick,
+            // without waiting for a separate /harness/active fetch.
+            // Plan 20-04 added phase_count to this payload specifically for this fix.
+            const runId = event.harness_run_id as string
+            const phaseCount =
+              typeof event.phase_count === 'number' ? event.phase_count : 0
+            setHarnessRun({
+              id: runId,
+              harnessType: '',
+              status: 'pending',
+              currentPhase: 0,
+              phaseCount,
+              phaseName: '',
+              errorDetail: null,
+            })
+            // Follow-up fetch to fill harnessType + phaseName (not in gatekeeper_complete
+            // payload — would bloat it). Non-blocking; if it fails, the banner still shows.
+            if (activeThreadId) {
+              apiFetch(`/threads/${activeThreadId}/harness/active`)
+                .then((r) => r.json() as Promise<{ harnessRun: HarnessRunSlice }>)
+                .then((data) => {
+                  if (data.harnessRun) setHarnessRun(data.harnessRun)
+                })
+                .catch(() => {
+                  /* non-fatal */
+                })
+            }
+          } else if (
+            event.type === 'harness_sub_agent_start' ||
+            event.type === 'harness_sub_agent_complete'
+          ) {
+            // Phase 20 / Plan 20-09 / B1 forward-compat: harness engine emits sub-agent
+            // telemetry events around llm_agent phase dispatch. v1.3 has no UI surface
+            // for sub-agent telemetry inside the harness. Explicit no-op arm prevents
+            // these events from falling through to the delta/done branch and producing
+            // spurious console warnings. Phase 21 will hook in here.
           } else {
             const delta = 'delta' in event ? event.delta : ''
             const isDone = 'done' in event ? event.done : false
@@ -560,6 +724,8 @@ export function useChatState() {
     tasks,                       // Phase 19 / D-24
     harnessRun,                  // Phase 20 / PANEL-04 — read by PlanPanel locked variant
     setHarnessRun,               // Phase 20 — Plan 20-09 wires SSE reducer arms
+    harnessToast,                // Phase 20 / Plan 20-09 / D-02 — 409 reject-while-active toast
+    setHarnessToast,             // Phase 20 — lets HarnessBanner clear toast after display
     handleSelectThread,
     handleCreateThread,
     handleDeleteThread,

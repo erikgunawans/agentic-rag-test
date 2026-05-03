@@ -20,8 +20,14 @@ export async function apiFetch(path: string, options: RequestInit = {}): Promise
   })
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: response.statusText }))
-    throw new Error(error.detail || 'Request failed')
+    const body = await response.json().catch(() => ({ detail: response.statusText }))
+    const err = new Error(body.detail || body.error || 'Request failed') as Error & {
+      status: number
+      body: Record<string, unknown>
+    }
+    err.status = response.status
+    err.body = body
+    throw err
   }
 
   return response
