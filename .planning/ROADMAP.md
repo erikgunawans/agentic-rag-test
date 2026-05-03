@@ -136,7 +136,18 @@ Full archive: `.planning/milestones/v1.1-ROADMAP.md`
   4. After harness completion, a separate post-harness LLM call loads phase results into a system prompt (truncated at 30 k chars with last 2 phases kept in full), streams a ~500-token summary as a separate assistant message, and follow-up user messages route through the normal LLM loop with phase results in context.
   5. User uploads DOCX / PDF via `POST /threads/{id}/files/upload` (binary in Storage, metadata in `workspace_files` with `source='upload'`, text extracted via `python-docx` / `PyPDF2` for harness consumption); harness phases write to `agent_todos` so the Plan Panel shows phases progressing, with `write_todos`/`read_todos` stripped from harness-phase tool sets and a lock icon on the Plan Panel header to communicate immutability.
   6. Cross-cutting: all new agent + harness paths route LLM payloads through the existing PII redaction egress filter (privacy invariant preserved), sub-agents run inside the parent user's auth context (no privilege escalation), provider API keys stay server-side; harness writes a single-writer `progress.md` per phase transition with intermediate summaries, all operations include `thread_id` correlation logging, and existing LangSmith tracing covers the new agent loop and harness phases.
-**Plans**: TBD
+**Plans:** 11 plans
+- [ ] 20-01-PLAN.md — Migration 042 (harness_runs table + RLS + messages.harness_mode column) + BLOCKING supabase db push
+- [ ] 20-02-PLAN.md — harness_runs_service.py (CRUD + state-machine helpers; mirrors agent_runs_service)
+- [ ] 20-03-PLAN.md — Harness engine core (types, registry, engine, auto-import barrel) + HARNESS_ENABLED/HARNESS_SMOKE_ENABLED flags
+- [ ] 20-04-PLAN.md — Gatekeeper service + chat.py routing branches (D-02 reject, D-05 gatekeeper, cancel + active endpoints)
+- [ ] 20-05-PLAN.md — Post-harness summary service + inline SSE handoff in _gatekeeper_stream_wrapper
+- [ ] 20-06-PLAN.md — File upload backend (POST /threads/{id}/files/upload + register_uploaded_file) — magic-byte + 25 MB cap
+- [ ] 20-07-PLAN.md — Smoke harness (smoke_echo.py — 2-phase programmatic+llm_single, gated on HARNESS_SMOKE_ENABLED)
+- [ ] 20-08-PLAN.md — Locked Plan Panel variant (lock icon + tooltip + Cancel Dialog) + i18n keys
+- [ ] 20-09-PLAN.md — useChatState harnessRun slice + HarnessBanner component + ChatPage slot
+- [ ] 20-10-PLAN.md — FileUploadButton (paperclip + multipart upload + AbortController) + MessageInput/WelcomeInput slots
+- [ ] 20-11-PLAN.md — Cross-cuts verification (SEC-02..04 + OBS-01..03 + RLS isolation + OFF-mode byte-identical) + E2E smoke test
 **UI hint**: yes
 
 ### Phase 21: Batched Parallel Sub-Agents + Human-in-the-Loop
@@ -186,7 +197,7 @@ The following capabilities shipped before GSD initialization. Tracked as the Val
 | 17. Deep Mode Foundation + Planning Todos + Plan Panel | 7/7 | Complete    | 2026-05-02 |
 | 18. Workspace Virtual Filesystem | 8/8 | Complete    | 2026-05-03 |
 | 19. Sub-Agent Delegation + Ask User + Status & Recovery | 10/10 | Complete    | 2026-05-03 |
-| 20. Harness Engine Core + Gatekeeper + Post-Harness + Upload + Locked Panel | 0/0 | Not started | — |
+| 20. Harness Engine Core + Gatekeeper + Post-Harness + Upload + Locked Panel | 0/11 | Planned     | — |
 | 21. Batched Parallel Sub-Agents + Human-in-the-Loop | 0/0 | Not started | — |
 | 22. Contract Review Harness + DOCX Deliverable | 0/0 | Not started | — |
 
