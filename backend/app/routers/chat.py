@@ -34,6 +34,12 @@ from app.services.sub_agent_loop import run_sub_agent_loop
 # tests can patch 'app.routers.chat.agent_runs_service'. When sub_agent_enabled
 # is False the resume-detection branch never executes (D-17 byte-identical fallback).
 from app.services import agent_runs_service
+# Phase 20 / Plan 20-04: harness routing — harness_runs_service + harness_registry.
+# Imported at module level so tests can patch 'app.routers.chat.harness_runs_service'
+# and 'app.routers.chat.harness_registry'. When harness_enabled is False none of
+# the new branches activate (byte-identical OFF mode).
+from app.services import harness_runs_service, harness_registry
+from fastapi.responses import JSONResponse
 
 logger = logging.getLogger(__name__)
 
@@ -346,6 +352,68 @@ async def stream_chat(
                 media_type="text/event-stream",
                 headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
             )
+
+    # Phase 20 / D-02: reject new chat messages while a harness is active.
+    # Per HARN-01 partial unique index, at most one active harness_run exists per thread.
+    # When user sends a new message during harness execution, return structured 409 JSON;
+    # frontend surfaces a banner per UI-SPEC reject-while-active toast.
+    if settings.harness_enabled:
+        active_harness = await harness_runs_service.get_active_run(
+            thread_id=body.thread_id, token=user["token"]
+        )
+        if active_harness is not None:
+            phase_idx = active_harness.get("current_phase", 0)
+            phase_name = "—"
+            try:
+                h = harness_registry.get_harness(active_harness["harness_type"])
+                if h and phase_idx < len(h.phases):
+                    phase_name = h.phases[phase_idx].name
+            except Exception:
+                phase_name = "—"
+            return JSONResponse(
+                status_code=409,
+                content={
+                    "error": "harness_in_progress",
+                    "harness_type": active_harness["harness_type"],
+                    "current_phase": phase_idx,
+                    "phase_name": phase_name,
+                },
+            )
+
+    # Phase 20 / D-05 (GATE-01, GATE-05): gatekeeper-eligibility branch.
+    # Run gatekeeper ONLY when:
+    #   (a) HARNESS_ENABLED is True
+    #   (b) HarnessRegistry has at least one registered harness
+    #   (c) get_latest_for_thread returns None (no active OR terminal run for this thread)
+    #   (d) The single registered harness has prerequisites.requires_upload=True
+    #       (GATE-05: harnesses without prerequisites skip gatekeeper entirely).
+    # For v1.3, registry holds at most one user-facing harness at a time (D-06); pick the first.
+    if settings.harness_enabled:
+        latest = await harness_runs_service.get_latest_for_thread(
+            thread_id=body.thread_id, token=user["token"]
+        )
+        if latest is None:
+            _harnesses = harness_registry.list_harnesses()
+            if _harnesses:
+                # D-06: pick first registered (single-harness invariant for v1.3)
+                _target_harness = _harnesses[0]
+                # GATE-05: skip gatekeeper if harness has no prerequisites requiring upload
+                if _target_harness.prerequisites.requires_upload:
+                    # sys_settings not yet loaded at this point — load now for registry helper
+                    _sys_settings_gk = get_system_settings()
+                    return StreamingResponse(
+                        _gatekeeper_stream_wrapper(
+                            harness=_target_harness,
+                            thread_id=body.thread_id,
+                            user_id=user["id"],
+                            user_email=user.get("email", ""),
+                            user_message=body.message,
+                            token=user["token"],
+                            sys_settings=_sys_settings_gk,
+                        ),
+                        media_type="text/event-stream",
+                        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+                    )
 
     # Load chat history — branch-aware when parent_message_id is provided.
     # Phase 11 Plan 11-04 (MEM-01..03): both SELECT calls widened to include
@@ -1602,6 +1670,183 @@ async def _run_tool_loop_for_test(
         }
 
     yield "records", tool_records
+
+
+# ---------------------------------------------------------------------------
+# Phase 20 / Plan 20-04 (B4 fix): single canonical ConversationRegistry helper.
+#
+# Mirrors the inline blocks at:
+#   - chat.py event_generator (pii_redaction_enabled → ConversationRegistry.load)
+#   - chat.py run_deep_mode_loop (same pattern)
+#
+# Extracted to DRY across 4 LLM call sites added in Phase 20:
+# gatekeeper, harness_engine, post_harness (Plan 20-05), and any future sites.
+# Returns the parent ConversationRegistry when PII redaction is on;
+# returns None when redaction is off (egress_filter is a no-op with None registry).
+# ---------------------------------------------------------------------------
+
+async def _get_or_build_conversation_registry(
+    thread_id: str,
+    sys_settings: dict | None = None,
+):
+    """Load the parent ConversationRegistry for this thread.
+
+    Equivalent to the inline block at chat.py event_generator (redaction setup
+    chokepoint). Use ONE call per request — registry is per-turn state, not per-call.
+
+    Args:
+        thread_id: Thread UUID to load registry for.
+        sys_settings: Pre-loaded system settings dict. If None, loads from DB (60s cache).
+
+    Returns:
+        ConversationRegistry instance when pii_redaction_enabled is True; None otherwise.
+    """
+    if sys_settings is None:
+        sys_settings = get_system_settings()
+    redaction_on = bool(sys_settings.get("pii_redaction_enabled", True))
+    if not redaction_on:
+        return None
+    return await ConversationRegistry.load(thread_id)
+
+
+# ---------------------------------------------------------------------------
+# Phase 20 / Plan 20-04 — Gatekeeper stream wrapper
+# (module-level, not a closure, so tests can patch cleanly)
+# ---------------------------------------------------------------------------
+
+async def _gatekeeper_stream_wrapper(
+    *,
+    harness,
+    thread_id: str,
+    user_id: str,
+    user_email: str,
+    user_message: str,
+    token: str,
+    sys_settings: dict,
+):
+    """SSE wrapper: run gatekeeper, then if triggered → run harness engine in same stream.
+
+    B4 fix: single canonical registry built once and passed to both gatekeeper
+    and harness engine (SAME object instance — verified by test_gatekeeper_stream_wrapper_
+    passes_same_registry_to_gatekeeper_and_engine). This ensures SEC-04 egress coverage
+    is consistent across all 4 LLM call sites.
+
+    Plan 20-05 (post_harness) will REPLACE the trailing done event with
+    run_post_harness_summary, sharing the same registry instance.
+    """
+    from app.services.gatekeeper import run_gatekeeper
+    from app.services.harness_engine import run_harness_engine
+
+    # B4 fix: single canonical registry — used by gatekeeper, engine, and (Plan 20-05) post_harness.
+    registry = await _get_or_build_conversation_registry(thread_id, sys_settings)
+
+    triggered = False
+    harness_run_id = None
+    async for ev in run_gatekeeper(
+        harness=harness,
+        thread_id=thread_id,
+        user_id=user_id,
+        user_email=user_email,
+        user_message=user_message,
+        token=token,
+        registry=registry,
+    ):
+        if ev.get("type") == "gatekeeper_complete":
+            triggered = ev.get("triggered", False)
+            harness_run_id = ev.get("harness_run_id")
+            yield f"data: {json.dumps(ev)}\n\n"
+            continue
+        yield f"data: {json.dumps(ev)}\n\n"
+
+    if not triggered or not harness_run_id:
+        yield f"data: {json.dumps({'type': 'done'})}\n\n"
+        return
+
+    # In-stream handoff per D-07: drive harness engine in the same SSE stream.
+    cancellation_event = asyncio.Event()
+    async for ev in run_harness_engine(
+        harness=harness,
+        harness_run_id=harness_run_id,
+        thread_id=thread_id,
+        user_id=user_id,
+        user_email=user_email,
+        token=token,
+        registry=registry,   # SAME registry — B4 invariant for SEC-04 across all 4 LLM call sites
+        cancellation_event=cancellation_event,
+    ):
+        yield f"data: {json.dumps(ev)}\n\n"
+
+    # Plan 20-05 (post_harness) replaces this trailing done with run_post_harness_summary.
+    # For now, emit done to close the SSE stream.
+    yield f"data: {json.dumps({'type': 'done'})}\n\n"
+
+
+# ---------------------------------------------------------------------------
+# Phase 20 / Plan 20-04 — Harness cancel + active-harness endpoints
+# ---------------------------------------------------------------------------
+
+@router.post("/threads/{thread_id}/harness/cancel")
+async def cancel_harness(thread_id: str, user: dict = Depends(get_current_user)):
+    """Cancel the active harness run for this thread (D-03 + B3 dual-layer cancellation).
+
+    How cancellation propagates to a running engine (HARN-07):
+      - This endpoint flips `harness_runs.status='cancelled'` in the DB.
+      - The engine (Plan 20-03 Task 4) checks two channels BEFORE each phase:
+          (1) An in-process asyncio.Event passed by reference from the SAME
+              request's _gatekeeper_stream_wrapper. This handles the rare case
+              of a same-process Cancel from a code path holding the event ref.
+          (2) A DB poll via harness_runs_service.get_run_by_id — checks the
+              .status field. THIS is the channel triggered by the Cancel
+              button in the frontend, which fires this endpoint on a SEPARATE
+              HTTP request from the SSE stream that owns the engine generator.
+      - Combined: the user clicks Cancel → this endpoint flips DB row →
+        engine notices at the next phase boundary (typically <60s) → engine
+        yields harness_phase_error{reason='cancelled_by_user'} → engine exits.
+      - Workspace artifacts produced by completed phases are preserved
+        (the engine does not roll back phase_results on cancel).
+    """
+    if not settings.harness_enabled:
+        raise HTTPException(status_code=404, detail="harness_disabled")
+    active = await harness_runs_service.get_active_run(
+        thread_id=thread_id, token=user["token"]
+    )
+    if active is None:
+        raise HTTPException(status_code=404, detail={"error": "no_active_run"})
+    await harness_runs_service.cancel(
+        run_id=active["id"],
+        user_id=user["id"],
+        user_email=user.get("email", ""),
+        token=user["token"],
+    )
+    return {"ok": True, "harness_run_id": active["id"], "status": "cancelled"}
+
+
+@router.get("/threads/{thread_id}/harness/active")
+async def get_active_harness(thread_id: str, user: dict = Depends(get_current_user)):
+    """Return the active harness run state for frontend rehydration (Plan 20-09)."""
+    if not settings.harness_enabled:
+        return {"harnessRun": None}
+    active = await harness_runs_service.get_active_run(
+        thread_id=thread_id, token=user["token"]
+    )
+    if active is None:
+        return {"harnessRun": None}
+    h = harness_registry.get_harness(active["harness_type"])
+    return {
+        "harnessRun": {
+            "id": active["id"],
+            "harnessType": active["harness_type"],
+            "status": active["status"],
+            "currentPhase": active["current_phase"],
+            "phaseCount": len(h.phases) if h else 0,
+            "phaseName": (
+                h.phases[active["current_phase"]].name
+                if h and active["current_phase"] < len(h.phases)
+                else "—"
+            ),
+            "errorDetail": active.get("error_detail"),
+        }
+    }
 
 
 # ---------------------------------------------------------------------------
