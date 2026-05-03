@@ -1732,6 +1732,24 @@ async def run_deep_mode_loop(
         + [{"role": "user", "content": anonymized_message}]
     )
 
+    # --- Phase 19 / 19-06 / D-16 Site A: agent_runs lifecycle + working emission ---
+    # ALL site A behavior (agent_runs.start_run + agent_status yield) gated by
+    # settings.sub_agent_enabled per D-17 byte-identical fallback invariant.
+    # Phase 19 / D-16 Site B (waiting_for_user) — OWNED by 19-05's ask_user dispatch handler.
+    # This plan does NOT emit a second waiting_for_user event. The verify gate below
+    # asserts exactly 1 emission location across chat.py (in the ask_user handler).
+    if settings.sub_agent_enabled:
+        if resume_run_id is None:
+            run_record = await agent_runs_service.start_run(
+                thread_id=thread_id, user_id=user_id, user_email=user_email, token=token,
+            )
+            run_id = run_record["id"]
+        else:
+            run_id = resume_run_id
+        yield f"data: {json.dumps({'type': 'agent_status', 'status': 'working'})}\n\n"
+    else:
+        run_id = None  # SUB_AGENT_ENABLED off — no agent_runs lifecycle, no agent_status
+
     # --- Phase 19 / D-04/D-15: resume injection ---
     # When resuming from a waiting_for_user pause, inject the user's reply as the
     # ask_user tool result. The ask_user tool_call was already persisted in the
@@ -1739,8 +1757,6 @@ async def run_deep_mode_loop(
     # ask_user tool_result message so the LLM sees the full context.
     # D-15: body.message is passed through VERBATIM — no filtering.
     if resume_run_id is not None and resume_tool_result is not None:
-        # Emit working status (Site A — loop entry on resume)
-        yield f"data: {json.dumps({'type': 'agent_status', 'status': 'working'})}\n\n"
         # Inject a synthetic ask_user tool_result into loop_messages.
         # Use a stable sentinel tool_call_id so the LLM can pair it.
         _resume_tool_call_id = f"resume-ask-user-{resume_run_id}"
@@ -2097,6 +2113,20 @@ async def run_deep_mode_loop(
         return
     except Exception as exc:
         logger.error("run_deep_mode_loop error: %s", exc, exc_info=True)
+        # Phase 19 / D-16 site D — error transition + SSE. Gated by sub_agent_enabled (D-17).
+        if settings.sub_agent_enabled:
+            if run_id is not None:
+                try:
+                    await agent_runs_service.error(
+                        run_id, token, user_id, user_email,
+                        error_detail=str(exc)[:500],  # D-19 sanitized — no stack trace
+                    )
+                except Exception:
+                    logger.exception("failed to record agent_runs error")
+            yield f"data: {json.dumps({'type': 'agent_status', 'status': 'error', 'detail': str(exc)[:200]})}\n\n"
+        # legacy done emission preserved in BOTH branches (D-17 byte-identical fallback)
+        yield f"data: {json.dumps({'type': 'delta', 'delta': '', 'done': True})}\n\n"
+        return
 
     # --- De-anonymize and emit final response (redaction ON) ---
     if redaction_on and full_response:
@@ -2179,7 +2209,12 @@ async def run_deep_mode_loop(
         total_tokens = last_prompt_tokens + cumulative_completion_tokens
         yield f"data: {json.dumps({'type': 'usage', 'prompt_tokens': last_prompt_tokens, 'completion_tokens': cumulative_completion_tokens, 'total_tokens': total_tokens})}\n\n"
 
-    yield f"data: {json.dumps({'type': 'delta', 'delta': '', 'done': True})}\n\n"
+    # Phase 19 / D-16 site C — emit complete before final done. Gated by sub_agent_enabled (D-17).
+    if settings.sub_agent_enabled:
+        if run_id is not None:
+            await agent_runs_service.complete(run_id, token, user_id, user_email)
+        yield f"data: {json.dumps({'type': 'agent_status', 'status': 'complete'})}\n\n"
+    yield f"data: {json.dumps({'type': 'delta', 'delta': '', 'done': True})}\n\n"  # emitted in BOTH branches (D-17)
 
 
 async def _dispatch_tool_deep(

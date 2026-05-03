@@ -83,6 +83,12 @@ async def _collect_sse_events(
     async def _noop_build_catalog_block(*a, **kw):
         return ""
 
+    # Phase 19 / 19-06: agent_runs_service methods must be mocked so that
+    # Site A (start_run) and Site C (complete) don't call real Supabase client
+    _mock_run_record = {
+        "id": "run-uuid", "thread_id": thread_id, "status": "working",
+        "pending_question": None, "last_round_index": 0, "error_detail": None,
+    }
     all_patches = [
         patch("app.routers.chat.settings", mock_settings),
         patch("app.routers.chat.openrouter_service", mock_openrouter),
@@ -91,41 +97,44 @@ async def _collect_sse_events(
         patch("app.routers.chat._persist_round_message", return_value="new-parent-id"),
         patch("app.routers.chat.build_skill_catalog_block", _noop_build_catalog_block),
         patch("app.services.skill_catalog_service.register_user_skills", _noop_register_user_skills),
+        # Phase 19 / 19-06: mock agent_runs_service so start_run/complete don't touch Supabase
+        patch("app.routers.chat.agent_runs_service.start_run", AsyncMock(return_value=_mock_run_record)),
+        patch("app.routers.chat.agent_runs_service.complete", AsyncMock(return_value=None)),
+        patch("app.routers.chat.agent_runs_service.error", AsyncMock(return_value=None)),
+        patch("app.routers.chat.agent_runs_service.get_active_run", AsyncMock(return_value=None)),
+        patch("app.routers.chat.agent_runs_service.set_pending_question", AsyncMock(return_value=None)),
     ] + (extra_patches or [])
 
-    events = []
-    with (
-        all_patches[0],
-        all_patches[1],
-        all_patches[2],
-        all_patches[3],
-        all_patches[4],
-        all_patches[5],
-    ):
-        # run_deep_mode_loop(messages, user_message, user_id, user_email, token,
-        #                    tool_context, thread_id, user_msg_id, client,
-        #                    sys_settings, web_search_effective)
-        gen = run_deep_mode_loop(
-            messages=[],
-            user_message="do something",
-            user_id=user["id"],
-            user_email=user["email"],
-            token=user["token"],
-            tool_context=tool_context,
-            thread_id=thread_id,
-            user_msg_id=user_msg_id,
-            client=mock_supabase,
-            sys_settings={"pii_redaction_enabled": False, "llm_model": "test-model"},
-            web_search_effective=False,
-        )
-        async for chunk in gen:
-            if chunk.startswith("data: "):
-                data_str = chunk[len("data: "):].strip()
-                try:
-                    events.append(json.loads(data_str))
-                except json.JSONDecodeError:
-                    pass
+    import contextlib
 
+    events = []
+
+    async def _run():
+        with contextlib.ExitStack() as stack:
+            for p in all_patches:
+                stack.enter_context(p)
+            gen = run_deep_mode_loop(
+                messages=[],
+                user_message="do something",
+                user_id=user["id"],
+                user_email=user["email"],
+                token=user["token"],
+                tool_context=tool_context,
+                thread_id=thread_id,
+                user_msg_id=user_msg_id,
+                client=mock_supabase,
+                sys_settings={"pii_redaction_enabled": False, "llm_model": "test-model"},
+                web_search_effective=False,
+            )
+            async for chunk in gen:
+                if chunk.startswith("data: "):
+                    data_str = chunk[len("data: "):].strip()
+                    try:
+                        events.append(json.loads(data_str))
+                    except json.JSONDecodeError:
+                        pass
+
+    await _run()
     return events
 
 

@@ -459,8 +459,12 @@ def test_failed_tool_call_appended_to_messages_with_structured_error():
 
     Specifically: no exception is re-raised to the caller; the error is
     appended to loop_messages as a tool result and the loop continues.
+    Uses tool_registry_enabled=False so that available_tool_names comes from
+    tool_service.get_available_tools (which we mock to include search_documents).
     """
-    mock_settings = _make_settings(sub_agent_enabled=True)
+    # Use tool_registry_enabled=False so get_available_tools path is used
+    mock_settings = _make_settings(sub_agent_enabled=True, tool_registry_enabled=False)
+    mock_settings.tools_enabled = True
     mock_openrouter = _build_mock_openrouter_tool_fails()
 
     # Patch _dispatch_tool_deep to raise for the first call
@@ -470,8 +474,12 @@ def test_failed_tool_call_appended_to_messages_with_structured_error():
         _dispatch_call_count[0] += 1
         raise ValueError("invalid query parameter")
 
+    # Make search_documents available in the tool list
+    _fake_tools = [{"function": {"name": "search_documents"}}]
+
     extra_patches = [
         patch("app.routers.chat._dispatch_tool_deep", _failing_dispatch),
+        patch("app.routers.chat.tool_service.get_available_tools", return_value=_fake_tools),
     ]
 
     events = asyncio.run(_collect_sse_events(
@@ -506,19 +514,36 @@ def test_failed_tool_call_appended_to_messages_with_structured_error():
 # ---------------------------------------------------------------------------
 
 def test_no_stack_trace_in_tool_result_payload():
-    """When a tool raises, the tool_result persisted to loop_messages must NOT
-    contain 'Traceback' (D-19 — stack traces stay server-side in logger only).
+    """When a tool raises, the tool_result payload must NOT contain full traceback text.
 
-    We capture the tool_output that gets added to loop_messages by patching
-    _persist_round_message and inspecting the tool_records argument.
+    D-19: Stack traces stay server-side in the logger only. The LLM only sees a
+    sanitized str(exc) message, NOT the multi-line traceback that includes module
+    paths, line numbers, and file contents.
+
+    We verify this by:
+    1. Patching _dispatch_tool_deep to raise with a real exception that has a traceback
+    2. Capturing the tool_output and tool_records via _persist_round_message
+    3. Asserting that 'File "' (a traceback indicator) is NOT in any payload
+
+    Note: the exception MESSAGE itself may be arbitrary text; D-19 prohibits
+    traceback.format_exc() / exc.__traceback__ content from reaching the payload.
+    Uses tool_registry_enabled=False so search_documents is available via mock.
     """
-    mock_settings = _make_settings(sub_agent_enabled=True)
+    import traceback as _traceback
+
+    mock_settings = _make_settings(sub_agent_enabled=True, tool_registry_enabled=False)
+    mock_settings.tools_enabled = True
     mock_openrouter = _build_mock_openrouter_tool_fails()
 
-    async def _traceback_dispatch(name, args, user_id, context=None, *, token=None):
-        raise RuntimeError(
-            "Traceback (most recent call last):\n  File 'tool.py', line 1\nRuntimeError: oops"
-        )
+    # Track what traceback.format_exc() would produce vs what's stored
+    captured_format_exc = []
+
+    async def _exc_dispatch(name, args, user_id, context=None, *, token=None):
+        try:
+            raise RuntimeError("nested tool error")
+        except RuntimeError:
+            captured_format_exc.append(_traceback.format_exc())
+            raise
 
     persisted_tool_records = []
 
@@ -527,9 +552,12 @@ def test_no_stack_trace_in_tool_result_payload():
         persisted_tool_records.extend(tool_records)
         return "new-parent-id"
 
+    _fake_tools = [{"function": {"name": "search_documents"}}]
+
     extra_patches = [
-        patch("app.routers.chat._dispatch_tool_deep", _traceback_dispatch),
+        patch("app.routers.chat._dispatch_tool_deep", _exc_dispatch),
         patch("app.routers.chat._persist_round_message", _capture_persist),
+        patch("app.routers.chat.tool_service.get_available_tools", return_value=_fake_tools),
     ]
 
     asyncio.run(_collect_sse_events(
@@ -538,21 +566,27 @@ def test_no_stack_trace_in_tool_result_payload():
         extra_patches=extra_patches,
     ))
 
-    # Inspect persisted tool records for Traceback content
+    # Confirm the traceback WAS generated (so the test is meaningful)
+    assert captured_format_exc, "Test setup issue: _exc_dispatch was never called"
+    full_traceback = captured_format_exc[0]
+    # Traceback has 'File "' lines and line numbers
+    assert 'File "' in full_traceback, f"Expected full traceback to contain 'File \"'; got: {full_traceback[:200]}"
+
+    # Inspect persisted tool records — they must NOT contain full traceback lines
     for rec in persisted_tool_records:
         output = getattr(rec, "output", None) or (rec.get("output") if isinstance(rec, dict) else None)
-        error = getattr(rec, "error", None) or (rec.get("error") if isinstance(rec, dict) else None)
+        error_field = getattr(rec, "error", None) or (rec.get("error") if isinstance(rec, dict) else None)
 
         if output:
             output_str = json.dumps(output) if isinstance(output, dict) else str(output)
-            assert "Traceback" not in output_str, (
-                f"D-19 violation: 'Traceback' found in tool_result output: {output_str[:200]}"
+            assert 'File "' not in output_str, (
+                f"D-19 violation: traceback line found in tool_result output: {output_str[:300]}"
             )
 
-        if error:
-            error_str = str(error)
-            assert "Traceback" not in error_str, (
-                f"D-19 violation: 'Traceback' found in tool_record.error: {error_str[:200]}"
+        if error_field:
+            error_str = str(error_field)
+            assert 'File "' not in error_str, (
+                f"D-19 violation: traceback line found in tool_record.error: {error_str[:300]}"
             )
 
 
@@ -565,8 +599,10 @@ def test_no_automatic_retry_on_tool_failure():
 
     After the single failure, the LLM sees the error in the next round and decides
     what to do. This test verifies the dispatch count is exactly 1 per failing tool.
+    Uses tool_registry_enabled=False so search_documents is available via mock.
     """
-    mock_settings = _make_settings(sub_agent_enabled=True)
+    mock_settings = _make_settings(sub_agent_enabled=True, tool_registry_enabled=False)
+    mock_settings.tools_enabled = True
     mock_openrouter = _build_mock_openrouter_tool_fails()
 
     dispatch_call_count = [0]
@@ -575,8 +611,11 @@ def test_no_automatic_retry_on_tool_failure():
         dispatch_call_count[0] += 1
         raise ValueError(f"tool {name} failed")
 
+    _fake_tools = [{"function": {"name": "search_documents"}}]
+
     extra_patches = [
         patch("app.routers.chat._dispatch_tool_deep", _counting_dispatch),
+        patch("app.routers.chat.tool_service.get_available_tools", return_value=_fake_tools),
     ]
 
     events = asyncio.run(_collect_sse_events(
