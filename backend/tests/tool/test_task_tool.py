@@ -159,9 +159,8 @@ def test_task_tool_registered_when_flags_on():
     tr._REGISTRY.clear()
     with patch("app.services.tool_service.settings", mock_settings_on):
         ts._register_sub_agent_tools()
-    active_on = tr.make_active_set()
-    assert "task" in active_on, (
-        "task must be registered when tool_registry_enabled=True AND sub_agent_enabled=True"
+    assert "task" in tr._REGISTRY, (
+        "task must be in _REGISTRY when tool_registry_enabled=True AND sub_agent_enabled=True"
     )
 
     # --- sub_agent_enabled=False: task must NOT be registered ---
@@ -169,9 +168,8 @@ def test_task_tool_registered_when_flags_on():
     tr._REGISTRY.clear()
     with patch("app.services.tool_service.settings", mock_settings_no_sub):
         ts._register_sub_agent_tools()
-    active_no_sub = tr.make_active_set()
-    assert "task" not in active_no_sub, (
-        "task must NOT be registered when sub_agent_enabled=False"
+    assert "task" not in tr._REGISTRY, (
+        "task must NOT be in _REGISTRY when sub_agent_enabled=False"
     )
 
     # --- tool_registry_enabled=False: task must NOT be registered ---
@@ -179,9 +177,8 @@ def test_task_tool_registered_when_flags_on():
     tr._REGISTRY.clear()
     with patch("app.services.tool_service.settings", mock_settings_no_reg):
         ts._register_sub_agent_tools()
-    active_no_reg = tr.make_active_set()
-    assert "task" not in active_no_reg, (
-        "task must NOT be registered when tool_registry_enabled=False"
+    assert "task" not in tr._REGISTRY, (
+        "task must NOT be in _REGISTRY when tool_registry_enabled=False"
     )
 
 
@@ -200,8 +197,9 @@ def test_task_tool_schema_matches_d28():
         ts._register_sub_agent_tools()
 
     entry = tr._REGISTRY.get("task")
-    assert entry is not None, "task must be registered to verify schema"
+    assert entry is not None, "task must be in _REGISTRY to verify schema"
 
+    # ToolDefinition stores schema as a dict attribute
     schema = entry.schema
     assert schema["type"] == "function"
     fn = schema["function"]

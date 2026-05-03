@@ -1645,3 +1645,116 @@ def _register_workspace_tools() -> None:
 
 # Run at module load. No-op when workspace_enabled or tool_registry_enabled is False.
 _register_workspace_tools()
+
+
+# ---------------------------------------------------------------------------
+# Phase 19 / TASK-01, TASK-02, D-30 — sub-agent tool registration.
+#
+# Register the task tool as a native tool through the unified Tool Registry
+# (D-P13-01 adapter-wrap invariant). When sub_agent_enabled is False the
+# tool is completely absent from the registry (D-17 kill-switch). When True
+# the tool registers as source='native', loading='immediate'.
+#
+# Executor signature follows the registry dispatcher shape from chat.py:
+#   executor(arguments, user_id, context, *, token=None, ...)
+#
+# NOTE: The actual sub-agent SSE event forwarding happens at the chat.py
+# task dispatch handler (Task 3 / 19-04), NOT inside the executor below.
+# The executor returns a sentinel dict {"_task_dispatch": {...}} which the
+# chat.py loop detects and routes to run_sub_agent_loop.
+#
+# ask_user ships in 19-05. Only task is registered here.
+# ---------------------------------------------------------------------------
+
+_TASK_SCHEMA = {
+    "type": "function",
+    "function": {
+        "name": "task",
+        "description": (
+            "Delegate focused work to a sub-agent with isolated context. The sub-agent shares the "
+            "workspace (read+write) but has its own message history and tool list (cannot recursively "
+            "call task, write_todos, read_todos). Returns the sub-agent's last assistant message text. "
+            "Use for: scoped research, single-pass analysis, or when isolating context would clarify "
+            "the work. context_files pre-loads file contents into the sub-agent's first message — "
+            "pass file paths the sub-agent should already know about. Failures return as structured "
+            "tool errors; the parent loop continues."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "description": "What the sub-agent should do (clear, complete instruction).",
+                },
+                "context_files": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": (
+                        "Workspace file paths to pre-load into the sub-agent's first message. "
+                        "Optional. Each file ≤ 1 MB; total ≤ 5 MB. Binary files cannot be "
+                        "inlined — use list_files/read_file inside the sub-agent."
+                    ),
+                },
+            },
+            "required": ["description"],
+        },
+    },
+}
+
+
+async def _task_executor(
+    arguments: dict,
+    user_id: str,
+    context: dict | None = None,
+    *,
+    token: str | None = None,
+    **kwargs,
+) -> dict:
+    """Executor returns a sentinel dict consumed at the chat.py task dispatch handler.
+
+    The actual sub-agent SSE event forwarding happens at chat.py (if func_name == "task"),
+    NOT here. This executor returns metadata that the chat.py loop detects and routes to
+    run_sub_agent_loop. The sentinel shape:
+      {"_task_dispatch": {
+          "description": "...",
+          "context_files": [...],
+          "thread_id": "...",
+      }}
+    """
+    return {
+        "_task_dispatch": {
+            "description": arguments.get("description", ""),
+            "context_files": arguments.get("context_files", []),
+            "thread_id": (context or {}).get("thread_id"),
+        }
+    }
+
+
+def _register_sub_agent_tools() -> None:
+    """Register task as a native tool (Phase 19 / D-30).
+
+    Gated by settings.sub_agent_enabled — early return when False so the
+    tool is completely absent from the registry (D-17 kill-switch).
+    Only runs when tool_registry_enabled is also True (registry must exist).
+
+    ask_user ships in plan 19-05 and will be added here at that point.
+    """
+    if not settings.tool_registry_enabled:
+        return
+    if not settings.sub_agent_enabled:
+        return
+
+    from app.services import tool_registry  # noqa: PLC0415
+
+    tool_registry.register(
+        name="task",
+        description=_TASK_SCHEMA["function"]["description"],
+        schema=_TASK_SCHEMA,
+        source="native",
+        loading="immediate",
+        executor=_task_executor,
+    )
+
+
+# Run at module load. No-op when sub_agent_enabled or tool_registry_enabled is False.
+_register_sub_agent_tools()
