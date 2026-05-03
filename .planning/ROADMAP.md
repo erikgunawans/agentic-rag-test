@@ -161,7 +161,13 @@ Full archive: `.planning/milestones/v1.1-ROADMAP.md`
   3. Results accumulate into a workspace output file per batch; if the harness crashes or the client disconnects mid-batch, resuming detects the partial output (e.g. 10 of 15 written) and resumes from where it left off without redoing completed items.
   4. `llm_human_input` phase generates an informed question from prior phase results, streams it as a normal chat message (not in the phase panel), sets harness status to `paused`, and on user reply writes the response into a workspace file, marks the phase complete, and resumes the harness.
   5. Mid-stream cancellation of `llm_human_input` is explicitly out of scope — cancellation only happens between rounds/phases, consistent with the rest of the engine cancellation contract.
-**Plans**: TBD
+**Plans:** 6 plans
+- [ ] 21-01-PLAN.md — WorkspaceService.append_line atomic JSONL append primitive
+- [ ] 21-02-PLAN.md — LLM_HUMAN_INPUT dispatcher + run_harness_engine start_phase_index parameter
+- [ ] 21-03-PLAN.md — LLM_BATCH_AGENTS dispatcher with asyncio.Queue fan-in + JSONL resume + sorted merge
+- [ ] 21-04-PLAN.md — chat.py HIL resume branch + 409 condition fix
+- [ ] 21-05-PLAN.md — Frontend batchProgress slice + HarnessBanner paused/batch UI + i18n (ID + EN)
+- [ ] 21-06-PLAN.md — Smoke harness extension to 4 phases + E2E HIL+batch pipeline test
 
 ### Phase 22: Contract Review Harness + DOCX Deliverable
 
@@ -198,7 +204,7 @@ The following capabilities shipped before GSD initialization. Tracked as the Val
 | 18. Workspace Virtual Filesystem | 8/8 | Complete    | 2026-05-03 |
 | 19. Sub-Agent Delegation + Ask User + Status & Recovery | 10/10 | Complete    | 2026-05-03 |
 | 20. Harness Engine Core + Gatekeeper + Post-Harness + Upload + Locked Panel | 11/11 | Complete    | 2026-05-03 |
-| 21. Batched Parallel Sub-Agents + Human-in-the-Loop | 0/0 | Not started | — |
+| 21. Batched Parallel Sub-Agents + Human-in-the-Loop | 0/6 | Planned | — |
 | 22. Contract Review Harness + DOCX Deliverable | 0/0 | Not started | — |
 
 ## Phase Numbering

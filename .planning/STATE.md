@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Agent Harness & Domain-Specific Workflows
 status: executing
-last_updated: "2026-05-03T19:26:06.149Z"
-last_activity: 2026-05-03 -- Phase 20 planning complete
+last_updated: "2026-05-03T20:18:02.948Z"
+last_activity: 2026-05-03 -- Phase 21 planning complete
 progress:
   total_phases: 6
   completed_phases: 4
-  total_plans: 37
+  total_plans: 43
   completed_plans: 37
-  percent: 100
+  percent: 86
 ---
 
 # State: LexCore
@@ -27,7 +27,7 @@ See: `.planning/PROJECT.md` (updated 2026-05-03 — v1.3 milestone started)
 Phase: 21
 Plan: Not started
 Status: Ready to execute
-Last activity: 2026-05-03 -- Phase 20 planning complete
+Last activity: 2026-05-03 -- Phase 21 planning complete
 Resume file: .planning/phases/21-batched-parallel-sub-agents-human-in-the-loop/21-CONTEXT.md
 
 ## Roadmap Snapshot (v1.3)
