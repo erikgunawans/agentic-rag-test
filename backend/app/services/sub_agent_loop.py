@@ -463,6 +463,27 @@ async def run_sub_agent_loop(
     Yields:
         dict events tagged with task_id. Final event: {"_terminal_result": {...}}
     """
+    # W-01: sub_agent_loop requires tool_registry_enabled. When the registry is
+    # disabled every _execute_tool_call returns an error dict, making all tool
+    # calls silently fail. Catch the invalid flag combination early and return a
+    # structured terminal error so the parent loop surfaces a clear message rather
+    # than exhausting iteration rounds with no useful output.
+    if not settings.tool_registry_enabled:
+        logger.error(
+            "run_sub_agent_loop called with tool_registry_enabled=False — "
+            "sub-agent requires the tool registry; task_id=%s",
+            task_id,
+        )
+        yield {"_terminal_result": {
+            "error": "tool_registry_disabled",
+            "code": "CONFIG_CONFLICT",
+            "detail": (
+                "sub_agent_enabled=True requires tool_registry_enabled=True. "
+                "Enable the tool registry or disable sub-agents."
+            ),
+        }}
+        return
+
     try:
         async for event in _run_sub_agent_loop_inner(
             description=description,
