@@ -189,7 +189,7 @@ export function SettingsPage() {
         <div className="flex items-center justify-between px-5 py-3 border-b border-border/50 shrink-0">
           <div>
             <h1 className="text-sm font-semibold">{t('settings.title')}</h1>
-            <p className="text-[10px] text-muted-foreground">Kelola preferensi Anda</p>
+            <p className="text-[10px] text-muted-foreground">{t('settings.subtitle')}</p>
           </div>
           <button onClick={togglePanel} className="flex items-center justify-center h-8 w-8 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors focus-ring" title="Collapse sidebar">
             <PanelLeftClose className="h-4 w-4" />

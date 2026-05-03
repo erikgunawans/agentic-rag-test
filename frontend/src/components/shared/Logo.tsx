@@ -17,12 +17,22 @@ export function Logo({ variant = 'full', className = '' }: LogoProps) {
 
   const filterClass = variant === 'icon' && resolvedTheme === 'light' ? 'brightness-[0.15] saturate-[1.5]' : ''
 
-  // The light wordmark SVG has internal padding that renders the visible content at ~96% of its
-  // viewBox; the dark wordmark fills its viewBox more tightly (the embedded image is upscaled
-  // and clipped), so they look mismatched at the same `h-N` class. Scale the light variant up to
-  // match the dark one's visible footprint. origin-left keeps the left edge anchored so the
-  // logo doesn't shift in flex layouts.
-  const lightSizeMatch = variant === 'full' && resolvedTheme === 'light' ? 'scale-[1.4] origin-left' : ''
+  // Light wordmark SVG has internal padding so its visible content renders smaller than
+  // the dark variant at the same `h-N` class. Wrap in an inline-flex span that holds the
+  // requested layout box (so callers' h-N still controls layout) and let the img overflow
+  // visually via scale, vertically centered to match the dark variant's apparent size and
+  // position.
+  if (variant === 'full' && resolvedTheme === 'light') {
+    return (
+      <span className={`inline-flex items-center overflow-visible ${className}`}>
+        <img
+          src={src}
+          alt="LexCore"
+          className="h-full w-auto scale-[1.4] origin-left"
+        />
+      </span>
+    )
+  }
 
-  return <img src={src} alt="LexCore" className={`${filterClass} ${lightSizeMatch} ${className}`} />
+  return <img src={src} alt="LexCore" className={`${filterClass} ${className}`} />
 }

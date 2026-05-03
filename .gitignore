@@ -37,6 +37,8 @@ frontend/src/graphify-out/
 
 # Design assets & screenshots
 *.png
+!frontend/public/*.png
+!frontend/src/assets/**/*.png
 *.zip
 excalidraw.log
 .playwright-mcp/

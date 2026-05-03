@@ -53,6 +53,7 @@ export const translations: Record<Locale, Record<string, string>> = {
 
     // Settings
     'settings.title': 'Pengaturan',
+    'settings.subtitle': 'Kelola preferensi Anda',
     'settings.admin': 'Konfigurasi Admin',
     'settings.adminDesc': 'Kelola konfigurasi sistem global',
     'settings.appearance': 'Tampilan',
@@ -770,6 +771,7 @@ export const translations: Record<Locale, Record<string, string>> = {
 
     // Settings
     'settings.title': 'Settings',
+    'settings.subtitle': 'Manage your preferences',
     'settings.admin': 'Admin Configuration',
     'settings.adminDesc': 'Manage global system configuration',
     'settings.appearance': 'Appearance',
