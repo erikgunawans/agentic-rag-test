@@ -30,6 +30,10 @@ from app.services.llm_provider import LLMProviderClient
 # tests can patch 'app.routers.chat.run_sub_agent_loop'. When sub_agent_enabled
 # is False the branch in run_deep_mode_loop never executes (D-17 byte-identical fallback).
 from app.services.sub_agent_loop import run_sub_agent_loop
+# Phase 19 / 19-05 (D-04): agent_runs_service — imported at module level so
+# tests can patch 'app.routers.chat.agent_runs_service'. When sub_agent_enabled
+# is False the resume-detection branch never executes (D-17 byte-identical fallback).
+from app.services import agent_runs_service
 
 logger = logging.getLogger(__name__)
 
@@ -263,6 +267,83 @@ async def stream_chat(
     )
     if not thread_result.data:
         raise HTTPException(status_code=404, detail="Thread not found")
+
+    # Phase 19 / D-04: resume-detection branch (gated by SUB_AGENT_ENABLED AND DEEP_MODE_ENABLED).
+    # When a thread has a waiting_for_user run, body.message is the user's answer to the
+    # pending ask_user question. body.deep_mode is IGNORED for resume (D-04 explicit):
+    # the original run already set the mode.
+    if settings.sub_agent_enabled and settings.deep_mode_enabled:
+        active_run = await agent_runs_service.get_active_run(body.thread_id, user["token"])
+        if active_run and active_run["status"] == "waiting_for_user":
+            # Transition before re-entering the loop — race-mitigation guard is inside service.
+            await agent_runs_service.transition_status(
+                run_id=active_run["id"],
+                new_status="working",
+                token=user["token"],
+            )
+            # Reload history for the resumed loop (same as normal path below)
+            flat_rows_resume = (
+                client.table("messages")
+                .select("role, content, tool_calls")
+                .eq("thread_id", body.thread_id)
+                .eq("user_id", user["id"])
+                .order("created_at")
+                .execute()
+            ).data or []
+            from app.services.system_settings_service import get_system_settings as _gss  # already imported above
+            _sys_settings_resume = get_system_settings()
+            _llm_model_resume = _sys_settings_resume["llm_model"]
+            _user_prefs_resume = (
+                client.table("user_preferences")
+                .select("web_search_default")
+                .eq("user_id", user["id"])
+                .maybe_single()
+                .execute()
+            )
+            _up_data = (getattr(_user_prefs_resume, "data", None) or {}) if _user_prefs_resume else {}
+            _web_search_resume = compute_web_search_effective(
+                system_enabled=bool(_sys_settings_resume.get("web_search_enabled", True)),
+                user_default=bool(_up_data.get("web_search_default", False)),
+                message_override=body.web_search,
+            )
+            _history_resume = []
+            for _m in flat_rows_resume:
+                _history_resume.extend(_expand_history_row(_m))
+            _user_msg_resume = client.table("messages").insert({
+                "thread_id": body.thread_id,
+                "user_id": user["id"],
+                "role": "user",
+                "content": body.message,
+                "parent_message_id": body.parent_message_id,
+            }).execute()
+            _user_msg_id_resume = _user_msg_resume.data[0]["id"]
+            _tool_context_resume = {
+                "top_k": settings.rag_top_k,
+                "threshold": settings.rag_similarity_threshold,
+                "embedding_model": _sys_settings_resume.get("custom_embedding_model") or _sys_settings_resume["embedding_model"],
+                "llm_model": _llm_model_resume,
+                "thread_id": body.thread_id,
+            }
+            return StreamingResponse(
+                run_deep_mode_loop(
+                    messages=_history_resume,
+                    user_message=body.message,
+                    user_id=user["id"],
+                    user_email=user.get("email", ""),
+                    token=user["token"],
+                    tool_context=_tool_context_resume,
+                    thread_id=body.thread_id,
+                    user_msg_id=_user_msg_id_resume,
+                    client=client,
+                    sys_settings=_sys_settings_resume,
+                    web_search_effective=_web_search_resume,
+                    resume_run_id=active_run["id"],
+                    resume_tool_result=body.message,
+                    resume_round_index=active_run["last_round_index"] + 1,
+                ),
+                media_type="text/event-stream",
+                headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+            )
 
     # Load chat history — branch-aware when parent_message_id is provided.
     # Phase 11 Plan 11-04 (MEM-01..03): both SELECT calls widened to include
@@ -1558,6 +1639,10 @@ async def run_deep_mode_loop(
     client,
     sys_settings: dict,
     web_search_effective: bool,
+    *,
+    resume_run_id: str | None = None,
+    resume_tool_result: str | None = None,
+    resume_round_index: int = 0,
 ):
     """Phase 17 / DEEP-02: Deep Mode agent loop.
 
@@ -1577,6 +1662,11 @@ async def run_deep_mode_loop(
         client: Supabase client.
         sys_settings: System settings dict (llm_model, pii_redaction_enabled, ...).
         web_search_effective: ADR-0008 computed web_search toggle.
+        resume_run_id: Phase 19 / D-04 — run_id of a waiting_for_user agent_runs row.
+            When set, the loop is resuming from a prior ask_user pause.
+        resume_tool_result: Phase 19 / D-04/D-15 — user's reply to the pending ask_user
+            question, injected verbatim as the tool result in loop_messages.
+        resume_round_index: Phase 19 / D-04 — loop iteration to start from on resume.
     """
     from app.services.deep_mode_prompt import build_deep_mode_system_prompt
     from app.services.redaction import (
@@ -1641,6 +1731,36 @@ async def run_deep_mode_loop(
         + [{"role": m["role"], "content": m.get("content") or ""} for m in anon_history]
         + [{"role": "user", "content": anonymized_message}]
     )
+
+    # --- Phase 19 / D-04/D-15: resume injection ---
+    # When resuming from a waiting_for_user pause, inject the user's reply as the
+    # ask_user tool result. The ask_user tool_call was already persisted in the
+    # previous round's messages row (tool_calls JSONB). We reconstruct the synthetic
+    # ask_user tool_result message so the LLM sees the full context.
+    # D-15: body.message is passed through VERBATIM — no filtering.
+    if resume_run_id is not None and resume_tool_result is not None:
+        # Emit working status (Site A — loop entry on resume)
+        yield f"data: {json.dumps({'type': 'agent_status', 'status': 'working'})}\n\n"
+        # Inject a synthetic ask_user tool_result into loop_messages.
+        # Use a stable sentinel tool_call_id so the LLM can pair it.
+        _resume_tool_call_id = f"resume-ask-user-{resume_run_id}"
+        loop_messages.append({
+            "role": "assistant",
+            "content": None,
+            "tool_calls": [{
+                "id": _resume_tool_call_id,
+                "type": "function",
+                "function": {
+                    "name": "ask_user",
+                    "arguments": json.dumps({"question": ""}),
+                },
+            }],
+        })
+        loop_messages.append({
+            "role": "tool",
+            "tool_call_id": _resume_tool_call_id,
+            "content": resume_tool_result,
+        })
 
     # --- Wire user_email + token into tool_context for write_todos/read_todos audit (D-34) ---
     tool_context = {**tool_context, "user_email": user_email, "token": token}
@@ -1741,10 +1861,49 @@ async def run_deep_mode_loop(
                     yield f"data: {json.dumps(tool_start_evt)}\n\n"
 
                 try:
+                    # --- Phase 19 / 19-05: ask_user dispatch (D-01, D-16, D-23, ASK-02/04) ---
+                    # CANONICAL OWNER of Site B agent_status='waiting_for_user' emission (D-16).
+                    # Intercepts BEFORE task and _dispatch_tool_deep. Returns immediately
+                    # (closes generator) per D-01. Does NOT persist a tool_result messages row
+                    # for the ask_user round (D-15) — persisted state is agent_runs.last_round_index.
+                    if func_name == "ask_user" and settings.sub_agent_enabled:
+                        question = func_args.get("question", "")
+
+                        # D-23: audit — fire-and-forget, never raises
+                        log_action(
+                            user_id=user_id,
+                            user_email=user_email,
+                            action="ask_user",
+                            resource_type="agent_runs",
+                            resource_id=thread_id,
+                            details={"question": question[:200]},
+                        )
+
+                        # Persist pending state via 19-02 service
+                        _active = await agent_runs_service.get_active_run(thread_id, token)
+                        if _active is None:
+                            _active = await agent_runs_service.start_run(
+                                thread_id, user_id, user_email, token
+                            )
+                        await agent_runs_service.set_pending_question(
+                            run_id=_active["id"],
+                            question=question,
+                            last_round_index=_iteration,
+                            token=token,
+                        )
+
+                        # Phase 19 / D-16 Site B — CANONICAL OWNER.
+                        # Exactly one emission of agent_status='waiting_for_user' in chat.py.
+                        # 19-06 documents this ownership; it does NOT emit a second copy.
+                        yield f"data: {json.dumps({'type': 'agent_status', 'status': 'waiting_for_user', 'detail': question})}\n\n"
+                        yield f"data: {json.dumps({'type': 'ask_user', 'question': question})}\n\n"
+                        yield f"data: {json.dumps({'type': 'delta', 'delta': '', 'done': True})}\n\n"
+                        return  # close generator cleanly per D-01
+
                     # --- Phase 19 / 19-04: task tool dispatch (D-05, D-06, D-12, D-23) ---
                     # Intercept BEFORE the standard _dispatch_tool_deep path so the sub-agent
                     # SSE event forwarding can yield directly to the parent's generator.
-                    if func_name == "task" and settings.sub_agent_enabled:
+                    elif func_name == "task" and settings.sub_agent_enabled:
                         import uuid as _uuid  # noqa: PLC0415
                         task_id = str(_uuid.uuid4())  # server-generated UUID (Discretion default)
                         description = func_args.get("description", "")

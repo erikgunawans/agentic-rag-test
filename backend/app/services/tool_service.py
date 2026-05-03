@@ -1730,14 +1730,50 @@ async def _task_executor(
     }
 
 
+_ASK_USER_SCHEMA = {
+    "type": "function",
+    "function": {
+        "name": "ask_user",
+        "description": (
+            "Pause execution to ask the user a clarifying question. The loop pauses; "
+            "the user's next message is delivered as this tool's result. Use ONLY when "
+            "you genuinely need user clarification to proceed — do not use for status "
+            "updates or rhetorical pauses. The user's reply is passed through verbatim; "
+            "if it doesn't directly answer the question, you may call ask_user again or "
+            "proceed with what they said."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "question": {
+                    "type": "string",
+                    "description": "The question to ask the user. Be specific and actionable.",
+                }
+            },
+            "required": ["question"],
+        },
+    },
+}
+
+
+async def _ask_user_executor(
+    arguments: dict,
+    user_id: str,
+    context: dict | None = None,
+    *,
+    token: str | None = None,
+    **kwargs,
+) -> dict:
+    """Returns sentinel dict consumed at chat.py wrapper boundary; not a normal tool result."""
+    return {"_ask_user_pause": True, "question": arguments.get("question", "")}
+
+
 def _register_sub_agent_tools() -> None:
-    """Register task as a native tool (Phase 19 / D-30).
+    """Register task and ask_user as native tools (Phase 19 / D-30).
 
     Gated by settings.sub_agent_enabled — early return when False so the
-    tool is completely absent from the registry (D-17 kill-switch).
+    tools are completely absent from the registry (D-17 kill-switch).
     Only runs when tool_registry_enabled is also True (registry must exist).
-
-    ask_user ships in plan 19-05 and will be added here at that point.
     """
     if not settings.tool_registry_enabled:
         return
@@ -1753,6 +1789,15 @@ def _register_sub_agent_tools() -> None:
         source="native",
         loading="immediate",
         executor=_task_executor,
+    )
+
+    tool_registry.register(
+        name="ask_user",
+        description=_ASK_USER_SCHEMA["function"]["description"],
+        schema=_ASK_USER_SCHEMA,
+        source="native",
+        loading="immediate",
+        executor=_ask_user_executor,
     )
 
 
