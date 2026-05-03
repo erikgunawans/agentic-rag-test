@@ -75,6 +75,7 @@ CREATE TRIGGER workspace_files_updated_at
 -- ============================================================
 ALTER TABLE public.workspace_files ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "workspace_files_select" ON public.workspace_files;
 CREATE POLICY "workspace_files_select" ON public.workspace_files
   FOR SELECT
   USING (
@@ -82,6 +83,7 @@ CREATE POLICY "workspace_files_select" ON public.workspace_files
     OR (auth.jwt() -> 'app_metadata' ->> 'role') = 'super_admin'
   );
 
+DROP POLICY IF EXISTS "workspace_files_insert" ON public.workspace_files;
 CREATE POLICY "workspace_files_insert" ON public.workspace_files
   FOR INSERT
   WITH CHECK (
@@ -89,6 +91,7 @@ CREATE POLICY "workspace_files_insert" ON public.workspace_files
     OR (auth.jwt() -> 'app_metadata' ->> 'role') = 'super_admin'
   );
 
+DROP POLICY IF EXISTS "workspace_files_update" ON public.workspace_files;
 CREATE POLICY "workspace_files_update" ON public.workspace_files
   FOR UPDATE
   USING (
@@ -100,6 +103,7 @@ CREATE POLICY "workspace_files_update" ON public.workspace_files
     OR (auth.jwt() -> 'app_metadata' ->> 'role') = 'super_admin'
   );
 
+DROP POLICY IF EXISTS "workspace_files_delete" ON public.workspace_files;
 CREATE POLICY "workspace_files_delete" ON public.workspace_files
   FOR DELETE
   USING (
@@ -120,6 +124,7 @@ ON CONFLICT (id) DO NOTHING;
 -- Segment [1] = user_id gates access (mirrors sandbox-outputs).
 -- ============================================================
 
+DROP POLICY IF EXISTS "workspace-files SELECT" ON storage.objects;
 CREATE POLICY "workspace-files SELECT"
   ON storage.objects FOR SELECT
   USING (
@@ -127,6 +132,7 @@ CREATE POLICY "workspace-files SELECT"
     AND (storage.foldername(objects.name))[1] = auth.uid()::text
   );
 
+DROP POLICY IF EXISTS "workspace-files INSERT" ON storage.objects;
 CREATE POLICY "workspace-files INSERT"
   ON storage.objects FOR INSERT
   WITH CHECK (
@@ -134,6 +140,7 @@ CREATE POLICY "workspace-files INSERT"
     AND (storage.foldername(objects.name))[1] = auth.uid()::text
   );
 
+DROP POLICY IF EXISTS "workspace-files UPDATE" ON storage.objects;
 CREATE POLICY "workspace-files UPDATE"
   ON storage.objects FOR UPDATE
   USING (
@@ -145,6 +152,7 @@ CREATE POLICY "workspace-files UPDATE"
     AND (storage.foldername(objects.name))[1] = auth.uid()::text
   );
 
+DROP POLICY IF EXISTS "workspace-files DELETE" ON storage.objects;
 CREATE POLICY "workspace-files DELETE"
   ON storage.objects FOR DELETE
   USING (
