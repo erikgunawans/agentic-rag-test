@@ -102,6 +102,13 @@ if settings.sandbox_enabled and settings.tool_registry_enabled:
     from app.routers import bridge as bridge_router_module
     app.include_router(bridge_router_module.router)
 
+# Phase 18 / WS-09 / D-09: Workspace Virtual Filesystem endpoints.
+# Lazy import inside the if-block ensures routes are NOT registered when flag is off
+# (T-18-18 mitigation — clients get 404, not 403, when workspace is disabled).
+if settings.workspace_enabled:
+    from app.routers import workspace as workspace_router_module
+    app.include_router(workspace_router_module.router)
+
 
 @app.get("/health")
 async def health():

@@ -170,6 +170,12 @@ class Settings(BaseSettings):
     # SANDBOX_ENABLED dark-launch precedent.
     deep_mode_enabled: bool = False
 
+    # Phase 18 / v1.4 (WS-09; D-09):
+    # Dark-launch feature flag for the Workspace Virtual Filesystem router.
+    # When False, the /threads/{thread_id}/files* routes are NOT registered —
+    # clients get 404 (T-18-18 mitigation). Default OFF — opt-in per env.
+    workspace_enabled: bool = False
+
     @model_validator(mode="after")
     def _validate_local_embedding(self) -> "Settings":
         # CR-02 fix: catch EMBEDDING_PROVIDER=local + empty LOCAL_EMBEDDING_BASE_URL at startup.
