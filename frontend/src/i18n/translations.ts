@@ -684,6 +684,20 @@ export const translations: Record<Locale, Record<string, string>> = {
     'workspace.collapse': 'Sembunyikan',
     'workspace.expand': 'Tampilkan',
 
+    // Phase 19 / TASK-07 / ASK-02 / STATUS-01 / STATUS-05 — AgentStatusChip + TaskPanel + question-bubble
+    'agentStatus.working': 'Agen sedang bekerja',
+    'agentStatus.waitingForUser': 'Agen menunggu balasan Anda',
+    'agentStatus.complete': 'Selesai',
+    'agentStatus.error': 'Terjadi kesalahan — ulangi?',
+    'taskPanel.title': 'Sub-agen',
+    'taskPanel.collapse': 'Sembunyikan',
+    'taskPanel.expand': 'Tampilkan',
+    'taskPanel.status.running': 'Sedang berjalan',
+    'taskPanel.status.complete': 'Selesai',
+    'taskPanel.status.error': 'Error',
+    'taskPanel.contextFiles': 'Berkas konteks',
+    'askUser.questionBubble.ariaLabel': 'Pertanyaan dari agen',
+
     // Phase 11 — Code Execution Panel (SANDBOX-07).
     // Indonesian copy per UI-SPEC §Copywriting Contract.
     'sandbox.status.pending': 'Menunggu…',
@@ -1386,6 +1400,20 @@ export const translations: Record<Locale, Record<string, string>> = {
     'workspace.view': 'View',
     'workspace.collapse': 'Collapse',
     'workspace.expand': 'Expand',
+
+    // Phase 19 / TASK-07 / ASK-02 / STATUS-01 / STATUS-05 — AgentStatusChip + TaskPanel + question-bubble
+    'agentStatus.working': 'Agent working',
+    'agentStatus.waitingForUser': 'Agent waiting for your reply',
+    'agentStatus.complete': 'Complete',
+    'agentStatus.error': 'Error — retry?',
+    'taskPanel.title': 'Sub-agents',
+    'taskPanel.collapse': 'Collapse',
+    'taskPanel.expand': 'Expand',
+    'taskPanel.status.running': 'Running',
+    'taskPanel.status.complete': 'Complete',
+    'taskPanel.status.error': 'Error',
+    'taskPanel.contextFiles': 'Context files',
+    'askUser.questionBubble.ariaLabel': 'Question from agent',
 
     // Phase 11 — Code Execution Panel (SANDBOX-07).
     // English copy per UI-SPEC §Copywriting Contract.

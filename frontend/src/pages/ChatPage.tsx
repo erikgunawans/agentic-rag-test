@@ -6,6 +6,7 @@ import { MessageInput } from '@/components/chat/MessageInput'
 import { WelcomeScreen } from '@/components/chat/WelcomeScreen'
 import { PlanPanel } from '@/components/chat/PlanPanel'
 import { WorkspacePanel } from '@/components/chat/WorkspacePanel'
+import { AgentStatusChip } from '@/components/chat/AgentStatusChip'
 
 export function ChatPage() {
   const location = useLocation()
@@ -60,6 +61,12 @@ export function ChatPage() {
     <div className="flex flex-1 min-h-0 flex-row">
       {/* Main chat column */}
       <div className="flex flex-1 min-h-0 flex-col min-w-0">
+        {/* Phase 19 / STATUS-01 / D-26: AgentStatusChip — sticky at top of chat column.
+            Rendered here (NOT in AppLayout) — UI-SPEC L455 prohibits adding to AppLayout.
+            Component is always mounted; internal visibility rule handles null state. */}
+        <div className="sticky top-0 z-10 flex px-4 pt-2">
+          <AgentStatusChip />
+        </div>
         <MessageView
           messages={messages}
           allMessages={allMessages}
