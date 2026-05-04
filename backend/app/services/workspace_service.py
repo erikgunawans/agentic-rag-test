@@ -19,6 +19,7 @@ Threat mitigations (T-18-06 through T-18-10):
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 import uuid
@@ -322,6 +323,124 @@ class WorkspaceService:
             "mime_type": row.get("mime_type") or "text/plain",
             "file_path": file_path,
         }
+
+    # ------------------------------------------------------------------
+    # append_line  (Phase 21 / Plan 21-01 — BATCH-05/D-05 + BATCH-07/D-07)
+    # ------------------------------------------------------------------
+
+    # Class-level lock map — keyed by (thread_id, file_path). Per v1.0 D-31
+    # carryover, this is single-worker only; cross-process atomicity will be
+    # added when scale-out happens (deferred to post-MVP per .planning/STATE.md).
+    _append_locks: dict[tuple[str, str], asyncio.Lock] = {}
+
+    @classmethod
+    def _get_append_lock(cls, thread_id: str, file_path: str) -> asyncio.Lock:
+        """Return the (identity-stable) asyncio.Lock for this (thread, path)."""
+        key = (thread_id, file_path)
+        lock = cls._append_locks.get(key)
+        if lock is None:
+            lock = asyncio.Lock()
+            cls._append_locks[key] = lock
+        return lock
+
+    async def append_line(
+        self,
+        thread_id: str,
+        file_path: str,
+        line: str,
+    ) -> dict:
+        """Atomically append `line + "\\n"` to the workspace text file at file_path.
+
+        Phase 21 BATCH-05/D-05: each batch sub-agent appends one JSON object per
+        line. Concurrent appends to the same (thread_id, file_path) are
+        serialized via a per-key asyncio.Lock so the file grows monotonically
+        without overwrite. First-write semantics: when no row exists yet, the
+        line itself becomes the file's content (no separate write_text_file
+        call needed before the first append).
+
+        Returns:
+            {"ok": True, "operation": "append", "size_bytes": int, "file_path": str}
+            or {"error": <code>, "detail": str, "file_path": str}.
+
+        Note: cross-process atomicity is NOT provided. v1.3 deploys a single
+        worker on Railway (D-31 carryover). The pg_advisory_xact_lock upgrade
+        path is documented in STATE.md.
+        """
+        # 1. Path validation (mirrors write_text_file convention)
+        try:
+            file_path = validate_workspace_path(file_path)
+        except WorkspaceValidationError as e:
+            return {"error": e.code, "detail": e.detail, "file_path": file_path, **e.fields}
+
+        # 2. Construct newline-terminated segment (idempotent if caller already
+        #    supplied the trailing newline)
+        new_segment = line if line.endswith("\n") else line + "\n"
+        new_segment_bytes = len(new_segment.encode("utf-8"))
+
+        # 3. Acquire per-key lock — serializes concurrent appends within this worker
+        lock = self._get_append_lock(thread_id, file_path)
+        async with lock:
+            # 4. Read existing content (file_not_found = empty-content case;
+            #    other errors propagate as db_error)
+            try:
+                existing = await self.read_file(thread_id, file_path)
+            except Exception as exc:
+                logger.warning("workspace append_line read error: %s", exc)
+                return {"error": "db_error", "detail": str(exc), "file_path": file_path}
+
+            if "error" in existing:
+                if existing["error"] == "file_not_found":
+                    current_content = ""
+                else:
+                    return {
+                        "error": existing.get("error", "db_error"),
+                        "detail": existing.get("detail", "read failed"),
+                        "file_path": file_path,
+                    }
+            else:
+                current_content = existing.get("content", "") or ""
+
+            current_bytes = len(current_content.encode("utf-8"))
+            new_total = current_bytes + new_segment_bytes
+
+            # 5. Size-cap check BEFORE write — consistent with write_text_file
+            if new_total > MAX_TEXT_CONTENT_BYTES:
+                return {
+                    "error": "content_too_large",
+                    "limit_bytes": MAX_TEXT_CONTENT_BYTES,
+                    "file_path": file_path,
+                    "detail": (
+                        f"append would produce {new_total} bytes "
+                        f"(limit {MAX_TEXT_CONTENT_BYTES})"
+                    ),
+                }
+
+            # 6. Write via existing write_text_file (preserves source, RLS,
+            #    mime-type detection, audit). source='harness' marks the row
+            #    as harness-engine-written so post-mortem can distinguish from
+            #    direct agent writes.
+            new_content = current_content + new_segment
+            try:
+                write_result = await self.write_text_file(
+                    thread_id, file_path, new_content, source="harness"
+                )
+            except Exception as exc:
+                logger.warning("workspace append_line write error: %s", exc)
+                return {"error": "db_error", "detail": str(exc), "file_path": file_path}
+
+            if "error" in write_result:
+                return {
+                    "error": write_result["error"],
+                    "detail": write_result.get("detail", "write failed"),
+                    "file_path": file_path,
+                }
+
+            return {
+                "ok": True,
+                "operation": "append",
+                "size_bytes": new_total,
+                "file_path": file_path,
+            }
 
     # ------------------------------------------------------------------
     # edit_file
