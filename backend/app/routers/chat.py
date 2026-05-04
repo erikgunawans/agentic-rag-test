@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from app.dependencies import get_current_user
-from app.database import get_supabase_client
+from app.database import get_supabase_client, get_supabase_authed_client
 from app.services.openrouter_service import OpenRouterService
 from app.services.tool_service import ToolService
 from app.services import agent_service
@@ -45,6 +45,9 @@ from app.services import harness_runs_service, harness_registry
 from app.services.gatekeeper import run_gatekeeper
 from app.services.harness_engine import run_harness_engine
 from app.services.post_harness import summarize_harness_run
+# Phase 21 / Plan 21-04 (HIL-04): WorkspaceService imported at module level so
+# tests can patch 'app.routers.chat.WorkspaceService' for the HIL resume branch.
+from app.services.workspace_service import WorkspaceService
 from fastapi.responses import JSONResponse
 
 logger = logging.getLogger(__name__)
@@ -359,15 +362,139 @@ async def stream_chat(
                 headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
             )
 
+    # Phase 21 / D-01, D-02: HIL resume detection.
+    # When a harness is paused on an llm_human_input phase, treat the next user
+    # message as the HIL answer: write to phase.workspace_output, advance phase
+    # via resume_from_pause (NOT advance_phase — its guard rejects paused rows),
+    # then resume run_harness_engine from current_phase + 1.
+    # MUST run BEFORE the 409 block so paused falls through to resume rather
+    # than triggering a stale 409.
+    if settings.harness_enabled:
+        paused_run = await harness_runs_service.get_active_run(
+            thread_id=body.thread_id, token=user["token"]
+        )
+        if paused_run is not None and paused_run.get("status") == "paused":
+            harness_type = paused_run["harness_type"]
+            current_phase_idx = paused_run["current_phase"]
+            try:
+                h = harness_registry.get_harness(harness_type)
+            except Exception as exc:
+                logger.warning(
+                    "HIL resume: harness lookup failed type=%s: %s", harness_type, exc
+                )
+                h = None
+            if h is not None and 0 <= current_phase_idx < len(h.phases):
+                current_phase = h.phases[current_phase_idx]
+
+                # 1. Write user's answer to current phase's workspace_output.
+                ws = WorkspaceService(token=user["token"])
+                try:
+                    await ws.write_text_file(
+                        body.thread_id,
+                        current_phase.workspace_output,
+                        body.message,
+                        source="harness",
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "HIL resume: workspace write failed phase=%s: %s",
+                        current_phase.name, exc,
+                    )
+
+                # 2. Persist user's message with harness_mode tag (mirrors
+                #    post_harness convention so history reconstruction shows
+                #    the Q→A exchange).
+                authed_client = get_supabase_authed_client(user["token"])
+                try:
+                    authed_client.table("messages").insert({
+                        "thread_id": body.thread_id,
+                        "user_id": user["id"],
+                        "role": "user",
+                        "content": body.message,
+                        "harness_mode": harness_type,
+                        "parent_message_id": getattr(body, "parent_message_id", None),
+                    }).execute()
+                except Exception as exc:
+                    logger.warning("HIL resume: messages insert failed: %s", exc)
+
+                # 3. Advance harness phase via resume_from_pause (BLOCKER-2 fix —
+                #    advance_phase's transactional guard rejects paused rows).
+                try:
+                    updated_row = await harness_runs_service.resume_from_pause(
+                        run_id=paused_run["id"],
+                        new_phase_index=current_phase_idx + 1,
+                        phase_results_patch={
+                            str(current_phase_idx): {
+                                "phase_name": current_phase.name,
+                                "output": {"answer": body.message[:500]},
+                            }
+                        },
+                        user_id=user["id"],
+                        user_email=user.get("email", ""),
+                        token=user["token"],
+                    )
+                except Exception as exc:
+                    logger.error(
+                        "HIL resume: resume_from_pause failed run=%s: %s",
+                        paused_run["id"], exc,
+                    )
+                    return JSONResponse(
+                        status_code=500,
+                        content={
+                            "error": "hil_resume_advance_failed",
+                            "detail": str(exc)[:300],
+                        },
+                    )
+
+                # 3b. Stale-state guard — None means the row was no longer paused
+                #     (cancelled/completed/failed in a parallel request).
+                if updated_row is None:
+                    logger.warning(
+                        "HIL resume: resume_from_pause returned None run=%s — "
+                        "row no longer paused",
+                        paused_run["id"],
+                    )
+                    return JSONResponse(
+                        status_code=500,
+                        content={
+                            "error": "hil_resume_state_invalid",
+                            "detail": "harness run is no longer paused (cancelled or terminal)",
+                        },
+                    )
+
+                # 4. Resume the engine from the next phase via the new
+                #    _resume_harness_engine_sse wrapper. The wrapper internally
+                #    reuses _get_or_build_conversation_registry (chat.py:1695) —
+                #    B4 invariant: never mint a fresh registry on resume.
+                cancellation_event = asyncio.Event()
+                _hil_sys_settings = get_system_settings()
+                return StreamingResponse(
+                    _resume_harness_engine_sse(
+                        harness=h,
+                        harness_run_id=paused_run["id"],
+                        thread_id=body.thread_id,
+                        user_id=user["id"],
+                        user_email=user.get("email", ""),
+                        token=user["token"],
+                        sys_settings=_hil_sys_settings,
+                        start_phase_index=current_phase_idx + 1,
+                        cancellation_event=cancellation_event,
+                    ),
+                    media_type="text/event-stream",
+                    headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+                )
+
     # Phase 20 / D-02: reject new chat messages while a harness is active.
     # Per HARN-01 partial unique index, at most one active harness_run exists per thread.
     # When user sends a new message during harness execution, return structured 409 JSON;
     # frontend surfaces a banner per UI-SPEC reject-while-active toast.
+    # Phase 21 / D-01: condition narrowed to ("pending", "running") — paused rows
+    # are handled by the HIL resume branch above.
     if settings.harness_enabled:
         active_harness = await harness_runs_service.get_active_run(
             thread_id=body.thread_id, token=user["token"]
         )
-        if active_harness is not None:
+        if active_harness is not None and active_harness.get("status") in ("pending", "running"):
             phase_idx = active_harness.get("current_phase", 0)
             phase_name = "—"
             try:
@@ -1797,6 +1924,50 @@ async def _gatekeeper_stream_wrapper(
             registry=registry,  # B4 — SAME object as gatekeeper + engine
         ):
             yield f"data: {json.dumps(ev)}\n\n"
+
+    yield f"data: {json.dumps({'type': 'done'})}\n\n"
+
+
+# ---------------------------------------------------------------------------
+# Phase 21 / Plan 21-04 (HIL-04) — Resume harness engine SSE wrapper
+# Mirrors _gatekeeper_stream_wrapper's SSE serialization shape but skips the
+# gatekeeper LLM round-trip (we already know we're resuming an existing run).
+# Reuses _get_or_build_conversation_registry (chat.py:1695) — B4 invariant:
+# never mint a fresh registry on resume.
+# ---------------------------------------------------------------------------
+
+async def _resume_harness_engine_sse(
+    *,
+    harness,
+    harness_run_id: str,
+    thread_id: str,
+    user_id: str,
+    user_email: str,
+    token: str,
+    sys_settings: dict,
+    start_phase_index: int,
+    cancellation_event: asyncio.Event,
+):
+    """Yields SSE-encoded events from run_harness_engine resumed at start_phase_index.
+
+    B4 invariant: loads the parent ConversationRegistry once via
+    _get_or_build_conversation_registry — same single-registry helper used by
+    _gatekeeper_stream_wrapper. The egress filter wraps all subsequent LLM
+    calls in run_harness_engine.
+    """
+    registry = await _get_or_build_conversation_registry(thread_id, sys_settings)
+    async for ev in run_harness_engine(
+        harness=harness,
+        harness_run_id=harness_run_id,
+        thread_id=thread_id,
+        user_id=user_id,
+        user_email=user_email,
+        token=token,
+        registry=registry,
+        cancellation_event=cancellation_event,
+        start_phase_index=start_phase_index,
+    ):
+        yield f"data: {json.dumps(ev)}\n\n"
 
     yield f"data: {json.dumps({'type': 'done'})}\n\n"
 
