@@ -46,7 +46,7 @@ import json
 import logging
 from typing import AsyncIterator
 
-from pydantic import ValidationError
+from pydantic import BaseModel, Field, ValidationError
 
 from app.config import get_settings
 from app.harnesses.types import (
@@ -80,10 +80,21 @@ EVT_COMPLETE = "harness_complete"
 EVT_SUB_AGENT_START = "harness_sub_agent_start"        # B1 fix
 EVT_SUB_AGENT_COMPLETE = "harness_sub_agent_complete"  # B1 fix
 
-# [Phase 21 - deferred] — declared as constants, NOT emitted in v1.3
-EVT_BATCH_START = "harness_batch_start"                 # [Phase 21 - deferred]
-EVT_BATCH_COMPLETE = "harness_batch_complete"           # [Phase 21 - deferred]
-EVT_HUMAN_INPUT_REQUIRED = "harness_human_input_required"  # [Phase 21 - deferred]
+# [Phase 21] — implemented in Plan 21-02 (HIL) and Plan 21-03 (batch)
+EVT_BATCH_START = "harness_batch_start"                 # [Phase 21] — Plan 21-03
+EVT_BATCH_COMPLETE = "harness_batch_complete"           # [Phase 21] — Plan 21-03
+EVT_HUMAN_INPUT_REQUIRED = "harness_human_input_required"  # [Phase 21] — Plan 21-02
+EVT_BATCH_ITEM_START = "harness_batch_item_start"       # Phase 21 D-08 — Plan 21-03
+EVT_BATCH_ITEM_COMPLETE = "harness_batch_item_complete"  # Phase 21 D-08 — Plan 21-03
+
+
+# ---------------------------------------------------------------------------
+# Pydantic models for structured LLM output
+# ---------------------------------------------------------------------------
+
+class HumanInputQuestion(BaseModel):
+    """Output schema for LLM_HUMAN_INPUT phase question generation (HIL-01)."""
+    question: str = Field(..., min_length=1, max_length=500)
 
 
 # ---------------------------------------------------------------------------
@@ -100,6 +111,7 @@ async def run_harness_engine(
     token: str,
     registry,                          # parent ConversationRegistry — egress (SEC-04)
     cancellation_event: asyncio.Event,
+    start_phase_index: int = 0,        # Phase 21 D-03 — HIL resume passes current_phase + 1
 ) -> AsyncIterator[dict]:
     """Drive harness phases. Yields SSE-shaped dicts the chat.py SSE generator forwards.
 
@@ -112,6 +124,10 @@ async def run_harness_engine(
         token:              JWT access token (parent token, never minted fresh — D-22).
         registry:           Parent ConversationRegistry — egress filter (D-21/SEC-04).
         cancellation_event: In-process cancellation arm (Layer 1, HARN-07).
+        start_phase_index:  Phase 21 D-03 — phase index to start from (default 0
+                            preserves byte-identical behavior for all existing
+                            callers). HIL resume passes current_phase + 1 so the
+                            engine skips already-completed phases on resume.
 
     Yields:
         SSE-shaped dicts. Every event carries harness_run_id for frontend correlation.
@@ -128,6 +144,7 @@ async def run_harness_engine(
             token=token,
             registry=registry,
             cancellation_event=cancellation_event,
+            start_phase_index=start_phase_index,
         ):
             yield event
     except Exception as exc:
@@ -158,6 +175,7 @@ async def _run_harness_engine_inner(
     token: str,
     registry,
     cancellation_event: asyncio.Event,
+    start_phase_index: int = 0,
 ) -> AsyncIterator[dict]:
     """Inner harness engine — phase loop + dual-layer cancellation + PANEL-01 todos."""
 
@@ -199,6 +217,8 @@ async def _run_harness_engine_inner(
 
     # --- 3. Phase loop ---
     for phase_index, phase in enumerate(harness.phases):
+        if phase_index < start_phase_index:
+            continue   # Phase 21 D-03 — already recorded in phase_results from prior run
 
         # === B3 dual-layer cancellation check (HARN-07) ===
 
