@@ -113,12 +113,17 @@ async def load_gatekeeper_history(
 # ---------------------------------------------------------------------------
 
 async def _persist_message(
-    *, thread_id: str, role: str, content: str, harness_name: str, token: str
+    *, thread_id: str, user_id: str, role: str, content: str, harness_name: str, token: str
 ) -> str | None:
-    """Insert a message row with harness_mode tag. Returns the row id."""
+    """Insert a message row with harness_mode tag. Returns the row id.
+
+    `user_id` is required: the messages RLS policy `users can create own messages`
+    enforces `auth.uid() = user_id`. Without it, postgrest raises 42501.
+    """
     client = get_supabase_authed_client(token)
     result = client.table("messages").insert({
         "thread_id": thread_id,
+        "user_id": user_id,
         "role": role,
         "content": content,
         "harness_mode": harness_name,
@@ -157,6 +162,7 @@ async def run_gatekeeper(
     # --- 1. Persist user message with harness_mode tag ---
     user_msg_id = await _persist_message(
         thread_id=thread_id,
+        user_id=user_id,
         role="user",
         content=user_message,
         harness_name=harness.name,
@@ -185,6 +191,7 @@ async def run_gatekeeper(
             # Persist refusal as assistant message
             asst_msg_id = await _persist_message(
                 thread_id=thread_id,
+                user_id=user_id,
                 role="assistant",
                 content=_EGRESS_REFUSAL,
                 harness_name=harness.name,
@@ -252,6 +259,7 @@ async def run_gatekeeper(
         err_content = "I encountered an error. Please try again."
         asst_msg_id = await _persist_message(
             thread_id=thread_id,
+            user_id=user_id,
             role="assistant",
             content=err_content,
             harness_name=harness.name,
@@ -291,6 +299,7 @@ async def run_gatekeeper(
         # Persist clean assistant message
         asst_msg_id = await _persist_message(
             thread_id=thread_id,
+            user_id=user_id,
             role="assistant",
             content=clean,
             harness_name=harness.name,
@@ -323,6 +332,7 @@ async def run_gatekeeper(
         # Persist full response as assistant message
         asst_msg_id = await _persist_message(
             thread_id=thread_id,
+            user_id=user_id,
             role="assistant",
             content=full,
             harness_name=harness.name,

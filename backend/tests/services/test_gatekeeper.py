@@ -488,6 +488,15 @@ async def test_run_gatekeeper_persists_user_and_assistant_messages_with_harness_
 
     for ins in harness_mode_inserts:
         assert ins["harness_mode"] == harness.name
+        # CR-21-04 regression: messages RLS policy `users can create own messages`
+        # requires `auth.uid() = user_id`. Without `user_id` in the insert payload,
+        # postgrest raises 42501 mid-stream and the gatekeeper aborts before
+        # emitting any SSE events, surfacing as ERR_INCOMPLETE_CHUNKED_ENCODING
+        # to the browser.
+        assert ins.get("user_id") == "user-1", (
+            f"CR-21-04: gatekeeper insert missing user_id (got {ins!r}) — "
+            f"would be blocked by messages RLS policy in production."
+        )
 
 
 # ---------------------------------------------------------------------------
