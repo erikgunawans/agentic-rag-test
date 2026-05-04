@@ -46,7 +46,7 @@ import json
 import logging
 from typing import AsyncIterator
 
-from pydantic import ValidationError
+from pydantic import BaseModel, Field, ValidationError
 
 from app.config import get_settings
 from app.harnesses.types import (
@@ -80,10 +80,21 @@ EVT_COMPLETE = "harness_complete"
 EVT_SUB_AGENT_START = "harness_sub_agent_start"        # B1 fix
 EVT_SUB_AGENT_COMPLETE = "harness_sub_agent_complete"  # B1 fix
 
-# [Phase 21 - deferred] — declared as constants, NOT emitted in v1.3
-EVT_BATCH_START = "harness_batch_start"                 # [Phase 21 - deferred]
-EVT_BATCH_COMPLETE = "harness_batch_complete"           # [Phase 21 - deferred]
-EVT_HUMAN_INPUT_REQUIRED = "harness_human_input_required"  # [Phase 21 - deferred]
+# [Phase 21] — implemented in Plan 21-02 (HIL) and Plan 21-03 (batch)
+EVT_BATCH_START = "harness_batch_start"                 # [Phase 21] — Plan 21-03
+EVT_BATCH_COMPLETE = "harness_batch_complete"           # [Phase 21] — Plan 21-03
+EVT_HUMAN_INPUT_REQUIRED = "harness_human_input_required"  # [Phase 21] — Plan 21-02
+EVT_BATCH_ITEM_START = "harness_batch_item_start"       # Phase 21 D-08 — Plan 21-03
+EVT_BATCH_ITEM_COMPLETE = "harness_batch_item_complete"  # Phase 21 D-08 — Plan 21-03
+
+
+# ---------------------------------------------------------------------------
+# Pydantic models for structured LLM output
+# ---------------------------------------------------------------------------
+
+class HumanInputQuestion(BaseModel):
+    """Output schema for LLM_HUMAN_INPUT phase question generation (HIL-01)."""
+    question: str = Field(..., min_length=1, max_length=500)
 
 
 # ---------------------------------------------------------------------------
@@ -100,6 +111,7 @@ async def run_harness_engine(
     token: str,
     registry,                          # parent ConversationRegistry — egress (SEC-04)
     cancellation_event: asyncio.Event,
+    start_phase_index: int = 0,        # Phase 21 D-03 — HIL resume passes current_phase + 1
 ) -> AsyncIterator[dict]:
     """Drive harness phases. Yields SSE-shaped dicts the chat.py SSE generator forwards.
 
@@ -112,6 +124,10 @@ async def run_harness_engine(
         token:              JWT access token (parent token, never minted fresh — D-22).
         registry:           Parent ConversationRegistry — egress filter (D-21/SEC-04).
         cancellation_event: In-process cancellation arm (Layer 1, HARN-07).
+        start_phase_index:  Phase 21 D-03 — phase index to start from (default 0
+                            preserves byte-identical behavior for all existing
+                            callers). HIL resume passes current_phase + 1 so the
+                            engine skips already-completed phases on resume.
 
     Yields:
         SSE-shaped dicts. Every event carries harness_run_id for frontend correlation.
@@ -128,6 +144,7 @@ async def run_harness_engine(
             token=token,
             registry=registry,
             cancellation_event=cancellation_event,
+            start_phase_index=start_phase_index,
         ):
             yield event
     except Exception as exc:
@@ -158,6 +175,7 @@ async def _run_harness_engine_inner(
     token: str,
     registry,
     cancellation_event: asyncio.Event,
+    start_phase_index: int = 0,
 ) -> AsyncIterator[dict]:
     """Inner harness engine — phase loop + dual-layer cancellation + PANEL-01 todos."""
 
@@ -199,6 +217,8 @@ async def _run_harness_engine_inner(
 
     # --- 3. Phase loop ---
     for phase_index, phase in enumerate(harness.phases):
+        if phase_index < start_phase_index:
+            continue   # Phase 21 D-03 — already recorded in phase_results from prior run
 
         # === B3 dual-layer cancellation check (HARN-07) ===
 
@@ -308,6 +328,17 @@ async def _run_harness_engine_inner(
 
         if result is None:
             result = {"error": "phase_no_result", "code": "NO_RESULT", "detail": "Phase returned no result"}
+
+        # Phase 21 HIL-03: paused terminal short-circuits the entire engine.
+        # Do NOT yield EVT_PHASE_COMPLETE, do NOT call advance_phase, do NOT call complete().
+        # The harness_runs row was already transitioned to 'paused' by the dispatcher.
+        if isinstance(result, dict) and result.get("paused"):
+            yield {
+                "type": EVT_COMPLETE,
+                "harness_run_id": harness_run_id,
+                "status": "paused",
+            }
+            return
 
         # --- Check for phase failure ---
         if isinstance(result, dict) and "error" in result:
@@ -689,13 +720,118 @@ async def _dispatch_phase(
         yield {"_terminal_phase_result": output}
         return
 
-    # [Phase 21 - deferred] — LLM_BATCH_AGENTS and LLM_HUMAN_INPUT
-    if phase.phase_type in (PhaseType.LLM_BATCH_AGENTS, PhaseType.LLM_HUMAN_INPUT):
+    # Phase 21 / HIL-01..03: LLM_HUMAN_INPUT dispatch.
+    if phase.phase_type == PhaseType.LLM_HUMAN_INPUT:
+        # 1. Read prior-phase context files (informs the LLM-generated question)
+        inputs = await _read_workspace_files(thread_id, phase.workspace_inputs, token)
+        if isinstance(inputs, dict) and inputs.get("error"):
+            yield {"_terminal_phase_result": inputs}
+            return
+
+        # 2. Build messages (system prompt asks for one question; user content = inputs).
+        messages = _build_llm_single_messages(phase, inputs)
+
+        # 3. Egress filter (SEC-04 / T-21-02-01) — mirrors LLM_SINGLE pattern.
+        if registry is not None:
+            payload = json.dumps(messages, ensure_ascii=False)
+            er = egress_filter(payload, registry, None)
+            if er.tripped:
+                yield {
+                    "_terminal_phase_result": {
+                        "error": "egress_blocked",
+                        "code": "PII_EGRESS_BLOCKED",
+                        "detail": "PII detected in llm_human_input payload",
+                    }
+                }
+                return
+
+        # 4. LLM call with json_schema response_format against HumanInputQuestion.
+        schema = HumanInputQuestion.model_json_schema()
+
+        from app.services.openrouter_service import OpenRouterService
+        or_svc = OpenRouterService()
+
+        try:
+            llm_result = await or_svc.complete_with_tools(
+                messages=messages,
+                tools=None,
+                model=None,
+                response_format={
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "HumanInputQuestion",
+                        "schema": schema,
+                        "strict": True,
+                    },
+                },
+            )
+        except Exception as exc:
+            logger.error(
+                "_dispatch_phase: HIL LLM call failed phase=%s: %s", phase.name, exc
+            )
+            yield {
+                "_terminal_phase_result": {
+                    "error": "hil_llm_failed",
+                    "code": "HIL_LLM_FAILED",
+                    "detail": str(exc)[:500],
+                }
+            }
+            return
+
+        # 5. Validate via Pydantic (T-21-02-02 — caps oversized question).
+        try:
+            parsed = HumanInputQuestion.model_validate_json(llm_result.get("content", ""))
+        except Exception as exc:
+            yield {
+                "_terminal_phase_result": {
+                    "error": "hil_invalid_question",
+                    "code": "HIL_VALIDATION_FAILED",
+                    "detail": str(exc)[:500],
+                }
+            }
+            return
+
+        question_text = parsed.question
+
+        # 6. Stream the question as delta events (HIL-02 — chat-bubble, NOT phase panel).
+        for chunk in _chunk_for_delta(question_text):
+            yield {"type": "delta", "content": chunk, "harness_run_id": harness_run_id}
+
+        # 7. Emit harness_human_input_required event (D-04 sequence).
+        yield {
+            "type": EVT_HUMAN_INPUT_REQUIRED,
+            "question": question_text,
+            "workspace_output_path": phase.workspace_output,
+            "harness_run_id": harness_run_id,
+        }
+
+        # 8. DB transition to 'paused' BEFORE returning (HIL-03 / D-21 ordering).
+        #    Uses Task 0's new harness_runs_service.pause() helper — NOT advance_phase
+        #    (whose guard rejects the paused transition).
+        try:
+            await harness_runs_service.pause(
+                run_id=harness_run_id,
+                user_id=user_id,
+                user_email=user_email,
+                token=token,
+            )
+        except Exception as exc:
+            logger.warning(
+                "_dispatch_phase: HIL pause transition failed run=%s: %s",
+                harness_run_id, exc,
+            )
+
+        # 9. Special HIL terminal marker — outer loop must NOT advance to next phase.
+        yield {"_terminal_phase_result": {"paused": True, "question": question_text}}
+        return
+
+    # [Phase 21 - Plan 21-03 deferred] — LLM_BATCH_AGENTS still stubbed.
+    if phase.phase_type == PhaseType.LLM_BATCH_AGENTS:
         yield {
             "_terminal_phase_result": {
                 "error": "phase_type_not_implemented",
                 "code": "PHASE21_PENDING",
-                "detail": f"PhaseType {phase.phase_type.value} reserved for Phase 21",
+                "detail": "LLM_BATCH_AGENTS reserved for Plan 21-03",
             }
         }
         return
@@ -756,6 +892,18 @@ def _build_llm_single_messages(
         {"role": "system", "content": system_content},
         {"role": "user", "content": user_content},
     ]
+
+
+def _chunk_for_delta(text: str, chunk_size: int = 32) -> list[str]:
+    """Split a question into chunks for delta streaming (Phase 21 HIL-02).
+
+    The frontend renders consecutive `delta` events into a single assistant
+    message bubble — same UX as the standard chat loop. Splitting the question
+    into ~32-char chunks gives a typewriter feel without spamming events.
+    """
+    if not text:
+        return []
+    return [text[i:i + chunk_size] for i in range(0, len(text), chunk_size)]
 
 
 def _summarize_output(result: dict, max_len: int = 300) -> str:
