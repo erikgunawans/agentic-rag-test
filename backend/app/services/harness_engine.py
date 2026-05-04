@@ -44,6 +44,8 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import uuid
+from pathlib import PurePosixPath
 from typing import AsyncIterator
 
 from pydantic import BaseModel, Field, ValidationError
@@ -406,12 +408,19 @@ async def _run_harness_engine_inner(
             logger.warning("harness_engine: write_todos (completed) failed: %s", exc)
         yield {"type": "todos_updated", "todos": todos}
 
-        yield {
+        phase_complete_evt: dict = {
             "type": EVT_PHASE_COMPLETE,
             "harness_run_id": harness_run_id,
             "phase_index": phase_index,
             "phase_name": phase.name,
         }
+        # Phase 21 / Plan 21-03 D-11: surface partial-completion via additive
+        # fields on phase_complete (existing consumers ignore unknown fields).
+        if isinstance(result, dict) and result.get("partial"):
+            phase_complete_evt["partial"] = True
+            if "failed_count" in result:
+                phase_complete_evt["failed_count"] = result["failed_count"]
+        yield phase_complete_evt
 
         await _append_progress(
             thread_id=thread_id,
@@ -825,15 +834,269 @@ async def _dispatch_phase(
         yield {"_terminal_phase_result": {"paused": True, "question": question_text}}
         return
 
-    # [Phase 21 - Plan 21-03 deferred] — LLM_BATCH_AGENTS still stubbed.
+    # Phase 21 / Plan 21-03 / BATCH-01..07: LLM_BATCH_AGENTS dispatch.
     if phase.phase_type == PhaseType.LLM_BATCH_AGENTS:
-        yield {
-            "_terminal_phase_result": {
-                "error": "phase_type_not_implemented",
-                "code": "PHASE21_PENDING",
-                "detail": "LLM_BATCH_AGENTS reserved for Plan 21-03",
+        ws = WorkspaceService(token=token)
+
+        # 0. BLOCKER-6 fix: curate phase.tools ONCE per phase, mirroring
+        #    LLM_AGENT pattern at line 625. The curated list is propagated to
+        #    every batch sub-agent via parent_tool_context['phase_tools'] so
+        #    Phase 22 CR-06 (RAG tools) inherit correctly.
+        curated_tools = [
+            t for t in (phase.tools or [])
+            if t not in PANEL_LOCKED_EXCLUDED_TOOLS
+        ]
+
+        # 1. BATCH-01: parse items from workspace_inputs[0]
+        if not phase.workspace_inputs:
+            yield {"_terminal_phase_result": {
+                "error": "batch_no_input",
+                "code": "BATCH_NO_INPUT",
+                "detail": "phase.workspace_inputs is empty",
+            }}
+            return
+        items_path = phase.workspace_inputs[0]
+        items_read = await ws.read_file(thread_id, items_path)
+        if isinstance(items_read, dict) and "error" in items_read:
+            yield {"_terminal_phase_result": {
+                "error": "batch_input_unreadable",
+                "code": "BATCH_INPUT_UNREADABLE",
+                "detail": items_read.get("detail", "read failed"),
+            }}
+            return
+        try:
+            all_items = json.loads(items_read.get("content", "[]") or "[]")
+            if not isinstance(all_items, list):
+                raise ValueError("items file must be a JSON array")
+        except Exception as exc:
+            yield {"_terminal_phase_result": {
+                "error": "batch_input_invalid",
+                "code": "BATCH_INPUT_INVALID",
+                "detail": str(exc)[:500],
+            }}
+            return
+
+        # 2. BATCH-07 / D-07: resume detection — read <stem>.jsonl, build done_set
+        jsonl_path, merged_path = _stem_paths(phase.workspace_output)
+        done_set: set[int] = set()
+        existing_jsonl = await ws.read_file(thread_id, jsonl_path)
+        if not (isinstance(existing_jsonl, dict) and "error" in existing_jsonl):
+            content = existing_jsonl.get("content", "") or ""
+            for line in content.splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    row = json.loads(line)
+                    if isinstance(row, dict) and "item_index" in row:
+                        done_set.add(int(row["item_index"]))
+                except Exception:
+                    continue  # skip malformed lines
+
+        # 3. Compute remaining_items as (original_index, item) tuples — index
+        #    is globally unique across batches.
+        remaining = [(i, it) for i, it in enumerate(all_items) if i not in done_set]
+        items_total = len(all_items)
+        if not remaining:
+            # Already complete — go straight to merge pass
+            await _merge_jsonl_to_json(ws, thread_id, jsonl_path, merged_path)
+            yield {"_terminal_phase_result": {
+                "text": f"All {items_total} items previously completed",
+            }}
+            return
+
+        # 4. BATCH-02 / BATCH-03: chunk remaining into batches of phase.batch_size
+        bs = max(1, phase.batch_size or 5)
+        batches = [remaining[i:i + bs] for i in range(0, len(remaining), bs)]
+
+        # OpenRouter client (lazy import to keep module-level deps minimal)
+        from app.services.openrouter_service import OpenRouterService
+        or_svc = OpenRouterService()
+        from app.services.system_settings_service import get_system_settings
+        try:
+            sys_settings = get_system_settings()
+        except Exception:
+            sys_settings = {}
+
+        # 5. Per-batch concurrent dispatch via asyncio.Queue fan-in
+        failed_count = 0
+        for batch_idx, batch_chunk in enumerate(batches):
+            yield {
+                "type": EVT_BATCH_START,
+                "harness_run_id": harness_run_id,
+                "phase_index": phase_index,
+                "phase_name": phase.name,
+                "batch_index": batch_idx,
+                "batch_size": len(batch_chunk),
+                "items_total": items_total,
             }
+
+            queue: asyncio.Queue = asyncio.Queue()
+
+            async def _run_one(global_idx: int, item):
+                """Producer: dispatch one sub-agent, append result to JSONL."""
+                task_id = str(uuid.uuid4())
+                await queue.put({
+                    "type": EVT_BATCH_ITEM_START,
+                    "harness_run_id": harness_run_id,
+                    "phase_index": phase_index,
+                    "phase_name": phase.name,
+                    "item_index": global_idx,
+                    "items_total": items_total,
+                    "task_id": task_id,
+                    "batch_index": batch_idx,
+                })
+                sub_status = "ok"
+                sub_result: dict = {}
+                description = (
+                    (phase.system_prompt_template or "")
+                    + f"\n\nItem to process: {json.dumps(item, ensure_ascii=False)}"
+                )
+                try:
+                    collected_text: list[str] = []
+                    async for ev in run_sub_agent_loop(
+                        description=description,
+                        context_files=phase.workspace_inputs,
+                        parent_user_id=user_id,
+                        parent_user_email=user_email,
+                        parent_token=token,
+                        # BLOCKER-6 fix — curated tools propagate via
+                        # parent_tool_context (sub_agent_loop.py honor hook).
+                        parent_tool_context={"phase_tools": curated_tools},
+                        parent_thread_id=thread_id,
+                        parent_user_msg_id=harness_run_id,
+                        client=or_svc.client,
+                        sys_settings=sys_settings,
+                        web_search_effective=False,
+                        task_id=task_id,
+                        parent_redaction_registry=registry,
+                    ):
+                        if isinstance(ev, dict) and "_terminal_result" in ev:
+                            term = ev["_terminal_result"]
+                            if isinstance(term, dict) and term.get("error"):
+                                sub_status = "failed"
+                                sub_result = {
+                                    "error": term.get("error"),
+                                    "code": term.get("code", "TASK_FAILED"),
+                                    "detail": str(term.get("detail", ""))[:500],
+                                }
+                            else:
+                                if isinstance(term, dict):
+                                    sub_result = {
+                                        "text": "\n".join(collected_text)
+                                        or term.get("text", ""),
+                                        "terminal": term,
+                                    }
+                                else:
+                                    sub_result = {"text": "\n".join(collected_text)}
+                            break
+                        if isinstance(ev, dict) and ev.get("type") == "delta":
+                            collected_text.append(ev.get("content", ""))
+                        # Forward nested SSE events with task_id correlation
+                        await queue.put({
+                            **ev,
+                            "task_id": task_id,
+                            "batch_index": batch_idx,
+                        })
+                except Exception as exc:
+                    logger.error(
+                        "_dispatch_phase: batch sub_agent crash phase=%s item=%s: %s",
+                        phase.name, global_idx, exc, exc_info=True,
+                    )
+                    sub_status = "failed"
+                    sub_result = {
+                        "error": "sub_agent_crashed",
+                        "code": "TASK_LOOP_CRASH",
+                        "detail": str(exc)[:500],
+                    }
+
+                # Atomic JSONL append (Plan 21-01 primitive)
+                line_payload: dict = {
+                    "item_index": global_idx,
+                    "status": sub_status,
+                }
+                if sub_status == "failed":
+                    line_payload["error"] = sub_result
+                else:
+                    line_payload["result"] = sub_result
+                try:
+                    await ws.append_line(
+                        thread_id,
+                        jsonl_path,
+                        json.dumps(line_payload, ensure_ascii=False),
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "_dispatch_phase: append_line failed phase=%s item=%s: %s",
+                        phase.name, global_idx, exc,
+                    )
+
+                await queue.put({
+                    "type": EVT_BATCH_ITEM_COMPLETE,
+                    "harness_run_id": harness_run_id,
+                    "phase_index": phase_index,
+                    "phase_name": phase.name,
+                    "item_index": global_idx,
+                    "items_total": items_total,
+                    "task_id": task_id,
+                    "status": sub_status,
+                    "batch_index": batch_idx,
+                })
+                await queue.put({
+                    "_done": True,
+                    "_failed": sub_status == "failed",
+                })
+
+            tasks = [
+                asyncio.create_task(_run_one(gi, it))
+                for gi, it in batch_chunk
+            ]
+            done_count = 0
+            target = len(tasks)
+            while done_count < target:
+                try:
+                    evt = await asyncio.wait_for(queue.get(), timeout=0.1)
+                    if evt.get("_done"):
+                        done_count += 1
+                        if evt.get("_failed"):
+                            failed_count += 1
+                        continue
+                    yield evt
+                except asyncio.TimeoutError:
+                    if all(t.done() for t in tasks):
+                        break
+            # Drain remainder
+            while not queue.empty():
+                evt = queue.get_nowait()
+                if evt.get("_done"):
+                    done_count += 1
+                    if evt.get("_failed"):
+                        failed_count += 1
+                    continue
+                yield evt
+            await asyncio.gather(*tasks, return_exceptions=True)
+
+            yield {
+                "type": EVT_BATCH_COMPLETE,
+                "harness_run_id": harness_run_id,
+                "phase_index": phase_index,
+                "phase_name": phase.name,
+                "batch_index": batch_idx,
+                "failed_count": failed_count,
+            }
+
+        # 6. BATCH-05 / D-06: merge pass — read JSONL, sort by item_index,
+        #    write final sorted JSON array.
+        await _merge_jsonl_to_json(ws, thread_id, jsonl_path, merged_path)
+
+        # 7. Terminal — surface partial-completion via additive fields
+        terminal_output: dict = {
+            "text": f"Processed {items_total} items ({failed_count} failed)",
         }
+        if failed_count > 0:
+            terminal_output["partial"] = True
+            terminal_output["failed_count"] = failed_count
+        yield {"_terminal_phase_result": terminal_output}
         return
 
     yield {
@@ -904,6 +1167,63 @@ def _chunk_for_delta(text: str, chunk_size: int = 32) -> list[str]:
     if not text:
         return []
     return [text[i:i + chunk_size] for i in range(0, len(text), chunk_size)]
+
+
+def _stem_paths(workspace_output: str) -> tuple[str, str]:
+    """Phase 21 / Plan 21-03: derive (jsonl_path, merged_json_path) from a
+    workspace_output spec.
+
+    Examples:
+      'risk-analysis.json'        -> ('risk-analysis.jsonl', 'risk-analysis.json')
+      'risk-analysis'             -> ('risk-analysis.jsonl', 'risk-analysis.json')
+      'sub/dir/results.json'      -> ('sub/dir/results.jsonl', 'sub/dir/results.json')
+    """
+    p = PurePosixPath(workspace_output or "results.json")
+    stem = p.stem if p.suffix else p.name
+    parent = str(p.parent) if str(p.parent) not in (".", "") else ""
+    jsonl_name = f"{stem}.jsonl"
+    json_name = f"{stem}.json"
+    if parent:
+        return f"{parent}/{jsonl_name}", f"{parent}/{json_name}"
+    return jsonl_name, json_name
+
+
+async def _merge_jsonl_to_json(
+    ws: WorkspaceService,
+    thread_id: str,
+    jsonl_path: str,
+    json_path: str,
+) -> None:
+    """Phase 21 / D-06: read JSONL, sort by item_index, write sorted JSON array.
+
+    Best-effort: a missing JSONL file (no items processed) is a no-op. Write
+    failures are logged-and-swallowed — the JSONL is the resume artifact, the
+    merged JSON is the downstream artifact; if the merge write fails, a
+    subsequent resume can re-run the merge step.
+    """
+    existing = await ws.read_file(thread_id, jsonl_path)
+    if isinstance(existing, dict) and "error" in existing:
+        return
+    rows: list[dict] = []
+    content = existing.get("content", "") or ""
+    for line in content.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            rows.append(json.loads(line))
+        except Exception:
+            continue
+    rows.sort(key=lambda r: r.get("item_index", 0))
+    try:
+        await ws.write_text_file(
+            thread_id,
+            json_path,
+            json.dumps(rows, ensure_ascii=False, indent=2),
+            source="harness",
+        )
+    except Exception as exc:
+        logger.warning("_merge_jsonl_to_json: write failed: %s", exc)
 
 
 def _summarize_output(result: dict, max_len: int = 300) -> str:

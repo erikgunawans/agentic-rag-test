@@ -609,8 +609,11 @@ async def test_run_harness_engine_egress_filter_blocks_llm_single():
 
 
 # ---------------------------------------------------------------------------
-# Test 10: Phase 21 types return PHASE21_PENDING
+# Test 10: Phase 21 LLM_BATCH_AGENTS missing workspace_inputs → BATCH_NO_INPUT
 # ---------------------------------------------------------------------------
+# (Plan 21-03 implemented LLM_BATCH_AGENTS — this test now asserts the new
+# config-error contract. With no workspace_inputs the dispatcher returns
+# BATCH_NO_INPUT instead of the legacy PHASE21_PENDING placeholder.)
 
 @pytest.mark.asyncio
 async def test_run_harness_engine_phase21_types_return_not_implemented():
@@ -653,7 +656,9 @@ async def test_run_harness_engine_phase21_types_return_not_implemented():
 
     error_evs = [e for e in events if e["type"] == EVT_PHASE_ERROR]
     assert len(error_evs) >= 1
-    assert error_evs[0]["code"] == "PHASE21_PENDING"
+    # Plan 21-03: LLM_BATCH_AGENTS now implemented — phase with no
+    # workspace_inputs surfaces a config error.
+    assert error_evs[0]["code"] == "BATCH_NO_INPUT"
 
 
 # ---------------------------------------------------------------------------
@@ -857,13 +862,18 @@ async def test_llm_agent_emits_sub_agent_start_complete_events():
 
 
 # ---------------------------------------------------------------------------
-# Test 14 (B1): Phase 21 constants documented but no batch/human events emitted
+# Test 14 (B1 → updated by Plan 21-03): EVT constants exported. Dispatching
+# LLM_BATCH_AGENTS with NO workspace_inputs still produces a config error
+# (BATCH_NO_INPUT) and emits no batch/human-input events.
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
 async def test_phase21_events_are_documented_but_unimplemented():
-    """EVT_BATCH_START/COMPLETE/HUMAN_INPUT_REQUIRED are exported constants.
-    Dispatching LLM_BATCH_AGENTS does NOT emit any of those event types.
+    """EVT_BATCH_*/HUMAN_INPUT_REQUIRED are exported constants.
+
+    A degenerate LLM_BATCH_AGENTS phase (no workspace_inputs) short-circuits
+    to BATCH_NO_INPUT without entering the fan-in machinery, so no batch
+    item-level events are emitted on this path.
     """
     import app.services.harness_engine as engine_module
 
@@ -912,15 +922,16 @@ async def test_phase21_events_are_documented_but_unimplemented():
             )
         )
 
-    # None of the Phase 21 reserved event types should appear
+    # No batch/human-input SSE event types should appear on this degenerate path
     emitted_types = {e.get("type") for e in events}
     assert EVT_BATCH_START not in emitted_types
     assert EVT_BATCH_COMPLETE not in emitted_types
     assert EVT_HUMAN_INPUT_REQUIRED not in emitted_types
 
-    # But a PHASE21_PENDING error should appear
+    # Phase 21 / Plan 21-03: LLM_BATCH_AGENTS implemented — without
+    # workspace_inputs the dispatcher surfaces BATCH_NO_INPUT.
     error_evs = [e for e in events if e["type"] == EVT_PHASE_ERROR]
-    assert any(e["code"] == "PHASE21_PENDING" for e in error_evs)
+    assert any(e.get("code") == "BATCH_NO_INPUT" for e in error_evs)
 
 
 # ---------------------------------------------------------------------------

@@ -224,6 +224,15 @@ async def _run_sub_agent_loop_inner(
     else:
         sub_tools = []
 
+    # Phase 21 / Plan 21-03 BLOCKER-6 honor hook:
+    # When the caller (e.g. harness_engine LLM_BATCH_AGENTS dispatcher) supplies
+    # an explicit per-phase allow-list via parent_tool_context["phase_tools"],
+    # filter sub_tools down to that allow-list. None means "no override" (current
+    # behavior unchanged). An empty list means "no tools at all".
+    phase_tools = parent_tool_context.get("phase_tools") if parent_tool_context else None
+    if phase_tools is not None:
+        sub_tools = [t for t in sub_tools if t["function"]["name"] in phase_tools]
+
     available_tool_names = [t["function"]["name"] for t in sub_tools]
 
     # --- System prompt for sub-agent ---
