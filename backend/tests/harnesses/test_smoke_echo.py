@@ -51,7 +51,9 @@ class TestSmokeEchoDefinitionShape:
         from app.harnesses.smoke_echo import SMOKE_ECHO
         assert SMOKE_ECHO.name == "smoke-echo"
         assert SMOKE_ECHO.display_name == "Smoke Echo"
-        assert len(SMOKE_ECHO.phases) == 2
+        # Phase 21 / Plan 21-06 extended the harness from 2 to 4 phases
+        # (added llm_human_input + llm_batch_agents at indexes 2 + 3).
+        assert len(SMOKE_ECHO.phases) == 4
 
     def test_smoke_echo_prerequisites_require_upload(self):
         from app.harnesses.smoke_echo import SMOKE_ECHO
