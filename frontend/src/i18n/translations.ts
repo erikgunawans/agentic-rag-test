@@ -744,6 +744,7 @@ export const translations: Record<Locale, Record<string, string>> = {
     'upload.serverError': 'Gagal mengunggah — mohon coba lagi',
     'upload.cancelled': 'Unggahan dibatalkan',
     'upload.inProgress': 'Mengunggah {filename} — {percent}%',
+    'upload.noActiveThread': 'Kirim pesan terlebih dahulu untuk memulai percakapan, lalu lampirkan berkas.',
   },
   en: {
     // Welcome screen
@@ -1488,5 +1489,6 @@ export const translations: Record<Locale, Record<string, string>> = {
     'upload.serverError': 'Upload failed — please try again',
     'upload.cancelled': 'Upload cancelled',
     'upload.inProgress': 'Uploading {filename} — {percent}%',
+    'upload.noActiveThread': 'Send a message first to start a conversation, then attach a file.',
   },
 }

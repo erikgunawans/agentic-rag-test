@@ -59,7 +59,7 @@ export function HarnessBanner() {
     if (!activeThreadId) return
     setCancelling(true)
     try {
-      await apiFetch(`/threads/${activeThreadId}/harness/cancel`, { method: 'POST' })
+      await apiFetch(`/chat/threads/${activeThreadId}/harness/cancel`, { method: 'POST' })
     } finally {
       setCancelling(false)
       setCancelOpen(false)

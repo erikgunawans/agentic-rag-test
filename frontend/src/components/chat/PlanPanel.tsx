@@ -95,7 +95,7 @@ export function PlanPanel() {
     if (!harnessRun || !activeThreadId) return
     setCancelling(true)
     try {
-      await apiFetch(`/threads/${activeThreadId}/harness/cancel`, { method: 'POST' })
+      await apiFetch(`/chat/threads/${activeThreadId}/harness/cancel`, { method: 'POST' })
     } catch {
       // Non-fatal — UI re-renders on next SSE harness_phase_error event
     } finally {

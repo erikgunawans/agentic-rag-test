@@ -37,9 +37,11 @@ export function FileUploadButton() {
     activeThreadId,
     uploadingFiles,
     startUpload,
-    updateUploadProgress: _updateUploadProgress,
     completeUpload,
     failUpload,
+    // updateUploadProgress is not used in v1.3: fetch() has no upload progress API.
+    // The percent stays at 0 (indeterminate spinner). Swap apiFetch for XHR if fidelity
+    // becomes a UAT requirement (see rationale block at end of file).
   } = useChatContext()
   const settings = usePublicSettings()
   const inputRef = useRef<HTMLInputElement>(null)
@@ -59,7 +61,18 @@ export function FileUploadButton() {
   }
 
   async function handleFile(file: File) {
-    if (!activeThreadId) return
+    if (!activeThreadId) {
+      // CR-21-03 (UAT finding): silent no-op was confusing — the paperclip
+      // pill appeared in the input but no /files/upload request fired, so
+      // the user thought the file was attached when it wasn't. Surface a
+      // toast that points to the correct flow.
+      toast({
+        role: 'alert',
+        message: t('upload.noActiveThread'),
+        duration: 5000,
+      })
+      return
+    }
 
     // Client-side validation (UX only — server re-validates with magic bytes).
     if (file.size > MAX_BYTES) {

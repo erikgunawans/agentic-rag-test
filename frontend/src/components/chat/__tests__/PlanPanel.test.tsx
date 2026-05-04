@@ -401,7 +401,7 @@ describe('PlanPanel', () => {
     await waitFor(() => {
       expect(mockApiFetch).toHaveBeenCalledOnce()
       expect(mockApiFetch).toHaveBeenCalledWith(
-        '/threads/thread-test-123/harness/cancel',
+        '/chat/threads/thread-test-123/harness/cancel',
         { method: 'POST' },
       )
     })

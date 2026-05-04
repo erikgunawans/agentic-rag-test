@@ -263,7 +263,7 @@ export function useChatState() {
     // suffix doesn't bleed into the new thread's banner.
     setBatchProgress(null)
     if (!activeThreadId) return
-    apiFetch(`/threads/${activeThreadId}/harness/active`)
+    apiFetch(`/chat/threads/${activeThreadId}/harness/active`)
       .then((r) => r.json() as Promise<{ harnessRun: HarnessRunSlice }>)
       .then((data) => {
         if (data.harnessRun) setHarnessRun(data.harnessRun)
@@ -696,7 +696,7 @@ export function useChatState() {
             // Follow-up fetch to fill harnessType + phaseName (not in gatekeeper_complete
             // payload — would bloat it). Non-blocking; if it fails, the banner still shows.
             if (activeThreadId) {
-              apiFetch(`/threads/${activeThreadId}/harness/active`)
+              apiFetch(`/chat/threads/${activeThreadId}/harness/active`)
                 .then((r) => r.json() as Promise<{ harnessRun: HarnessRunSlice }>)
                 .then((data) => {
                   if (data.harnessRun) setHarnessRun(data.harnessRun)
