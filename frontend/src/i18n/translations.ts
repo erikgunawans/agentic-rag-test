@@ -725,6 +725,9 @@ export const translations: Record<Locale, Record<string, string>> = {
     'harness.banner.running': '{harnessType} berjalan — fase {n} dari {m} ({phaseName})',
     'harness.banner.cancelled': '{harnessType} dibatalkan',
     'harness.banner.failed': '{harnessType} gagal — {detail}',
+    // Phase 21 / Plan 21-05 / D-09 / HIL-02
+    'harness.banner.batchProgress': 'Menganalisis klausula {completed}/{total}',
+    'harness.banner.paused': 'Menunggu respons Anda — {harnessType}',
     'harness.lock.tooltip': 'Rencana sistem — tidak dapat diubah saat berjalan',
     'harness.cancel.confirmTitle': 'Batalkan {harnessType}?',
     'harness.cancel.confirmBody':
@@ -1466,6 +1469,9 @@ export const translations: Record<Locale, Record<string, string>> = {
     'harness.banner.running': '{harnessType} running — phase {n} of {m} ({phaseName})',
     'harness.banner.cancelled': '{harnessType} cancelled',
     'harness.banner.failed': '{harnessType} failed — {detail}',
+    // Phase 21 / Plan 21-05 / D-09 / HIL-02
+    'harness.banner.batchProgress': 'Analyzing clause {completed}/{total}',
+    'harness.banner.paused': 'Awaiting your response — {harnessType}',
     'harness.lock.tooltip': 'System-driven plan — cannot be modified during execution',
     'harness.cancel.confirmTitle': 'Cancel {harnessType}?',
     'harness.cancel.confirmBody':

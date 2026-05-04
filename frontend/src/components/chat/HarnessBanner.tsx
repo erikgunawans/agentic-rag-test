@@ -30,7 +30,9 @@ const ACTIVE_STATUSES = new Set(['pending', 'running', 'paused'])
 
 export function HarnessBanner() {
   const { t } = useI18n()
-  const { harnessRun, activeThreadId } = useChatContext()
+  // Phase 21 / Plan 21-05 / D-09 / BATCH-04 / BATCH-06: also read batchProgress
+  // so the banner can append "— Analyzing clause N/M" during llm_batch_agents phases.
+  const { harnessRun, batchProgress, activeThreadId } = useChatContext()
   const [cancelOpen, setCancelOpen] = useState(false)
   const [cancelling, setCancelling] = useState(false)
 
@@ -64,14 +66,20 @@ export function HarnessBanner() {
     }
   }
 
-  // Build title text based on state
-  const titleText = isActive
-    ? t('harness.banner.running', {
-        harnessType: harnessLabel,
-        n: String(harnessRun.currentPhase + 1),
-        m: String(harnessRun.phaseCount || '?'),
-        phaseName: harnessRun.phaseName,
-      })
+  // Build title text based on state.
+  // Phase 21 / Plan 21-05 / HIL-02: when status is 'paused', use the
+  // "Awaiting your response — {harnessType}" copy instead of the running fraction.
+  const isPaused = harnessRun.status === 'paused'
+
+  const baseTitle = isActive
+    ? isPaused
+      ? t('harness.banner.paused', { harnessType: harnessLabel })
+      : t('harness.banner.running', {
+          harnessType: harnessLabel,
+          n: String(harnessRun.currentPhase + 1),
+          m: String(harnessRun.phaseCount || '?'),
+          phaseName: harnessRun.phaseName,
+        })
     : isCancelled
     ? t('harness.banner.cancelled', { harnessType: harnessLabel })
     : isFailed
@@ -80,6 +88,19 @@ export function HarnessBanner() {
         detail: harnessRun.errorDetail ?? '',
       })
     : ''
+
+  // Phase 21 / Plan 21-05 / D-09 / BATCH-04 / BATCH-06: append per-item batch
+  // progress suffix when batchProgress is non-null. Cleared at phase boundary
+  // by useChatState's harness_phase_complete reducer arm.
+  const batchSuffix = batchProgress
+    ? ' — ' +
+      t('harness.banner.batchProgress', {
+        completed: String(batchProgress.completed),
+        total: String(batchProgress.total),
+      })
+    : ''
+
+  const titleText = baseTitle + batchSuffix
 
   return (
     <div
