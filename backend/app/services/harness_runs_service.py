@@ -376,3 +376,123 @@ async def cancel(
         resource_id=run_id,
     )
     return bool(result.data)
+
+
+async def pause(
+    *,
+    run_id: str,
+    user_id: str,
+    user_email: str,
+    token: str,
+) -> HarnessRunRecord | None:
+    """Mark a harness run as paused.
+
+    Phase 21 / HIL-03: called by harness_engine LLM_HUMAN_INPUT dispatcher
+    before yielding harness_complete{status=paused}. Transactional guard
+    .in_("status", ["running"]) ensures we only pause an actually-running row;
+    attempting to pause a pending/paused/terminal row returns None (caller
+    should treat as a no-op signal).
+
+    Args:
+        run_id:     UUID of the harness_runs row.
+        user_id:    auth.users UUID for audit log.
+        user_email: User's email for audit log.
+        token:      JWT access token for RLS-scoped client.
+
+    Returns:
+        The updated HarnessRunRecord on success; None if guard rejected.
+    """
+    client = get_supabase_authed_client(token)
+    result = (
+        client.table("harness_runs")
+        .update({"status": "paused"})
+        .eq("id", run_id)
+        .in_("status", ["running"])  # transactional guard — only running can pause
+        .execute()
+    )
+    if not result.data:
+        logger.warning(
+            "pause affected 0 rows run_id=%s — possibly not running",
+            run_id,
+        )
+        return None
+    audit_service.log_action(
+        user_id=user_id,
+        user_email=user_email,
+        action="harness_run_paused",
+        resource_type="harness_runs",
+        resource_id=run_id,
+    )
+    return result.data[0]
+
+
+async def resume_from_pause(
+    *,
+    run_id: str,
+    new_phase_index: int,
+    phase_results_patch: dict[str, Any],
+    user_id: str,
+    user_email: str,
+    token: str,
+) -> HarnessRunRecord | None:
+    """Resume a paused harness run, advancing the phase and merging results.
+
+    Phase 21 / HIL-04: called by chat.py HIL resume branch (Plan 21-04) after
+    the user answers the paused question. Atomically transitions paused →
+    running, sets current_phase = new_phase_index, and deep-merges
+    phase_results_patch into existing phase_results JSONB.
+
+    Transactional guard .in_("status", ["paused"]) ensures only paused rows
+    can be resumed (defends against double-resume / status-drift races).
+
+    Args:
+        run_id:              UUID of the harness_runs row.
+        new_phase_index:     Phase to resume FROM (typically pause_phase + 1).
+        phase_results_patch: Dict to deep-merge into existing phase_results.
+        user_id:             auth.users UUID for audit log.
+        user_email:          User's email for audit log.
+        token:               JWT access token for RLS-scoped client.
+
+    Returns:
+        The updated HarnessRunRecord on success; None if guard rejected.
+    """
+    client = get_supabase_authed_client(token)
+
+    # Fetch current phase_results for merge (mirrors advance_phase pattern)
+    fetch_result = (
+        client.table("harness_runs")
+        .select("phase_results")
+        .eq("id", run_id)
+        .execute()
+    )
+    current_phase_results: dict[str, Any] = {}
+    if fetch_result.data:
+        current_phase_results = fetch_result.data[0].get("phase_results") or {}
+
+    merged = {**current_phase_results, **phase_results_patch}
+
+    result = (
+        client.table("harness_runs")
+        .update({
+            "status": "running",
+            "current_phase": new_phase_index,
+            "phase_results": merged,
+        })
+        .eq("id", run_id)
+        .in_("status", ["paused"])  # transactional guard — only paused can resume
+        .execute()
+    )
+    if not result.data:
+        logger.warning(
+            "resume_from_pause affected 0 rows run_id=%s — possibly not paused",
+            run_id,
+        )
+        return None
+    audit_service.log_action(
+        user_id=user_id,
+        user_email=user_email,
+        action="harness_run_resumed",
+        resource_type="harness_runs",
+        resource_id=run_id,
+    )
+    return result.data[0]
