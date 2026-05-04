@@ -30,7 +30,6 @@ import {
   File as FileIcon,
   Image as ImageIcon,
 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 import { useI18n } from '@/i18n/I18nContext'
 import { apiFetch } from '@/lib/api'
 import type { WorkspaceFile } from '@/hooks/useChatState'

@@ -6,7 +6,12 @@ import {
 } from './usePublicSettings'
 
 describe('usePublicSettings (Phase 12 / CTX-03)', () => {
-  let fetchSpy: ReturnType<typeof vi.spyOn>
+  // vitest 3.2 narrowed MockInstance generics so an explicit annotation on
+  // a fetch spy mismatches the spy's overloaded target signature. Use the
+  // `MockInstance` shape inferred at the spy creation site instead.
+  // (eslint-disable: this is the only sane shape that matches the spy.)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let fetchSpy: any
 
   beforeEach(() => {
     _resetPublicSettingsCacheForTests()

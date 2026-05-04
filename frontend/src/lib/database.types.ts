@@ -117,6 +117,62 @@ export interface UsageEvent {
   total_tokens: number | null
 }
 
+// Phase 20 / HARN-09 / Plan 20-09 — harness engine SSE events.
+// Backend source: backend/app/services/harness_engine.py
+// useChatState reducer arms at lines 606, 643, 649, 663.
+export interface HarnessPhaseStartEvent {
+  type: 'harness_phase_start'
+  harness_run_id: string
+  phase_index: number
+  phase_name: string
+}
+
+export interface HarnessPhaseCompleteEvent {
+  type: 'harness_phase_complete'
+}
+
+export interface HarnessPhaseErrorEvent {
+  type: 'harness_phase_error'
+  code?: string         // 'cancelled' triggers the cancelled-vs-failed branch
+  reason?: string       // 'cancelled_by_user' is the alternate cancellation marker
+  detail?: string
+}
+
+export interface HarnessCompleteEvent {
+  type: 'harness_complete'
+  status: 'completed' | 'failed' | 'cancelled' | 'paused'
+}
+
+// Phase 21 / Plan 21-05 / BATCH-04..06 — batch sub-agent telemetry.
+export interface HarnessBatchItemStartEvent {
+  type: 'harness_batch_item_start'
+  items_total?: number
+}
+
+export interface HarnessBatchItemCompleteEvent {
+  type: 'harness_batch_item_complete'
+  items_total?: number
+}
+
+// Phase 20 / Plan 20-04 / GATE-01 — gatekeeper transition event (W8 phase_count fix).
+export interface GatekeeperCompleteEvent {
+  type: 'gatekeeper_complete'
+  triggered: boolean
+  user_message_id?: string | null
+  assistant_message_id?: string | null
+  harness_run_id?: string | null
+  phase_count?: number
+}
+
+// Phase 20 / Plan 20-09 / B1 forward-compat — harness sub-agent telemetry (no-op arm in UI).
+export interface HarnessSubAgentStartEvent {
+  type: 'harness_sub_agent_start'
+}
+
+export interface HarnessSubAgentCompleteEvent {
+  type: 'harness_sub_agent_complete'
+}
+
 export type SSEEvent =
   | DeltaEvent
   | ToolStartEvent
@@ -135,6 +191,15 @@ export type SSEEvent =
   | TaskCompleteEvent     // Phase 19 / TASK-07
   | TaskErrorEvent        // Phase 19 / TASK-07
   | AskUserEvent          // Phase 19 / ASK-02
+  | HarnessPhaseStartEvent
+  | HarnessPhaseCompleteEvent
+  | HarnessPhaseErrorEvent
+  | HarnessCompleteEvent
+  | HarnessBatchItemStartEvent
+  | HarnessBatchItemCompleteEvent
+  | GatekeeperCompleteEvent
+  | HarnessSubAgentStartEvent
+  | HarnessSubAgentCompleteEvent
 
 export interface DocumentMetadata {
   title: string
