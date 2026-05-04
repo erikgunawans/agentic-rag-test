@@ -11,12 +11,20 @@ feature flag (e.g. settings.harness_smoke_enabled).
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING
 
-from app.harnesses.types import HarnessDefinition
+if TYPE_CHECKING:
+    # Importing app.harnesses.types at runtime would trigger
+    # app.harnesses/__init__.py during this module's own load and produce
+    # a circular import (smoke_echo → harness_registry → app.harnesses
+    # → smoke_echo) — see CR-21-01. PEP 563 string annotations + the
+    # `from __future__ import annotations` above let us keep the type
+    # hints without the runtime import.
+    from app.harnesses.types import HarnessDefinition
 
 logger = logging.getLogger(__name__)
 
-_REGISTRY: dict[str, HarnessDefinition] = {}
+_REGISTRY: dict[str, "HarnessDefinition"] = {}
 
 
 def register(definition: HarnessDefinition) -> None:
