@@ -715,7 +715,17 @@ export function useChatState() {
             // these events from falling through to the delta/done branch and producing
             // spurious console warnings. Phase 21 will hook in here.
           } else {
-            const delta = 'delta' in event ? event.delta : ''
+            // CR-21-05 (UAT finding): the gatekeeper emits delta events as
+            // {type: 'delta', content: '...'} (per gatekeeper.py SSE shape) while
+            // the agent path emits {type: 'delta', delta: '...'}. Accept both so
+            // gatekeeper greetings aren't silently dropped before the harness
+            // triggers — without this fallback the user sees an empty bubble.
+            const delta =
+              'delta' in event
+                ? (event as { delta?: string }).delta
+                : 'content' in event
+                  ? (event as { content?: string }).content
+                  : ''
             const isDone = 'done' in event ? event.done : false
             if (!isDone && delta) {
               assistantContent += delta
