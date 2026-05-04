@@ -121,6 +121,7 @@ async def _persist_message(
     harness_name: str,
     token: str,
     parent_message_id: str | None = None,
+    chain_to_prev_assistant: bool = False,
 ) -> str | None:
     """Insert a message row with harness_mode tag. Returns the row id.
 
@@ -131,8 +132,30 @@ async def _persist_message(
     frontend's getActivePath walks parent→child from a single root; assistant
     rows MUST set parent_message_id to the matching user row so the gatekeeper
     greeting appears in the visible path (CR-21-06).
+
+    `chain_to_prev_assistant` (CR-21-07): when True (set on user-role inserts),
+    look up the latest assistant message for this thread+harness_mode and use
+    its id as parent_message_id. Keeps multi-turn gatekeeper conversations on
+    a single linear path. Reuses the same supabase client to keep the call
+    count stable for unit tests.
     """
     client = get_supabase_authed_client(token)
+
+    if chain_to_prev_assistant and parent_message_id is None:
+        prev = (
+            client.table("messages")
+            .select("id")
+            .eq("thread_id", thread_id)
+            .eq("harness_mode", harness_name)
+            .eq("role", "assistant")
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        prev_rows = prev.data or []
+        if prev_rows and isinstance(prev_rows[0], dict) and prev_rows[0].get("id"):
+            parent_message_id = prev_rows[0]["id"]
+
     payload: dict = {
         "thread_id": thread_id,
         "user_id": user_id,
@@ -175,6 +198,10 @@ async def run_gatekeeper(
     phase_count = len(harness.phases)
 
     # --- 1. Persist user message with harness_mode tag ---
+    # CR-21-07: chain to the most recent assistant message in this thread+harness_mode
+    # so the message tree stays a single linear path. Without this, every multi-turn
+    # gatekeeper user message becomes a sibling root and only turn 1 is visible
+    # via getActivePath in the frontend. Single-turn naturally falls through to None.
     user_msg_id = await _persist_message(
         thread_id=thread_id,
         user_id=user_id,
@@ -182,6 +209,7 @@ async def run_gatekeeper(
         content=user_message,
         harness_name=harness.name,
         token=token,
+        chain_to_prev_assistant=True,
     )
 
     # --- 2. Load prior gatekeeper history ---
