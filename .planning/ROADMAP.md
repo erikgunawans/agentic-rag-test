@@ -19,7 +19,7 @@
 - [ ] **Phase 18: Workspace Virtual Filesystem** — workspace_files table + RLS, write_file/read_file/edit_file/list_files tools, REST endpoints, Workspace Panel UI, sandbox file integration
 - [ ] **Phase 19: Sub-Agent Delegation + Ask User + Status & Recovery** — task tool with isolated context, ask_user mid-task clarification, agent status indicators, error append-only recovery, resume-after-pause
 - [ ] **Phase 20: Harness Engine Core + Gatekeeper + Post-Harness + File Upload + Locked Plan Panel** — harness_runs table + RLS, PhaseType dispatcher, programmatic + llm_single + llm_agent phase types, gatekeeper LLM with TRIGGER_HARNESS sentinel, post-harness summary LLM, DOCX/PDF upload, locked Plan Panel for harness runs, observability + security cross-cuts
-- [ ] **Phase 21: Batched Parallel Sub-Agents + Human-in-the-Loop** — llm_batch_agents phase type with asyncio.gather + queue streaming + mid-batch resume, llm_human_input phase type with informed-question generation
+- [x] **Phase 21: Batched Parallel Sub-Agents + Human-in-the-Loop** — llm_batch_agents phase type with asyncio.gather + queue streaming + mid-batch resume, llm_human_input phase type with informed-question generation _(needs human UAT — code complete 2026-05-04, 11/11 reqs verified, 0 CR findings)_
 - [ ] **Phase 22: Contract Review Harness + DOCX Deliverable** — 8-phase deterministic Contract Review workflow (intake → classify → context → playbook → clauses → risk → redlines → summary), DOCX report via sandbox python-docx, non-fatal fallback
 
 **Total:** 6 phases · 111 requirements (DEEP×7, TODO×7, WS×11, TASK×7, ASK×4, STATUS×6, HARN×10, GATE×5, POST×5, HIL×4, BATCH×7, UPL×4, PANEL×4, CR×8, DOCX×8, MIG×4, SEC×4, OBS×3, CONF×3) · feature-flag dark-launch via existing `TOOL_REGISTRY_ENABLED` plus new toggles surfaced through admin settings
@@ -180,7 +180,30 @@ Full archive: `.planning/milestones/v1.1-ROADMAP.md`
   3. Phase 5 (clause extraction, programmatic with internal LLM) writes `clauses.md` as a JSON array of every clause across the 13 categories (Liability, Indemnification, IP, Data Protection, Confidentiality, Warranties, Term/Termination, Governing Law, Insurance, Assignment, Force Majeure, Payment, Other); contracts >50 k tokens chunk with overlap and dedupe-merge.
   4. Phase 6 (risk analysis, llm_batch_agents batch_size=5) assigns GREEN/YELLOW/RED per clause against the playbook with rationale + alternative language, exposing real-time "Analyzing clause N/M" with nested RAG tool calls; Phase 7 (redline generation, llm_batch_agents batch_size=5) processes only YELLOW/RED clauses and writes `redlines.md` with original / proposed replacement / rationale / fallback positions.
   5. Phase 8 (executive summary, llm_single + post_execute) writes `contract-review-report.md` (overall risk, recommendation, key findings, RED/YELLOW/GREEN breakdown), and the post_execute callback runs a sandbox python-docx script to generate a CONFIDENTIAL-marked `.docx` with title page, executive summary, key findings list, color-coded redline table, acceptable-clauses (GREEN) section, and recommended next steps; if sandbox is unavailable, the markdown report is still saved (non-fatal degradation).
-**Plans**: TBD
+**Plans:** 12 plans
+- [ ] 22-01-PLAN.md — Sandbox image bump: python-docx + PyPDF2 (DOCX-01 prereq)
+- [ ] 22-02-PLAN.md — Tool registry adapter-wrap: search_documents_by_doc_ids (D-22-06)
+- [ ] 22-03-PLAN.md — Engine post_execute invocation site + harness_artifact SSE event (DOCX-08)
+- [ ] 22-04-PLAN.md — Workspace-aware gatekeeper system prompt + few-shots (D-22-01..03, CR-21-08 fix)
+- [ ] 22-05-PLAN.md — Gatekeeper trigger eval set (15 phrasings) + CI test (D-22-04)
+- [ ] 22-06-PLAN.md — contract_review.py skeleton + CR-01 intake + CR-02 classification (flag-gated)
+- [ ] 22-07-PLAN.md — CR-03 HIL gather context + CR-04 LLM_AGENT load playbook (D-22-05..09)
+- [ ] 22-08-PLAN.md — CR-05 clause extraction (programmatic + chunked LLM + dedupe)
+- [ ] 22-09-PLAN.md — CR-06 risk analysis + CR-07 redline generation (LLM_BATCH_AGENTS x2)
+- [ ] 22-10-PLAN.md — CR-08 executive summary + DOCX post_execute (DOCX-01..08)
+- [ ] 22-11-PLAN.md — Frontend: harness_artifact reducer + download chip + WorkspacePanel harness source
+- [ ] 22-12-PLAN.md — End-to-end pytest: 8-phase pipeline + off-mode + non-fatal fallback
+
+**Deploy-order constraint (ISSUE-14):** `contract_review_enabled` MUST remain `False` in production until plans 22-06..22-10 ALL ship. Setting the flag earlier would crash on CR-03..08 stub phases. Plan 22-06 enforces a hard runtime guard refusing registration when `contract_review_enabled=True` AND `tool_registry_enabled=False` (ISSUE-09) — both flags must flip together post-22-10.
+
+**Wave structure:**
+- Wave 1: 22-01, 22-02, 22-03, 22-04 (4 independent infrastructure plans)
+- Wave 2: 22-05 (depends on 22-04), 22-06 (depends on 22-01, 22-03)
+- Wave 3: 22-07
+- Wave 4: 22-08
+- Wave 5: 22-09
+- Wave 6: 22-10
+- Wave 7: 22-11, 22-12
 **UI hint**: yes
 
 ## Completed Phases (Pre-GSD)
@@ -205,7 +228,7 @@ The following capabilities shipped before GSD initialization. Tracked as the Val
 | 19. Sub-Agent Delegation + Ask User + Status & Recovery | 10/10 | Complete    | 2026-05-03 |
 | 20. Harness Engine Core + Gatekeeper + Post-Harness + Upload + Locked Panel | 11/11 | Complete    | 2026-05-03 |
 | 21. Batched Parallel Sub-Agents + Human-in-the-Loop | 0/6 | Planned | — |
-| 22. Contract Review Harness + DOCX Deliverable | 0/0 | Not started | — |
+| 22. Contract Review Harness + DOCX Deliverable | 0/12 | Planned | — |
 
 ## Phase Numbering
 
