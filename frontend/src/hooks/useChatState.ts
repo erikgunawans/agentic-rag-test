@@ -31,6 +31,21 @@ export type HarnessRunSlice = null | {
   errorDetail: string | null
 }
 
+/**
+ * Phase 21 / Plan 21-05 / D-09 / BATCH-04 / BATCH-06:
+ * per-item progress tracking for `llm_batch_agents` phases.
+ * Driven by harness_batch_item_start / harness_batch_item_complete SSE events;
+ * cleared when harness_phase_complete fires (batch phase finished) or on thread switch.
+ *
+ * WARNING-6 fix: the reducer's `completed: prev?.completed ?? 0` arm preserves
+ * the existing counter when a duplicate batch_item_start is replayed during
+ * HIL/cancel resume — see useChatState.batchProgress.test.ts (Test 5).
+ */
+export type BatchProgressSlice = null | {
+  completed: number
+  total: number
+}
+
 // Phase 20 / Plan 20-10 / UPL-04: in-flight upload tracking for FileUploadButton.
 // One entry per in-progress upload; removed on success, error, or abort.
 export type UploadingFile = {
@@ -130,6 +145,11 @@ export function useChatState() {
   // Populated from harness_phase_* SSE events and GET /threads/{id}/harness/active.
   // Plan 20-09 owns the reducer arms, thread-switch reset, and SSE wiring.
   const [harnessRun, setHarnessRun] = useState<HarnessRunSlice>(null)
+
+  // Phase 21 / Plan 21-05 / D-09 / BATCH-04 / BATCH-06: per-item batch progress.
+  // Seeded by harness_batch_item_start, incremented by harness_batch_item_complete,
+  // cleared by harness_phase_complete and on thread switch.
+  const [batchProgress, setBatchProgress] = useState<BatchProgressSlice>(null)
 
   // Phase 20 / Plan 20-10 / UPL-04: in-flight upload state.
   // Keyed by client-generated uuid. Cleaned up on success, error, or abort.
@@ -238,6 +258,10 @@ export function useChatState() {
   // mainly fills harnessType + phaseName that gatekeeper_complete omits.
   useEffect(() => {
     setHarnessRun(null)
+    // Phase 21 / Plan 21-05 / D-09: mirror harnessRun reset — clear batch
+    // progress on thread switch so a previous thread's "Analyzing clause N/M"
+    // suffix doesn't bleed into the new thread's banner.
+    setBatchProgress(null)
     if (!activeThreadId) return
     apiFetch(`/threads/${activeThreadId}/harness/active`)
       .then((r) => r.json() as Promise<{ harnessRun: HarnessRunSlice }>)
@@ -592,10 +616,36 @@ export function useChatState() {
               phaseName: event.phase_name as string,
               errorDetail: null,
             }))
+          } else if (event.type === 'harness_batch_item_start') {
+            // Phase 21 / Plan 21-05 / D-09 / BATCH-04: batch sub-agent started for an item.
+            // Seed total from event.items_total. WARNING-6 fix: preserve any
+            // existing `completed` counter so a resume-replayed batch_item_start
+            // does not reset progress to 0.
+            setBatchProgress((prev) => ({
+              completed: prev?.completed ?? 0,
+              total:
+                ((event as unknown as { items_total?: number }).items_total) ??
+                prev?.total ??
+                0,
+            }))
+          } else if (event.type === 'harness_batch_item_complete') {
+            // Phase 21 / Plan 21-05 / D-09 / BATCH-06: batch sub-agent finished an item.
+            // Increment completed; if no prior start was seen (defensive), seed total from event.
+            setBatchProgress((prev) =>
+              prev
+                ? { ...prev, completed: prev.completed + 1 }
+                : {
+                    completed: 1,
+                    total:
+                      ((event as unknown as { items_total?: number }).items_total) ?? 1,
+                  }
+            )
           } else if (event.type === 'harness_phase_complete') {
             // Phase 20 / Plan 20-09 / HARN-09: harness phase completed.
             // Bumps currentPhase by 1.
             setHarnessRun((prev) => prev ? { ...prev, currentPhase: prev.currentPhase + 1 } : prev)
+            // Phase 21 / Plan 21-05 / D-09: clear batch progress at phase boundary.
+            setBatchProgress(null)
           } else if (event.type === 'harness_phase_error') {
             // Phase 20 / Plan 20-09 / HARN-09: harness phase errored.
             // code='cancelled' or reason='cancelled_by_user' → cancelled; else → failed.
@@ -787,6 +837,8 @@ export function useChatState() {
     tasks,                       // Phase 19 / D-24
     harnessRun,                  // Phase 20 / PANEL-04 — read by PlanPanel locked variant
     setHarnessRun,               // Phase 20 — Plan 20-09 wires SSE reducer arms
+    batchProgress,               // Phase 21 / Plan 21-05 / D-09 — read by HarnessBanner suffix
+    setBatchProgress,            // Phase 21 — exposed for tests / future direct seeders
     harnessToast,                // Phase 20 / Plan 20-09 / D-02 — 409 reject-while-active toast
     setHarnessToast,             // Phase 20 — lets HarnessBanner clear toast after display
     uploadingFiles,              // Phase 20 / Plan 20-10 / UPL-04 — in-flight upload tracking
