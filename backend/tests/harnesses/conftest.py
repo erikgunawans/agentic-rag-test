@@ -205,10 +205,13 @@ def _route_llm_response(messages: list, **_) -> dict:
             sys_content = msg.get("content", "").lower()
             break
 
-    # Route by distinctive keywords in the system prompt
-    if "classif" in sys_content and "contract" in sys_content:
+    # Route by distinctive keywords in the system prompt.
+    # Order matters — most specific checks first. Use phrases unique to each phase's
+    # prompt to avoid cross-contamination (e.g. "classified" ⊃ "classif" → check
+    # for the explicit classification task phrase first, then narrow HIL phrase).
+    if "classifying a legal contract" in sys_content:
         content = _CLASSIFICATION_JSON
-    elif "gather" in sys_content and "review context" in sys_content:
+    elif "gathering review context" in sys_content:
         content = _GATHER_CONTEXT_JSON
     elif "playbook" in sys_content and "list_playbook_documents" in sys_content:
         content = _PLAYBOOK_CONTEXT_JSON
@@ -282,24 +285,35 @@ def sandbox_in_process_stub():
     """
     from app.harnesses.contract_review_docx import DOCX_GENERATION_SCRIPT_BODY
 
+    # Shared store: fake-url → docx_bytes (populated inside the temp dir context)
+    _docx_bytes_store: dict[str, bytes] = {}
+
     async def _run_docx_in_process(*, code: str, thread_id: str, user_id: str, token: str, **_):
-        """Run the DOCX generation code in a subprocess and return sandbox-shaped result."""
+        """Run the DOCX generation code in a subprocess and return sandbox-shaped result.
+
+        Bytes are read INSIDE the tempdir context so they survive its cleanup.
+        A stable fake signed URL is used instead of file:// to avoid path expiry.
+        """
         import uuid as _uuid
         execution_id = str(_uuid.uuid4())
+        fake_signed_url = f"file://sandbox-stub/{execution_id}/contract-review.docx"
+
         with tempfile.TemporaryDirectory() as tmp_dir:
             output_dir = os.path.join(tmp_dir, "sandbox", "output")
             os.makedirs(output_dir, exist_ok=True)
 
-            # Patch the hardcoded /sandbox/output path in the script body
-            patched_code = code.replace(
+            # Inject JSON→Python shims: json.dumps emits 'null'/'true'/'false' which are
+            # JSON literals, not valid Python. Prepend shim assignments so the INPUT_DATA
+            # literal evaluates correctly in the subprocess.
+            json_shims = "null = None\ntrue = True\nfalse = False\n"
+            patched_code = json_shims + code.replace(
                 "'/sandbox/output/contract-review.docx'",
                 repr(os.path.join(output_dir, "contract-review.docx")),
             ).replace(
                 "os.makedirs(os.path.dirname(out_path), exist_ok=True)",
-                "pass  # already created",
+                "pass  # already created by test stub",
             )
 
-            # Write code to a temp file and run via subprocess
             script_file = os.path.join(tmp_dir, "run.py")
             with open(script_file, "w") as f:
                 f.write(patched_code)
@@ -313,8 +327,10 @@ def sandbox_in_process_stub():
 
             docx_path = os.path.join(output_dir, "contract-review.docx")
             if result.returncode == 0 and os.path.exists(docx_path):
+                # Read bytes INSIDE the context manager before the temp dir is deleted
                 docx_bytes = open(docx_path, "rb").read()
-                file_url = f"file://{docx_path}"
+                # Store in shared dict so the httpx fake client can serve them
+                _docx_bytes_store[fake_signed_url] = docx_bytes
                 return {
                     "exit_code": 0,
                     "stdout": result.stdout,
@@ -326,13 +342,10 @@ def sandbox_in_process_stub():
                         {
                             "filename": "contract-review.docx",
                             "size_bytes": len(docx_bytes),
-                            "signed_url": file_url,
+                            "signed_url": fake_signed_url,
                             "storage_path": f"sandbox/{execution_id}/contract-review.docx",
                         }
                     ],
-                    # Internal: store bytes for httpx intercept
-                    "_docx_bytes": docx_bytes,
-                    "_docx_path": docx_path,
                 }
             else:
                 return {
@@ -348,28 +361,6 @@ def sandbox_in_process_stub():
     mock_sb = MagicMock()
     mock_sb.execute = AsyncMock(side_effect=_run_docx_in_process)
 
-    # httpx intercept for file:// signed URLs
-    _docx_bytes_store: dict[str, bytes] = {}
-
-    original_execute = _run_docx_in_process
-
-    async def _patched_execute(*, code: str, thread_id: str, user_id: str, token: str, **_):
-        res = await original_execute(
-            code=code, thread_id=thread_id, user_id=user_id, token=token
-        )
-        if res.get("exit_code") == 0 and res.get("files"):
-            for f in res["files"]:
-                url = f.get("signed_url", "")
-                path = res.get("_docx_path", "")
-                if url.startswith("file://") and path:
-                    _docx_bytes_store[url] = open(path, "rb").read()
-        # Remove internal keys before returning
-        res.pop("_docx_bytes", None)
-        res.pop("_docx_path", None)
-        return res
-
-    mock_sb.execute = AsyncMock(side_effect=_patched_execute)
-
     class _FakeResponse:
         def __init__(self, content: bytes):
             self.content = content
@@ -379,6 +370,9 @@ def sandbox_in_process_stub():
             pass
 
     class _FakeAsyncClient:
+        def __init__(self, *args, **kwargs):
+            pass  # accept timeout= and any other kwargs from httpx.AsyncClient(timeout=60)
+
         async def __aenter__(self):
             return self
 
@@ -386,13 +380,9 @@ def sandbox_in_process_stub():
             pass
 
         async def get(self, url, **kwargs):
-            if url.startswith("file://"):
-                path = url[7:]
-                if os.path.exists(path):
-                    return _FakeResponse(open(path, "rb").read())
-                elif url in _docx_bytes_store:
-                    return _FakeResponse(_docx_bytes_store[url])
-            raise ValueError(f"sandbox_in_process_stub: unexpected URL {url!r}")
+            if url in _docx_bytes_store:
+                return _FakeResponse(_docx_bytes_store[url])
+            raise ValueError(f"sandbox_in_process_stub: unexpected signed URL {url!r}")
 
     with patch("app.services.sandbox_service.get_sandbox_service", return_value=mock_sb):
         with patch("httpx.AsyncClient", _FakeAsyncClient):

@@ -428,6 +428,24 @@ async def test_d_22_15_sandbox_failure_non_fatal(phase_routed_llm_mock):
 
     fixture_bytes = (pathlib.Path(__file__).parent.parent / "data" / "synth-contract.docx").read_bytes()
     ws, artifacts, binary_writes = _build_mock_workspace(fixture_bytes)
+
+    # Pre-seed workspace with outputs from phases 0-2 (skipped in this test)
+    artifacts["contract-text.md"] = (
+        "# Contract Source\n\n- **File:** `contract.docx`\n- **Pages:** 1\n\n---\n\n"
+        "MASTER SERVICES AGREEMENT\n\n"
+        "1. LIABILITY\nEach party's total liability shall not exceed USD 100,000.\n\n"
+        "2. CONFIDENTIALITY\nEach party shall hold confidential information for 5 years.\n\n"
+        "3. PAYMENT\nCustomer shall pay within 30 days.\n"
+    )
+    artifacts["classification.md"] = json.dumps({
+        "contract_type": "MSA",
+        "parties": ["Acme Corp", "Beta Inc"],
+        "effective_date": "2026-01-01",
+        "expiration_date": None,
+        "governing_law": "Republic of Indonesia",
+        "jurisdiction": "courts of Jakarta",
+        "summary": "Master Services Agreement between Acme Corp and Beta Inc.",
+    }, indent=2)
     artifacts["review-context.md"] = "We are the Customer. Focus on liability."
 
     run_state = {"status": "running", "current_phase": 3}  # start at CR-04
