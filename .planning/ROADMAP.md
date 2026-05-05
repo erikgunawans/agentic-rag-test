@@ -228,7 +228,7 @@ The following capabilities shipped before GSD initialization. Tracked as the Val
 | 19. Sub-Agent Delegation + Ask User + Status & Recovery | 10/10 | Complete    | 2026-05-03 |
 | 20. Harness Engine Core + Gatekeeper + Post-Harness + Upload + Locked Panel | 11/11 | Complete    | 2026-05-03 |
 | 21. Batched Parallel Sub-Agents + Human-in-the-Loop | 0/6 | Planned | — |
-| 22. Contract Review Harness + DOCX Deliverable | 12/12 | Complete   | 2026-05-05 |
+| 22. Contract Review Harness + DOCX Deliverable | 12/12 | Complete    | 2026-05-05 |
 
 ## Phase Numbering
 

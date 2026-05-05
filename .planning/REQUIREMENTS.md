@@ -133,25 +133,25 @@
 
 ### Contract Review Harness — First Domain Implementation (CR-*)
 
-- [ ] **CR-01**: Phase 1 — Document Intake (`programmatic`): reads uploaded file, extracts text via `python-docx` (DOCX) or `PyPDF2` (PDF), writes `contract-text.md`
-- [ ] **CR-02**: Phase 2 — Contract Classification (`llm_single`): classifies type / parties / effective+expiration dates / governing law / jurisdiction; Pydantic schema enforces ≥2 parties, non-empty type; writes `classification.md`
-- [ ] **CR-03**: Phase 3 — Gather Context (`llm_human_input`): generates informed questions from classification (Which side? Deadline pressure? Focus areas? Deal context?); writes `review-context.md`
-- [ ] **CR-04**: Phase 4 — Load Playbook (`llm_agent` with RAG tools, max 10 rounds): uses `search_documents` + `analyze_document` to discover playbook materials; writes `playbook-context.md` with doc IDs, titles, summaries, clause-category mappings
-- [ ] **CR-05**: Phase 5 — Clause Extraction (`programmatic` with internal LLM): extracts every distinct clause; for >50k-token contracts splits into overlapping chunks, runs LLM per chunk, merges + dedupes; writes `clauses.md` (JSON array, 13 categories: Liability, Indemnification, IP, Data Protection, Confidentiality, Warranties, Term/Termination, Governing Law, Insurance, Assignment, Force Majeure, Payment, Other)
-- [ ] **CR-06**: Phase 6 — Risk Analysis (`llm_batch_agents`, batch_size=5): isolated sub-agent per clause; assesses GREEN/YELLOW/RED against playbook; provides rationale + alternative language; agents have RAG tools for deep-reading; results into `risk-analysis.md`; user sees real-time "Analyzing clause N/M" with nested tool calls
-- [ ] **CR-07**: Phase 7 — Redline Generation (`llm_batch_agents`, batch_size=5): processes only YELLOW/RED; each agent generates precise redline (original / proposed replacement / rationale / fallback positions); writes `redlines.md`
-- [ ] **CR-08**: Phase 8 — Executive Summary (`llm_single` + `post_execute`): reads all artifacts, generates summary (overall risk, recommendation, key findings, risk breakdown); writes `contract-review-report.md`
+- [x] **CR-01**: Phase 1 — Document Intake (`programmatic`): reads uploaded file, extracts text via `python-docx` (DOCX) or `PyPDF2` (PDF), writes `contract-text.md`
+- [x] **CR-02**: Phase 2 — Contract Classification (`llm_single`): classifies type / parties / effective+expiration dates / governing law / jurisdiction; Pydantic schema enforces ≥2 parties, non-empty type; writes `classification.md`
+- [x] **CR-03**: Phase 3 — Gather Context (`llm_human_input`): generates informed questions from classification (Which side? Deadline pressure? Focus areas? Deal context?); writes `review-context.md`
+- [x] **CR-04**: Phase 4 — Load Playbook (`llm_agent` with RAG tools, max 10 rounds): uses `search_documents` + `analyze_document` to discover playbook materials; writes `playbook-context.md` with doc IDs, titles, summaries, clause-category mappings
+- [x] **CR-05**: Phase 5 — Clause Extraction (`programmatic` with internal LLM): extracts every distinct clause; for >50k-token contracts splits into overlapping chunks, runs LLM per chunk, merges + dedupes; writes `clauses.md` (JSON array, 13 categories: Liability, Indemnification, IP, Data Protection, Confidentiality, Warranties, Term/Termination, Governing Law, Insurance, Assignment, Force Majeure, Payment, Other)
+- [x] **CR-06**: Phase 6 — Risk Analysis (`llm_batch_agents`, batch_size=5): isolated sub-agent per clause; assesses GREEN/YELLOW/RED against playbook; provides rationale + alternative language; agents have RAG tools for deep-reading; results into `risk-analysis.md`; user sees real-time "Analyzing clause N/M" with nested tool calls
+- [x] **CR-07**: Phase 7 — Redline Generation (`llm_batch_agents`, batch_size=5): processes only YELLOW/RED; each agent generates precise redline (original / proposed replacement / rationale / fallback positions); writes `redlines.md`
+- [x] **CR-08**: Phase 8 — Executive Summary (`llm_single` + `post_execute`): reads all artifacts, generates summary (overall risk, recommendation, key findings, risk breakdown); writes `contract-review-report.md`
 
 ### DOCX Report Generation (DOCX-*)
 
-- [ ] **DOCX-01**: Phase 8 `post_execute` callback runs Python script in sandbox to generate `.docx` via `python-docx`
-- [ ] **DOCX-02**: DOCX includes title page (CONFIDENTIAL marker, contract type, risk rating badge, prepared-for party)
-- [ ] **DOCX-03**: DOCX executive summary section (overall risk, recommendation, RED/YELLOW/GREEN counts)
-- [ ] **DOCX-04**: DOCX numbered key findings list
-- [ ] **DOCX-05**: DOCX detailed redline table (color-coded clause risk, original text, proposed text, rationale)
-- [ ] **DOCX-06**: DOCX acceptable-clauses section (GREEN clauses, "no changes recommended")
-- [ ] **DOCX-07**: DOCX recommended-next-steps section
-- [ ] **DOCX-08**: DOCX generation is non-fatal — if sandbox unavailable, LLM markdown summary still saved
+- [x] **DOCX-01**: Phase 8 `post_execute` callback runs Python script in sandbox to generate `.docx` via `python-docx`
+- [x] **DOCX-02**: DOCX includes title page (CONFIDENTIAL marker, contract type, risk rating badge, prepared-for party)
+- [x] **DOCX-03**: DOCX executive summary section (overall risk, recommendation, RED/YELLOW/GREEN counts)
+- [x] **DOCX-04**: DOCX numbered key findings list
+- [x] **DOCX-05**: DOCX detailed redline table (color-coded clause risk, original text, proposed text, rationale)
+- [x] **DOCX-06**: DOCX acceptable-clauses section (GREEN clauses, "no changes recommended")
+- [x] **DOCX-07**: DOCX recommended-next-steps section
+- [x] **DOCX-08**: DOCX generation is non-fatal — if sandbox unavailable, LLM markdown summary still saved
 
 ### Migrations & Data Model (MIG-*)
 
