@@ -49,7 +49,8 @@ SYNTHETIC_BATCH_ITEMS: list[dict] = [
 
 # --- Phase 1 executor: programmatic ---
 async def _phase1_echo(
-    *, inputs: dict[str, str], token: str, thread_id: str, harness_run_id: str
+    *, inputs: dict[str, str], token: str, thread_id: str, harness_run_id: str,
+    **_,  # Phase 22 / REVIEW #4: forward-compat — accepts new engine kwargs (registry, system_settings, etc.) without using them.
 ) -> dict:
     """List workspace files (uploads/), write echo.md with metadata, AND seed
     test-items.md so Phase 4 (batch-process) has input."""

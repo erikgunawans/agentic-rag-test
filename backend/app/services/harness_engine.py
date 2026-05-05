@@ -578,6 +578,10 @@ async def _dispatch_phase(
     For Phase 21 reserved types: yields {"_terminal_phase_result": error dict}.
     """
     if phase.phase_type == PhaseType.PROGRAMMATIC:
+        # REVIEW #4 (Phase 22): PROGRAMMATIC executors that perform internal LLM calls
+        # (e.g. CR-05's per-chunk extraction) MUST receive the registry to wrap each
+        # call in egress_filter(payload, registry, None). The B4 single-registry invariant
+        # (chat.py:1851) flows down to here through the engine's `registry` parameter.
         # Invoke synchronous/async programmatic executor
         if phase.executor is None:
             yield {
@@ -594,13 +598,54 @@ async def _dispatch_phase(
             yield {"_terminal_phase_result": inputs}
             return
 
+        # REVIEW #4: extend programmatic executor contract to enable in-executor LLM calls
+        # to pass through the SEC-04 egress filter. registry + user_id + user_email flow from
+        # run_harness_engine (B4 single-registry invariant) down to here.
         try:
             output = await phase.executor(
                 inputs=inputs,
                 token=token,
                 thread_id=thread_id,
                 harness_run_id=harness_run_id,
+                # NEW kwargs — Phase 22 / REVIEW #4 / SEC-04 / B4 single-registry:
+                registry=registry,
+                user_id=user_id,
+                user_email=user_email,
             )
+        except TypeError as exc:
+            # Backward-compat fallback: pre-Phase-22 executors don't accept the new kwargs.
+            # Retry with the old signature so smoke_echo and any external harness keep working.
+            if "unexpected keyword argument" in str(exc):
+                logger.info(
+                    "harness_engine: programmatic executor %s does not accept new kwargs (%s); "
+                    "retrying with legacy signature (no registry — egress wrap is executor's responsibility)",
+                    phase.name, exc,
+                )
+                try:
+                    output = await phase.executor(
+                        inputs=inputs,
+                        token=token,
+                        thread_id=thread_id,
+                        harness_run_id=harness_run_id,
+                    )
+                except Exception as exc2:
+                    yield {
+                        "_terminal_phase_result": {
+                            "error": "executor_failed",
+                            "code": "EXECUTOR_ERROR",
+                            "detail": str(exc2)[:500],
+                        }
+                    }
+                    return
+            else:
+                yield {
+                    "_terminal_phase_result": {
+                        "error": "executor_failed",
+                        "code": "EXECUTOR_ERROR",
+                        "detail": str(exc)[:500],
+                    }
+                }
+                return
         except Exception as exc:
             yield {
                 "_terminal_phase_result": {
