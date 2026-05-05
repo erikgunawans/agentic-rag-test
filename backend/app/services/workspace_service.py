@@ -26,6 +26,8 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
+import httpx
+
 from app.database import get_supabase_authed_client, get_supabase_client
 from app.services import audit_service
 
@@ -323,6 +325,44 @@ class WorkspaceService:
             "mime_type": row.get("mime_type") or "text/plain",
             "file_path": file_path,
         }
+
+    # ------------------------------------------------------------------
+    # read_binary_file  (Phase 22 / ISSUE-02 — CR-01 contract intake)
+    # ------------------------------------------------------------------
+
+    async def read_binary_file(self, thread_id: str, file_path: str) -> bytes | dict:
+        """Phase 22 / ISSUE-02 — fetch the underlying bytes of a binary workspace file.
+
+        Delegates path validation + DB lookup to read_file, then fetches bytes
+        from Storage via the signed URL.
+
+        Returns:
+            bytes  — file content downloaded from Storage
+            dict   — structured error: {"error": code, "file_path": ..., "detail": ...}
+        """
+        meta = await self.read_file(thread_id, file_path)
+        if isinstance(meta, dict) and "error" in meta:
+            return meta
+        if not meta.get("is_binary"):
+            return {
+                "error": "not_a_binary_file",
+                "file_path": file_path,
+                "detail": "read_binary_file called on a text row (no storage_path)",
+            }
+        signed_url = meta.get("signed_url") or ""
+        if not signed_url:
+            return {"error": "no_signed_url", "file_path": file_path}
+        try:
+            async with httpx.AsyncClient(timeout=30) as client:
+                resp = await client.get(signed_url)
+                resp.raise_for_status()
+                return resp.content
+        except Exception as exc:
+            return {
+                "error": "storage_fetch_failed",
+                "file_path": file_path,
+                "detail": str(exc)[:500],
+            }
 
     # ------------------------------------------------------------------
     # append_line  (Phase 21 / Plan 21-01 — BATCH-05/D-05 + BATCH-07/D-07)
