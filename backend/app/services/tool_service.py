@@ -1803,3 +1803,212 @@ def _register_sub_agent_tools() -> None:
 
 # Run at module load. No-op when sub_agent_enabled or tool_registry_enabled is False.
 _register_sub_agent_tools()
+
+
+# ---------------------------------------------------------------------------
+# Phase 22 / D-22-05 / REVIEW #1 (CR-04): playbook discovery tool.
+# Returns {doc_id, title, summary} for documents tagged 'playbook'.
+# Adapter-wrap APPENDED below line 1283.
+#
+# Phase 22 / D-22-06 / REVIEW #10 (CR-06, CR-07): doc-id-restricted hybrid RAG
+# via Python-side overfetch-and-filter. HybridRetrievalService.retrieve() does
+# NOT accept a doc-id filter kwarg (would require RPC migration). Adapter-wrap
+# APPENDED below line 1283.
+# ---------------------------------------------------------------------------
+
+_LIST_PLAYBOOK_DOCUMENTS_SCHEMA = {
+    "type": "function",
+    "function": {
+        "name": "list_playbook_documents",
+        "description": (
+            "List documents tagged 'playbook' in the user's accessible knowledge base. "
+            "Returns doc_id + title + short summary per playbook document. Use this ONCE "
+            "near the start of CR-04 to enumerate the playbook surface; downstream you map "
+            "clause categories to playbook doc_ids and call search_documents_by_doc_ids for "
+            "grounded retrieval."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "limit": {
+                    "type": "integer",
+                    "description": "Max docs to return (default 50, max 100)",
+                },
+            },
+            "required": [],
+        },
+    },
+}
+
+
+async def _execute_list_playbook_documents(
+    arguments: dict,
+    user_id: str,
+    context: dict | None = None,
+    *,
+    token: str | None = None,
+    **kwargs,
+) -> dict:
+    """REVIEW #1 fix: enumerate playbook-tagged documents.
+
+    Mirrors the documents.list_documents endpoint but filters server-side by
+    user_id (RLS) and CLIENT-SIDE by metadata.tags contains 'playbook'.
+    Supabase Python SDK jsonb-ops are limited; client-side filtering is simpler
+    and the playbook corpus is typically small (~10-100 docs).
+
+    T-22-02-02: RLS enforced by authed client + eq("user_id", user_id) filter.
+    """
+    limit = arguments.get("limit") if arguments else None
+    cap = max(1, min(int(limit or 50), 100))
+    resolved_token = token or (context or {}).get("token") or ""
+
+    try:
+        client = get_supabase_authed_client(resolved_token)
+        rows = (
+            client.table("documents")
+            .select("id, filename, metadata")
+            .eq("user_id", user_id)
+            .execute()
+            .data
+            or []
+        )
+    except Exception as exc:
+        return {"error": "documents_query_failed", "code": "DOCS_QUERY", "detail": str(exc)[:500]}
+
+    results: list[dict] = []
+    for row in rows:
+        meta = row.get("metadata") or {}
+        tags = meta.get("tags") or []
+        if not isinstance(tags, list):
+            continue
+        if "playbook" not in tags:
+            continue
+        summary = (meta.get("summary") or meta.get("first_chunk_text") or "")[:300]
+        results.append({
+            "doc_id": str(row["id"]),
+            "title": row.get("filename") or "",
+            "summary": summary,
+        })
+        if len(results) >= cap:
+            break
+
+    return {"results": results}
+
+
+_SEARCH_DOCUMENTS_BY_DOC_IDS_SCHEMA = {
+    "type": "function",
+    "function": {
+        "name": "search_documents_by_doc_ids",
+        "description": (
+            "Hybrid RAG search restricted to a specified list of document IDs. "
+            "Use when you already know the candidate documents (e.g. playbook docs "
+            "mapped to a clause category from list_playbook_documents) and want "
+            "grounded retrieval from those documents only."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "The search query.",
+                },
+                "doc_ids": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "List of document UUIDs to restrict search to (max 50).",
+                },
+                "top_k": {
+                    "type": "integer",
+                    "description": "Max chunks to return (default 8, max 20).",
+                },
+            },
+            "required": ["query", "doc_ids"],
+        },
+    },
+}
+
+
+async def _execute_search_documents_by_doc_ids(
+    arguments: dict,
+    user_id: str,
+    context: dict | None = None,
+    *,
+    token: str | None = None,
+    **kwargs,
+) -> dict:
+    """REVIEW #10: Python-side overfetch-and-filter.
+
+    HybridRetrievalService.retrieve() does NOT accept a doc-id filter kwarg;
+    adding one would require a Postgres RPC migration, violating CONTEXT.md
+    'no new migration' invariant.
+
+    Strategy:
+      1. retrieve(query, top_k=top_k * 4, ...)  — overfetch
+      2. filter by chunk["document_id"] in doc_ids_set  — Python-side
+      3. truncate to top_k
+
+    T-22-02-01: doc_ids validated non-empty + capped at 50; top_k capped at 20.
+    """
+    args = arguments or {}
+    query = args.get("query", "")
+    doc_ids = args.get("doc_ids")
+    top_k = args.get("top_k", 8)
+
+    if not isinstance(doc_ids, list) or not doc_ids:
+        return {"error": "invalid_doc_ids", "code": "INVALID_DOC_IDS",
+                "detail": "doc_ids must be a non-empty list"}
+    if len(doc_ids) > 50:
+        return {"error": "invalid_doc_ids", "code": "INVALID_DOC_IDS",
+                "detail": f"doc_ids capped at 50, got {len(doc_ids)}"}
+
+    capped_top_k = min(int(top_k or 8), 20)
+    doc_ids_set = set(doc_ids)
+    over_fetch = capped_top_k * 4
+
+    hybrid_svc = HybridRetrievalService()
+    try:
+        rows = await hybrid_svc.retrieve(
+            query=query,
+            user_id=user_id,
+            top_k=over_fetch,
+            threshold=0.5,
+        )
+    except Exception as exc:
+        return {"error": "retrieval_failed", "code": "RETRIEVAL_ERR", "detail": str(exc)[:500]}
+
+    filtered = [r for r in rows if r.get("document_id") in doc_ids_set][:capped_top_k]
+    return {"results": filtered}
+
+
+def _register_playbook_tools() -> None:
+    """Register list_playbook_documents + search_documents_by_doc_ids (Phase 22 / D-22-05, D-22-06).
+
+    Gated by settings.tool_registry_enabled — early return when False so
+    neither tool is registered (D-16 off-mode invariant).
+    """
+    if not settings.tool_registry_enabled:
+        return
+
+    from app.services import tool_registry  # noqa: PLC0415
+
+    tool_registry.register(
+        name="list_playbook_documents",
+        description=_LIST_PLAYBOOK_DOCUMENTS_SCHEMA["function"]["description"],
+        schema=_LIST_PLAYBOOK_DOCUMENTS_SCHEMA,
+        source="native",
+        loading="immediate",
+        executor=_execute_list_playbook_documents,
+    )
+
+    tool_registry.register(
+        name="search_documents_by_doc_ids",
+        description=_SEARCH_DOCUMENTS_BY_DOC_IDS_SCHEMA["function"]["description"],
+        schema=_SEARCH_DOCUMENTS_BY_DOC_IDS_SCHEMA,
+        source="native",
+        loading="immediate",
+        executor=_execute_search_documents_by_doc_ids,
+    )
+
+
+# Run at module load. No-op when tool_registry_enabled is False.
+_register_playbook_tools()
