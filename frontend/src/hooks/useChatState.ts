@@ -167,6 +167,11 @@ export function useChatState() {
     phaseCount: number
   } | null>(null)
 
+  // Phase 22 / REVIEW #8: artifact-arrives-before-summary_complete fallback queue.
+  // Keyed by harness_run_id; drained when summary_complete tags a message.
+  // 5-second TTL: if summary_complete never arrives, the queued artifact is dropped.
+  const pendingArtifacts = useRef<Map<string, NonNullable<Message['harness_artifact']>>>(new Map())
+
   const loadThreads = useCallback(async () => {
     setLoadingThreads(true)
     try {
@@ -715,6 +720,57 @@ export function useChatState() {
             // for sub-agent telemetry inside the harness. Explicit no-op arm prevents
             // these events from falling through to the delta/done branch and producing
             // spurious console warnings. Phase 21 will hook in here.
+          } else if (event.type === 'summary_complete') {
+            // Phase 22 / REVIEW #8: tag the persisted assistant message with harness
+            // correlation fields so a subsequent harness_artifact event can find it
+            // deterministically by harness_run_id. Previously UNHANDLED — added now.
+            const messageId = event.assistant_message_id
+            if (messageId) {
+              setMessages((prev) => prev.map((m) =>
+                m.id === messageId
+                  ? { ...m, harness_run_id: event.harness_run_id ?? null, harness_mode: event.harness_mode ?? null }
+                  : m
+              ))
+              // Drain any queued artifact for this harness_run_id (artifact arrived first)
+              const runId = event.harness_run_id
+              if (runId && pendingArtifacts.current.has(runId)) {
+                const artifact = pendingArtifacts.current.get(runId)!
+                pendingArtifacts.current.delete(runId)
+                setMessages((prev) => prev.map((m) =>
+                  m.id === messageId
+                    ? { ...m, harness_artifact: artifact }
+                    : m
+                ))
+              }
+            }
+          } else if (event.type === 'harness_artifact') {
+            // Phase 22 / REVIEW #8: deterministic correlation by harness_run_id.
+            // The message tagged by summary_complete carries the run id — no timing heuristic.
+            const runId = event.harness_run_id
+            if (!runId) {
+              console.warn('harness_artifact event missing harness_run_id', event)
+            } else {
+              const artifact: NonNullable<Message['harness_artifact']> = event.ok
+                ? { ok: true, file_path: event.docx_path, signed_url: event.signed_url }
+                : { ok: false, fallback_message: event.fallback_message ?? 'DOCX export unavailable.' }
+
+              // Locate the message tagged with this harness_run_id
+              setMessages((prev) => {
+                const target = prev.find((m) => m.harness_run_id === runId && m.role === 'assistant')
+                if (target) {
+                  return prev.map((m) => m.id === target.id ? { ...m, harness_artifact: artifact } : m)
+                }
+                // Queue for up to 5 seconds — summary_complete may arrive after the artifact
+                pendingArtifacts.current.set(runId, artifact)
+                setTimeout(() => {
+                  if (pendingArtifacts.current.has(runId)) {
+                    pendingArtifacts.current.delete(runId)
+                    console.warn('harness_artifact dropped after 5s — no matching message', runId)
+                  }
+                }, 5000)
+                return prev
+              })
+            }
           } else {
             // CR-21-05 (UAT finding): the gatekeeper emits delta events as
             // {type: 'delta', content: '...'} (per gatekeeper.py SSE shape) while
