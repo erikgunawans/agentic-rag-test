@@ -55,6 +55,13 @@ logger = logging.getLogger(__name__)
 # CR-02 — Contract Classification structured output schema
 # ---------------------------------------------------------------------------
 
+# Canonical clause categories used by CR-04..CR-08 (keep verbatim — plan 22-07..09 reference this)
+CLAUSE_CATEGORIES = [
+    "Liability", "Indemnification", "IP", "Data Protection", "Confidentiality",
+    "Warranties", "Term/Termination", "Governing Law", "Insurance",
+    "Assignment", "Force Majeure", "Payment", "Other",
+]
+
 class ContractClassification(BaseModel):
     """CR-02 LLM output. Enforced via response_format=json_schema (HARN-05).
 
@@ -89,6 +96,46 @@ class ContractClassification(BaseModel):
         ..., min_length=20, max_length=1000,
         description="1-2 sentence neutral description of contract scope and parties",
     )
+
+
+# ---------------------------------------------------------------------------
+# CR-04 — Playbook Context output schema (D-22-06)
+# ---------------------------------------------------------------------------
+
+class PlaybookDoc(BaseModel):
+    """Single playbook document entry returned by list_playbook_documents."""
+
+    id: str = Field(..., min_length=1, description="Document UUID from list_playbook_documents results")
+    title: str = Field(..., min_length=1, max_length=300)
+    summary: str = Field(default="", max_length=300, description="<=300 char summary")
+    source_priority: int = Field(
+        default=2, ge=1, le=3,
+        description=(
+            "D-22-08 authority order: 1=user-workspace upload, "
+            "2=regulatory_intel, 3=general document library"
+        ),
+    )
+
+
+class PlaybookContext(BaseModel):
+    """CR-04 structured output written to playbook-context.md (D-22-06).
+
+    Plan 22-09 (CR-06/07 batch sub-agents) reads this file at runtime and
+    validates the schema via PlaybookContext.model_validate_json().
+    context_quality='unfounded' triggers the D-22-07 empty-playbook fallback
+    in CR-08's executive summary prompt.
+    """
+
+    playbook_docs: list[PlaybookDoc] = Field(default_factory=list)
+    clause_category_to_playbook: dict[str, list[str]] = Field(
+        default_factory=dict,
+        description="Maps each of the 13 CLAUSE_CATEGORIES to a list of relevant doc IDs",
+    )
+    context_quality: str = Field(
+        default="founded",
+        description="'founded' (>=1 playbook doc found) or 'unfounded' (D-22-07 empty-playbook fallback)",
+    )
+    notes: str = Field(default="", max_length=2000)
 
 
 # ---------------------------------------------------------------------------
@@ -284,24 +331,91 @@ CONTRACT_REVIEW = HarnessDefinition(
             output_schema=ContractClassification,
             timeout_seconds=180,
         ),
-        # Phase 3 — CR-03 Gather Context (LLM_HUMAN_INPUT)  [stub — plan 22-07]
+        # Phase 3 — CR-03 Gather Context (LLM_HUMAN_INPUT)
+        # D-22-09: single combined free-form question (one HIL pause).
+        # D-22-10: user reply persisted VERBATIM to review-context.md — no parse pass.
+        # D-22-11: skip-tolerant — minimal answers ("just go", "...") are fully valid.
         PhaseDefinition(
             name="gather-context",
-            description="Stub — Plan 22-07 populates the HIL question prompt.",
+            description="Ask the user one combined question about review context; write reply to review-context.md.",
             phase_type=PhaseType.LLM_HUMAN_INPUT,
-            system_prompt_template="STUB",
+            system_prompt_template=(
+                "You are gathering review context for a Contract Review run. The user just uploaded "
+                "a contract and we have already classified it (see workspace input classification.md).\n\n"
+                "Generate ONE combined free-form question (single paragraph, plain language) asking "
+                "the user about all four topics in one breath:\n"
+                "  1. Which party are you in this contract? (e.g. 'we are the buyer/customer/licensee')\n"
+                "  2. Is there a deadline or pressure on this review?\n"
+                "  3. Which clauses or risks should we focus on?\n"
+                "  4. What's the broader deal context?\n\n"
+                "Be conversational and concise (under 80 words). Acknowledge the user can answer "
+                "any subset — minimal answers like 'just go' or '...' are fully valid. Respond as a JSON "
+                "object {\"question\": \"<the single combined paragraph>\"}.\n"
+            ),
             tools=[],
             workspace_inputs=["classification.md"],
             workspace_output="review-context.md",
             timeout_seconds=86_400,
         ),
-        # Phase 4 — CR-04 Load Playbook (LLM_AGENT, max 10 rounds)  [stub — plan 22-07]
+        # Phase 4 — CR-04 Load Playbook (LLM_AGENT, max 10 rounds)
+        # D-22-05: filter_tags=['playbook'] on search_documents calls.
+        # D-22-06: JSON-structured per-category mapping in playbook-context.md.
+        # D-22-07: context_quality='unfounded' when zero playbook docs found.
+        # D-22-08: authority hierarchy — user-workspace > regulatory_intel > 3rd-party.
+        # REVIEW #1 fix (22-REVIEWS.md): tools use list_playbook_documents (plan 22-02);
+        #   the nonexistent tool that was listed before has been removed.
         PhaseDefinition(
             name="load-playbook",
-            description="Stub — Plan 22-07 populates the RAG-agent prompt.",
+            description=(
+                "Discover playbook docs via list_playbook_documents; map 13 clause categories "
+                "to relevant doc IDs; write playbook-context.md (D-22-06)."
+            ),
             phase_type=PhaseType.LLM_AGENT,
-            system_prompt_template="STUB",
-            tools=["search_documents", "analyze_document"],
+            system_prompt_template=(
+                "You are the playbook loader for a Contract Review run. Your job: discover playbook "
+                "materials in the knowledge base and produce a structured JSON map from clause categories "
+                "to relevant playbook document IDs.\n\n"
+                "INPUTS (workspace files):\n"
+                "  - classification.md : the contract type, parties, governing law, jurisdiction\n"
+                "  - review-context.md : the user's stated perspective, deadline, focus areas\n\n"
+                "TOOLS (curated for CR-04):\n"
+                "  - list_playbook_documents(limit=50): START HERE. Returns all documents tagged 'playbook'\n"
+                "    in the user's knowledge base as [{doc_id, title, summary}, ...]. Use this once at\n"
+                "    the start to know what playbook surface exists.\n"
+                "  - search_documents(query, filter_tags=['playbook'], top_k=8): D-22-05 — chunk-level\n"
+                "    RAG inside the playbook scope. Use when you need passage-level grounding.\n"
+                "  - search_documents_by_doc_ids(query, doc_ids, top_k=8): D-22-06 — chunk-level RAG\n"
+                "    restricted to specific doc_ids returned by list_playbook_documents. Use sparingly\n"
+                "    in CR-04; CR-06/CR-07 will rely on it heavily.\n\n"
+                "PROCEDURE (max 10 rounds):\n"
+                "  1. Call list_playbook_documents() ONCE to enumerate the playbook surface.\n"
+                "     Skim each doc's summary; ignore docs that are clearly off-topic for this contract type.\n"
+                "  2. For each of the 13 clause categories below, decide which subset of the listed playbook\n"
+                "     docs cover that category. Use search_documents(filter_tags=['playbook']) sparingly when\n"
+                "     a doc summary is ambiguous and you need a passage to verify category relevance.\n"
+                "  3. AUTHORITY HIERARCHY (D-22-08): when multiple docs match, weight in order —\n"
+                "     (a) user-workspace uploads first, (b) regulatory_intel docs second,\n"
+                "     (c) general document library third. Use source_priority=1, 2, or 3 accordingly.\n"
+                "  4. Build a clause_category_to_playbook dict. EVERY category must have a list (use\n"
+                "     [] if no doc covers that category). All 13 categories must appear as keys.\n\n"
+                "CLAUSE CATEGORIES (use exactly these strings as JSON keys):\n"
+                "  Liability, Indemnification, IP, Data Protection, Confidentiality, Warranties,\n"
+                "  Term/Termination, Governing Law, Insurance, Assignment, Force Majeure, Payment, Other\n\n"
+                "EMPTY PLAYBOOK FALLBACK (D-22-07): if list_playbook_documents returns ZERO documents,\n"
+                "set context_quality='unfounded' and emit empty playbook_docs [] + all 13 categories\n"
+                "mapping to []. Add a notes field explaining the absence.\n\n"
+                "OUTPUT: write a markdown file with header + JSON code block + prose summary, e.g.:\n"
+                "  # Playbook Context\n"
+                "  ```json\n"
+                "  {\"playbook_docs\": [...], \"clause_category_to_playbook\": {...},\n"
+                "   \"context_quality\": \"founded\", \"notes\": \"...\"}\n"
+                "  ```\n"
+                "  ## Notes\n"
+                "  <free-form 2-3 sentences for downstream humans + sub-agents>\n\n"
+                "Do NOT include the contract content in playbook-context.md. Only references to playbook docs."
+            ),
+            # REVIEW #1 (22-REVIEWS.md): three real tools for CR-04 (plan 22-02 + existing search_documents).
+            tools=["list_playbook_documents", "search_documents", "search_documents_by_doc_ids"],
             workspace_inputs=["classification.md", "review-context.md"],
             workspace_output="playbook-context.md",
             timeout_seconds=600,
@@ -323,7 +437,7 @@ CONTRACT_REVIEW = HarnessDefinition(
             description="Stub — Plan 22-09 populates the per-clause risk assessment.",
             phase_type=PhaseType.LLM_BATCH_AGENTS,
             system_prompt_template="STUB",
-            tools=["search_documents_by_doc_ids", "analyze_document"],
+            tools=["search_documents_by_doc_ids"],  # plan 22-09 will add more curated tools
             workspace_inputs=["clauses.json", "playbook-context.md", "review-context.md"],
             workspace_output="risk-analysis.json",
             batch_size=5,
@@ -350,7 +464,7 @@ CONTRACT_REVIEW = HarnessDefinition(
             description="Stub — Plan 22-09 populates the per-clause redline drafter.",
             phase_type=PhaseType.LLM_BATCH_AGENTS,
             system_prompt_template="STUB",
-            tools=["search_documents_by_doc_ids", "analyze_document"],
+            tools=["search_documents_by_doc_ids"],  # plan 22-09 will add more curated tools
             workspace_inputs=["redline-candidates.json", "playbook-context.md", "review-context.md"],
             workspace_output="redlines.json",
             batch_size=5,
