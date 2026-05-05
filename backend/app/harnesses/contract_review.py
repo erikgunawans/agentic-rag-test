@@ -33,7 +33,10 @@ with real user traffic. Enable only after all 5 plans are deployed.
 from __future__ import annotations
 
 import io
+import json
 import logging
+import re
+from enum import Enum
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -157,6 +160,60 @@ class ClauseExtractionResult(BaseModel):
     clauses: list[Clause] = Field(default_factory=list)
     chunk_index: int = Field(..., ge=0)
     total_chunks: int = Field(..., ge=1)
+
+
+# ---------------------------------------------------------------------------
+# CR-06/CR-07 — Risk Analysis + Redline Generation schemas (plan 22-09)
+# REVIEW #2 closed: filter parses sub-agent terminal text via _parse_subagent_json_terminal
+# REVIEW #3 closed: RedlineCandidate carries original_text joined from clauses.json
+# ---------------------------------------------------------------------------
+
+class RiskGrade(str, Enum):
+    GREEN = "GREEN"
+    YELLOW = "YELLOW"
+    RED = "RED"
+
+
+class ClauseRisk(BaseModel):
+    """CR-06 LLM output per clause (validated from sub-agent terminal text by filter executor).
+
+    REVIEW #2: filter extracts this from result.terminal.text (full LLM response string),
+    NOT from a pre-parsed field on the engine's batch merge dict.
+    """
+    clause_index: int = Field(..., ge=0)
+    clause_category: str
+    clause_heading: str
+    risk_grade: RiskGrade
+    rationale: str = Field(..., min_length=20, max_length=2000)
+    alternative_language: str | None = Field(None, max_length=4000)
+    grounding_doc_ids: list[str] = Field(default_factory=list, max_length=10)
+
+
+class RedlineCandidate(BaseModel):
+    """REVIEW #3: ClauseRisk + original_text joined from clauses.json by clause_index.
+
+    CR-07 sub-agent receives this shape so it has the verbatim clause body to rewrite.
+    Rows that cannot be joined (clause_index not in clauses.json) are DROPPED — empty
+    original_text NEVER reaches CR-07 (REVIEW #3 invariant).
+    """
+    clause_index: int = Field(..., ge=0)
+    clause_category: str
+    clause_heading: str
+    original_text: str = Field(..., min_length=1, max_length=10_000)
+    risk_grade: RiskGrade
+    rationale: str
+    alternative_language: str | None = None
+    grounding_doc_ids: list[str] = Field(default_factory=list, max_length=10)
+
+
+class Redline(BaseModel):
+    """CR-07 LLM output per YELLOW/RED clause — a concrete redline with fallback positions."""
+    clause_index: int = Field(..., ge=0)
+    clause_category: str
+    original_text: str = Field(..., min_length=1, max_length=10_000)
+    proposed_text: str = Field(..., min_length=1, max_length=10_000)
+    rationale: str = Field(..., min_length=20, max_length=2000)
+    fallback_positions: list[str] = Field(default_factory=list, max_length=5)
 
 
 # CR-05 chunking constants (plan 22-08)
@@ -454,6 +511,200 @@ async def _phase5_extract_clauses(
 
 
 # ---------------------------------------------------------------------------
+# CR-06 / CR-07 helpers — REVIEW #2 + #3
+# ---------------------------------------------------------------------------
+
+def _parse_subagent_json_terminal(terminal_text: str) -> dict | None:
+    """REVIEW #2: extract a JSON object from a sub-agent's full LLM text terminal.
+
+    run_sub_agent_loop yields {"_terminal_result": {"text": full_response}} where
+    full_response is the LLM's entire text output. The CR-06 prompt asks for JSON
+    inside a ```json``` code block; CR-07 likewise. This helper extracts that JSON.
+
+    Strategy (in order):
+      1. Try fenced ```json``` code block (canonical prompt output).
+      2. Try fenced ``` (no language tag) code block.
+      3. Find the first balanced { ... } span in the text.
+      4. Full-text json.loads (bare JSON, no fencing).
+
+    Returns None on unparseable input. Caller decides how to handle None (typically
+    treat as a failed item and skip; increment skipped_unparseable counter).
+    """
+    if not isinstance(terminal_text, str) or not terminal_text.strip():
+        return None
+    # 1. Fenced ```json``` code block
+    m = re.search(r"```json\s*(\{.*?\})\s*```", terminal_text, re.DOTALL)
+    if m:
+        try:
+            return json.loads(m.group(1))
+        except Exception:
+            pass
+    # 2. Fenced ``` (no language tag) code block
+    m2 = re.search(r"```\s*(\{.*?\})\s*```", terminal_text, re.DOTALL)
+    if m2:
+        try:
+            return json.loads(m2.group(1))
+        except Exception:
+            pass
+    # 3. First balanced { ... } span in the text
+    first = terminal_text.find("{")
+    last = terminal_text.rfind("}")
+    if first != -1 and last > first:
+        try:
+            return json.loads(terminal_text[first:last + 1])
+        except Exception:
+            pass
+    # 4. Full-text parse (bare JSON, no fencing)
+    try:
+        return json.loads(terminal_text)
+    except Exception:
+        return None
+
+
+async def _phase_filter_redline_candidates(
+    *,
+    inputs: dict[str, str],
+    token: str,
+    thread_id: str,
+    harness_run_id: str,
+    **_,  # forward-compat for engine kwargs (registry, system_settings, user_id, user_email, etc.)
+) -> dict:
+    """REVIEW #2 + #3: parse risk-analysis.json (engine's batch merge of ClauseRisk JSONs
+    embedded in sub-agent terminal text), validate, keep YELLOW/RED, and JOIN to clauses.json
+    by clause_index to splice original_text into each row before writing redline-candidates.json.
+
+    REVIEW #2: each risk-analysis.json row is the engine's CANONICAL merge shape:
+      {"item_index": int, "status": "ok"|"failed",
+       "result": {"text": str, "terminal": {"text": <full LLM response>}}}
+    The filter extracts the ClauseRisk JSON from result.terminal.text via
+    _parse_subagent_json_terminal — NOT from a fictional result.terminal.risk_grade key.
+
+    REVIEW #3: ClauseRisk has no original_text field. The filter reads clauses.json (written
+    by _phase5_extract_clauses; ISSUE-25) and joins by clause_index (array position) to
+    splice the verbatim clause body into each RedlineCandidate row before forwarding to CR-07.
+    Rows where clause_index has no match in clauses.json are DROPPED (logged); empty
+    original_text NEVER reaches CR-07.
+    """
+    risk_text = (inputs or {}).get("risk-analysis.json", "")
+    clauses_text = (inputs or {}).get("clauses.json", "")
+    if not risk_text.strip():
+        return {
+            "error": "risk_analysis_missing",
+            "code": "NO_RISK",
+            "detail": "risk-analysis.json is empty",
+        }
+    if not clauses_text.strip():
+        return {
+            "error": "clauses_missing",
+            "code": "NO_CLAUSES",
+            "detail": "clauses.json is empty (CR-05 sibling write must have run first)",
+        }
+
+    try:
+        risk_rows = json.loads(risk_text)
+        clauses_arr = json.loads(clauses_text)
+    except Exception as exc:
+        return {
+            "error": "filter_parse_failed",
+            "code": "PARSE",
+            "detail": str(exc)[:500],
+        }
+    if not isinstance(risk_rows, list) or not isinstance(clauses_arr, list):
+        return {
+            "error": "shape_invalid",
+            "code": "SHAPE",
+            "detail": "risk_rows and clauses must both be JSON arrays",
+        }
+
+    # REVIEW #3: build clause_index → clause dict lookup from clauses.json.
+    # CR-05 writes clauses as a plain array; the array position IS the clause_index.
+    clauses_by_idx: dict[int, dict] = {}
+    for i, c in enumerate(clauses_arr):
+        if isinstance(c, dict):
+            clauses_by_idx[i] = c
+
+    candidates: list[dict] = []
+    skipped_unparseable = 0
+    skipped_no_clause_match = 0
+    skipped_green = 0
+
+    # REVIEW #2: each row is the engine's merge shape — parse terminal.text for the ClauseRisk JSON
+    for row in risk_rows:
+        if not isinstance(row, dict) or row.get("status") != "ok":
+            continue
+        result = row.get("result") or {}
+        terminal = result.get("terminal") or {}
+        terminal_text = terminal.get("text", "") if isinstance(terminal, dict) else ""
+
+        parsed_dict = _parse_subagent_json_terminal(terminal_text)
+        if parsed_dict is None:
+            skipped_unparseable += 1
+            logger.warning(
+                "CR-06 filter: failed to parse sub-agent terminal text item=%s harness_run=%s",
+                row.get("item_index"), harness_run_id,
+            )
+            continue
+
+        try:
+            cr = ClauseRisk.model_validate(parsed_dict)
+        except Exception as exc:
+            skipped_unparseable += 1
+            logger.warning(
+                "CR-06 filter: ClauseRisk validation failed item=%s: %s",
+                row.get("item_index"), exc,
+            )
+            continue
+
+        # Keep YELLOW + RED only; skip GREEN
+        if cr.risk_grade == RiskGrade.GREEN:
+            skipped_green += 1
+            continue
+
+        # REVIEW #3: JOIN clause_index → original_text from clauses.json
+        clause_match = clauses_by_idx.get(cr.clause_index)
+        if not clause_match or not clause_match.get("text"):
+            skipped_no_clause_match += 1
+            logger.warning(
+                "CR-06 filter: no clauses.json row matches clause_index=%d "
+                "(REVIEW #3 — original_text join failed); dropping row to prevent "
+                "empty original_text from reaching CR-07 harness_run=%s",
+                cr.clause_index, harness_run_id,
+            )
+            continue
+
+        candidate = {
+            "clause_index": cr.clause_index,
+            "clause_category": cr.clause_category,
+            "clause_heading": cr.clause_heading,
+            "original_text": clause_match["text"],   # REVIEW #3 — joined verbatim text
+            "risk_grade": cr.risk_grade.value,
+            "rationale": cr.rationale,
+            "alternative_language": cr.alternative_language,
+            "grounding_doc_ids": cr.grounding_doc_ids,
+        }
+        # Validate the assembled RedlineCandidate shape before forwarding
+        try:
+            RedlineCandidate.model_validate(candidate)
+        except Exception as exc:
+            logger.warning(
+                "CR-06 filter: RedlineCandidate validation failed clause_index=%d: %s",
+                cr.clause_index, exc,
+            )
+            continue
+
+        candidates.append(candidate)
+
+    return {
+        "content": json.dumps(candidates, ensure_ascii=False, indent=2),
+        "candidate_count": len(candidates),
+        "total_risks": len(risk_rows),
+        "skipped_green": skipped_green,
+        "skipped_unparseable": skipped_unparseable,
+        "skipped_no_clause_match": skipped_no_clause_match,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Stub executor — CR-03..08 + filter-redline-candidates
 # Subsequent plans (22-07..22-10) replace this in-place for each phase.
 # Fails closed: returns a clear "not yet implemented" error so partial
@@ -635,13 +886,49 @@ CONTRACT_REVIEW = HarnessDefinition(
             executor=_phase5_extract_clauses,
             timeout_seconds=600,
         ),
-        # Phase 6 — CR-06 Risk Analysis (LLM_BATCH_AGENTS)  [stub — plan 22-09]
+        # Phase 6 — CR-06 Risk Analysis (LLM_BATCH_AGENTS)  [plan 22-09]
+        # REVIEW #1 (22-REVIEWS.md): tools=["search_documents_by_doc_ids"] ONLY — no analyze_document.
+        # REVIEW #2 closed: sub-agents output JSON inside ```json``` fenced blocks; filter extracts
+        #   via _parse_subagent_json_terminal from result.terminal.text (canonical merge shape).
         PhaseDefinition(
             name="risk-analysis",
-            description="Stub — Plan 22-09 populates the per-clause risk assessment.",
+            description=(
+                "Per-clause risk assessment using playbook grounding. "
+                "LLM_BATCH_AGENTS, batch_size=5. Sub-agents output ClauseRisk JSON "
+                "inside ```json``` fenced blocks (REVIEW #2). "
+                "REVIEW #1: tools=['search_documents_by_doc_ids'] only — no analyze_document."
+            ),
             phase_type=PhaseType.LLM_BATCH_AGENTS,
-            system_prompt_template="STUB",
-            tools=["search_documents_by_doc_ids"],  # plan 22-09 will add more curated tools
+            system_prompt_template=(
+                "You are assessing a single contract clause for risk against the user's playbook.\n\n"
+                "INPUTS PER SUB-AGENT (one clause per agent):\n"
+                "  - clause: the JSON object {clause_index, category, heading, text, position}\n"
+                "  - playbook-context.md (workspace): includes clause_category_to_playbook map and\n"
+                "    context_quality flag ('founded' or 'unfounded' per D-22-07).\n"
+                "  - review-context.md (workspace): user's stated perspective, deadline, focus areas.\n\n"
+                "TOOLS (curated — REVIEW #1):\n"
+                "  - search_documents_by_doc_ids(query, doc_ids, top_k=8): D-22-06 — call this with\n"
+                "    query=<clause.text> and doc_ids=<playbook_context.clause_category_to_playbook[clause.category]>\n"
+                "    to retrieve precise grounding from the playbook docs that cover THIS category.\n\n"
+                "EMPTY-PLAYBOOK FALLBACK (D-22-07):\n"
+                "  If context_quality == 'unfounded' or doc_ids is empty for this clause's category:\n"
+                "  assess against industry-standard legal expectations for the contract type.\n"
+                "  Set grounding_doc_ids=[] and explicitly say 'unfounded — generic standards' in the rationale.\n\n"
+                "GRADING RUBRIC:\n"
+                "  GREEN  — clause matches playbook expectations or is benign for this party.\n"
+                "  YELLOW — acceptable with caveats, or deviates from playbook but is negotiable.\n"
+                "  RED    — materially adverse, conflicts with firm-line playbook position, or creates exposure.\n\n"
+                "OUTPUT: respond with ONLY a JSON object inside a ```json``` code block (no prose around it).\n"
+                "  ```json\n"
+                "  {\"clause_index\": <int>, \"clause_category\": \"<one of 13>\", \"clause_heading\": \"<str>\",\n"
+                "   \"risk_grade\": \"GREEN\"|\"YELLOW\"|\"RED\",\n"
+                "   \"rationale\": \"<>=20 char explanation citing the playbook doc id(s) you grounded against>\",\n"
+                "   \"alternative_language\": \"<for YELLOW/RED: a paragraph of suggested replacement; for GREEN: null>\",\n"
+                "   \"grounding_doc_ids\": [\"<uuid-1>\", ...]}\n"
+                "  ```\n"
+                "Stay focused: ONE clause per sub-agent, ONE JSON object out, no surrounding prose."
+            ),
+            tools=["search_documents_by_doc_ids"],  # REVIEW #1: NO analyze_document
             workspace_inputs=["clauses.json", "playbook-context.md", "review-context.md"],
             workspace_output="risk-analysis.json",
             batch_size=5,
@@ -651,24 +938,64 @@ CONTRACT_REVIEW = HarnessDefinition(
         # Filters risk-analysis.json to YELLOW/RED clauses; writes redline-candidates.json.
         # This is an internal cost-optimization step, NOT a user-visible REQ.
         # CR-01..08 still map 1:1 to the 8 named user phases.
-        # [stub — plan 22-09]
+        # [plan 22-09 — REVIEW #2 + #3 implemented]
         PhaseDefinition(
             name="filter-redline-candidates",
-            description="Stub — Plan 22-09 populates the YELLOW/RED filter executor.",
+            description=(
+                "REVIEW #2 + #3: parse risk-analysis.json (engine batch merge — terminal.text), "
+                "validate ClauseRisk, keep YELLOW/RED, JOIN original_text from clauses.json "
+                "by clause_index; write redline-candidates.json for CR-07."
+            ),
             phase_type=PhaseType.PROGRAMMATIC,
             tools=[],
-            workspace_inputs=["risk-analysis.json"],
+            # REVIEW #3: filter needs BOTH risk-analysis.json AND clauses.json to join original_text
+            workspace_inputs=["risk-analysis.json", "clauses.json"],
             workspace_output="redline-candidates.json",
-            executor=_phase_stub_not_implemented,
+            executor=_phase_filter_redline_candidates,
             timeout_seconds=30,
         ),
-        # Phase 8 — CR-07 Redline Generation (LLM_BATCH_AGENTS)  [stub — plan 22-09]
+        # Phase 8 — CR-07 Redline Generation (LLM_BATCH_AGENTS)  [plan 22-09]
+        # REVIEW #3 closed: prompt notes that original_text is provided by the filter join,
+        #   so sub-agents do NOT need to re-fetch clause text.
         PhaseDefinition(
             name="redline-generation",
-            description="Stub — Plan 22-09 populates the per-clause redline drafter.",
+            description=(
+                "Per-clause redline drafter for YELLOW/RED candidates (pre-filtered by phases[6]). "
+                "LLM_BATCH_AGENTS, batch_size=5. REVIEW #3: original_text provided by filter join."
+            ),
             phase_type=PhaseType.LLM_BATCH_AGENTS,
-            system_prompt_template="STUB",
-            tools=["search_documents_by_doc_ids"],  # plan 22-09 will add more curated tools
+            system_prompt_template=(
+                "You are drafting a precise redline for ONE problematic clause from the contract.\n\n"
+                "FILTER: this phase processes ONLY redline candidates (YELLOW + RED, pre-filtered by\n"
+                "the filter-redline-candidates PROGRAMMATIC step at phases[6]). GREEN clauses are\n"
+                "already excluded.\n\n"
+                "INPUTS PER SUB-AGENT (RedlineCandidate JSON object — REVIEW #3):\n"
+                "  {clause_index, clause_category, clause_heading, original_text, risk_grade,\n"
+                "   rationale, alternative_language, grounding_doc_ids}\n"
+                "  Note: `original_text` is the VERBATIM clause body, joined from clauses.json by the\n"
+                "  filter step. Use it directly — do NOT re-fetch clauses from the workspace.\n\n"
+                "  Plus workspace files:\n"
+                "  - playbook-context.md\n"
+                "  - review-context.md\n\n"
+                "TOOLS:\n"
+                "  - search_documents_by_doc_ids — for re-grounding if alternative_language hint\n"
+                "    needs refinement against specific playbook doc passages.\n\n"
+                "PROCEDURE:\n"
+                "  1. Read original_text + risk_grade + alternative_language hint from the input.\n"
+                "  2. Draft a CONCRETE redline: original (echo input verbatim), proposed (precise\n"
+                "     replacement), rationale (>=20 chars).\n"
+                "  3. Provide UP TO 5 fallback_positions: ordered list of progressively-weaker concessions.\n"
+                "  4. Style: plain English; preserve jurisdiction-appropriate legal phrasing.\n\n"
+                "OUTPUT: ONLY a JSON object inside a ```json``` code block:\n"
+                "  ```json\n"
+                "  {\"clause_index\": <int>, \"clause_category\": \"<str>\",\n"
+                "   \"original_text\": \"<verbatim from input>\",\n"
+                "   \"proposed_text\": \"<verbatim replacement>\",\n"
+                "   \"rationale\": \"<>=20 chars>\",\n"
+                "   \"fallback_positions\": [\"<position 1>\", \"<position 2>\", ...]}\n"
+                "  ```"
+            ),
+            tools=["search_documents_by_doc_ids"],
             workspace_inputs=["redline-candidates.json", "playbook-context.md", "review-context.md"],
             workspace_output="redlines.json",
             batch_size=5,
