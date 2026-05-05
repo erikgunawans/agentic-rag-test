@@ -1,6 +1,6 @@
-"""Phase 20 / v1.3 — Tests for gatekeeper.py (GATE-01..05, D-05..D-08, SEC-04, W8).
+"""Phase 20 / v1.3 — Tests for gatekeeper.py (GATE-01..05, D-05..D-08, SEC-04, W8) + Phase 22 / D-22-01..04 workspace prompt.
 
-11 tests:
+17 tests:
 1.  test_build_system_prompt_includes_intro
 2.  test_build_system_prompt_includes_upload_block_when_required
 3.  test_load_gatekeeper_history_returns_prior_turns
@@ -12,6 +12,12 @@
 9.  test_run_gatekeeper_persists_user_and_assistant_messages_with_harness_mode
 10. test_run_gatekeeper_calls_start_run_on_trigger
 11. test_run_gatekeeper_complete_event_includes_phase_count  (W8)
+12. test_run_gatekeeper_sentinel_with_9_trailing_spaces_no_leak  (CR-01)
+13. test_build_system_prompt_empty_workspace_block                  (Phase 22 / D-22-01)
+14. test_build_system_prompt_non_empty_workspace_lists_filenames_and_sizes  (D-22-02)
+15. test_build_system_prompt_few_shot_uses_display_name             (D-22-03)
+16. test_build_system_prompt_few_shots_before_workspace_block_for_kv_cache  (D-22-03 KV-cache)
+17. test_run_gatekeeper_list_files_failure_falls_back_to_empty_workspace  (D-22-01 graceful)
 """
 from __future__ import annotations
 
@@ -683,3 +689,122 @@ async def test_run_gatekeeper_sentinel_with_9_trailing_spaces_no_leak():
     complete_events = [e for e in events if e["type"] == "gatekeeper_complete"]
     assert len(complete_events) == 1
     assert complete_events[0]["triggered"] is True
+
+
+# ---------------------------------------------------------------------------
+# 13. test_build_system_prompt_empty_workspace_block  (Phase 22 / D-22-01)
+# ---------------------------------------------------------------------------
+
+def test_build_system_prompt_empty_workspace_block():
+    """workspace_files=None and workspace_files=[] both produce the empty workspace placeholder."""
+    harness = _make_harness()
+
+    prompt_none = build_system_prompt(harness, workspace_files=None)
+    assert "Workspace: (empty" in prompt_none
+
+    prompt_empty = build_system_prompt(harness, workspace_files=[])
+    assert "Workspace: (empty" in prompt_empty
+
+
+# ---------------------------------------------------------------------------
+# 14. test_build_system_prompt_non_empty_workspace_lists_filenames_and_sizes  (D-22-02)
+# ---------------------------------------------------------------------------
+
+def test_build_system_prompt_non_empty_workspace_lists_filenames_and_sizes():
+    """Non-empty workspace_files produces 'Workspace: filename (KB), ...' block."""
+    prereqs = _make_prereqs(requires_upload=True)
+    harness = HarnessDefinition(name="contract-review", display_name="Contract Review", prerequisites=prereqs, phases=[])
+    prompt = build_system_prompt(
+        harness,
+        workspace_files=[
+            {"file_path": "contract.docx", "size_bytes": 245000},
+            {"file_path": "addendum.pdf", "size_bytes": 89000},
+        ],
+    )
+    # 245000 // 1024 = 239, 89000 // 1024 = 86
+    assert "Workspace: contract.docx (239 KB), addendum.pdf (86 KB)" in prompt
+
+
+# ---------------------------------------------------------------------------
+# 15. test_build_system_prompt_few_shot_uses_display_name  (D-22-03)
+# ---------------------------------------------------------------------------
+
+def test_build_system_prompt_few_shot_uses_display_name():
+    """Few-shot examples interpolate harness.display_name dynamically."""
+    prereqs = _make_prereqs(requires_upload=True)
+    harness = HarnessDefinition(
+        name="mna-due-diligence",
+        display_name="M&A Due Diligence",
+        prerequisites=prereqs,
+        phases=[],
+    )
+    prompt = build_system_prompt(harness)
+    assert "Help me with this M&A Due Diligence" in prompt
+
+
+# ---------------------------------------------------------------------------
+# 16. test_build_system_prompt_few_shots_before_workspace_block_for_kv_cache  (D-22-03 KV-cache)
+# ---------------------------------------------------------------------------
+
+def test_build_system_prompt_few_shots_before_workspace_block_for_kv_cache():
+    """Few-shot block must appear BEFORE the per-turn workspace block (KV-cache friendliness)."""
+    harness = _make_harness()
+    prompt = build_system_prompt(harness)
+    assert prompt.index("EXAMPLES") < prompt.index("Workspace:")
+
+
+# ---------------------------------------------------------------------------
+# 17. test_run_gatekeeper_list_files_failure_falls_back_to_empty_workspace  (D-22-01 graceful)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_run_gatekeeper_list_files_failure_falls_back_to_empty_workspace(caplog):
+    """When WorkspaceService.list_files raises, run_gatekeeper logs a warning and
+    continues with an empty workspace block — does NOT crash."""
+    import logging
+    harness = _make_harness(n_phases=2)
+
+    call_count = [0]
+
+    def mock_get_client(token):
+        call_count[0] += 1
+        if call_count[0] == 2:
+            return _make_supabase_mock(return_data=[])
+        return _make_supabase_mock(return_data=[{"id": f"row-{call_count[0]}"}])
+
+    stream_text = "Please upload your contract first."
+    chunks = [_make_stream_chunk(c) for c in stream_text]
+    mock_stream = _async_iter(chunks)
+    mock_completions = AsyncMock()
+    mock_completions.create.return_value = mock_stream
+    mock_or_client = MagicMock()
+    mock_or_client.chat.completions = mock_completions
+    mock_or_svc = MagicMock()
+    mock_or_svc.client = mock_or_client
+
+    mock_ws_instance = MagicMock()
+    mock_ws_instance.list_files = AsyncMock(side_effect=RuntimeError("DB down"))
+
+    with patch("app.services.gatekeeper.get_supabase_authed_client", side_effect=mock_get_client), \
+         patch("app.services.gatekeeper.OpenRouterService", return_value=mock_or_svc), \
+         patch("app.services.gatekeeper.WorkspaceService", return_value=mock_ws_instance), \
+         caplog.at_level(logging.WARNING, logger="app.services.gatekeeper"):
+        events = await _drain(run_gatekeeper(
+            harness=harness,
+            thread_id="thread-list-fail",
+            user_id="user-1",
+            user_email="user@test.com",
+            user_message="Let me start.",
+            token="tok",
+            registry=None,
+        ))
+
+    # Must complete without raising
+    complete_events = [e for e in events if e["type"] == "gatekeeper_complete"]
+    assert len(complete_events) == 1
+
+    # The LLM system content must contain the empty workspace placeholder
+    # (verified indirectly — if list_files failed, build_system_prompt got [])
+    # We also verify the warning was logged
+    assert any("list_files" in rec.message and rec.levelno == logging.WARNING
+               for rec in caplog.records)
