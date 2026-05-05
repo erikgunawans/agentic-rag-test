@@ -21,6 +21,13 @@ Phase 21 reserves but does NOT emit:
   [Phase 21 - deferred] harness_batch_complete      — for LLM_BATCH_AGENTS
   [Phase 21 - deferred] harness_human_input_required — for LLM_HUMAN_INPUT
 
+Phase 22 adds (DOCX-08 / CR-08 / D-22-15 / REVIEW #7 + #8):
+  [Phase 22] harness_artifact             — fired when phase.post_execute returns (ok or error);
+                                            always carries harness_run_id + harness_mode (REVIEW #8)
+  [Phase 22] workspace_updated            — fired AFTER harness_artifact when post_execute writes a
+                                            binary (wrote_binary=True); Workspace Panel auto-refreshes
+                                            (matches chat.py:1004 sandbox write pattern — REVIEW #7)
+
 The Phase 21 reserved event names are listed below as constants for forward
 compatibility, but if a Phase-21-only PhaseType is dispatched in v1.3 the
 engine returns {error: 'phase_type_not_implemented', code: 'PHASE21_PENDING'}
@@ -217,7 +224,12 @@ async def _run_harness_engine_inner(
             exc,
         )
 
-    # --- 3. Phase loop ---
+    # --- 3. Phase-results accumulator (ISSUE-16 / Phase 22 / DOCX-08) ---
+    # Captures each phase's summarized output for post_execute callbacks.
+    # Memory-bounded: string values capped at 10,000 chars to prevent ballooning.
+    phase_results: dict[str, dict] = {}
+
+    # --- 4. Phase loop ---
     for phase_index, phase in enumerate(harness.phases):
         if phase_index < start_phase_index:
             continue   # Phase 21 D-03 — already recorded in phase_results from prior run
@@ -401,6 +413,16 @@ async def _run_harness_engine_inner(
                 exc,
             )
 
+        # Accumulate phase output for post_execute callbacks (ISSUE-16 / Phase 22).
+        if isinstance(result, dict):
+            summary_payload = {
+                k: (v if not isinstance(v, str) or len(v) <= 10_000 else v[:10_000] + "...[truncated]")
+                for k, v in result.items()
+            }
+        else:
+            summary_payload = {}
+        phase_results[phase.name] = summary_payload
+
         todos[phase_index]["status"] = "completed"
         try:
             await agent_todos_service.write_todos(thread_id, todos, token)
@@ -421,6 +443,89 @@ async def _run_harness_engine_inner(
             if "failed_count" in result:
                 phase_complete_evt["failed_count"] = result["failed_count"]
         yield phase_complete_evt
+
+        # Phase 22 / DOCX-08 / D-22-15 / REVIEW #7 + #8: invoke phase.post_execute
+        # hook if defined. Non-fatal: any error/exception is caught and logged; the
+        # engine continues and harness_runs.status stays 'completed' regardless.
+        # - REVIEW #8: artifact event carries harness_run_id AND harness_mode for
+        #   deterministic frontend correlation (avoids heuristic timing matching).
+        # - REVIEW #7: if post_execute wrote a binary (wrote_binary=True), the engine
+        #   ALSO emits workspace_updated so the Workspace Panel auto-refreshes
+        #   (mirrors chat.py:1004 pattern for sandbox binary writes).
+        if phase.post_execute is not None:
+            # Ensure ws is available (it was initialised during the initial progress write
+            # above; if that failed ws may be None — create a fresh instance here).
+            if ws is None:
+                ws = WorkspaceService(token=token)
+
+            artifact_evt: dict = {
+                "type": "harness_artifact",
+                "harness_run_id": harness_run_id,
+                "harness_mode": harness.name,    # REVIEW #8 — correlation anchor
+                "phase_index": phase_index,
+                "phase_name": phase.name,
+            }
+            pe_result: dict | None = None
+            try:
+                pe_result = await phase.post_execute(
+                    harness_run_id=harness_run_id,
+                    thread_id=thread_id,
+                    user_id=user_id,
+                    user_email=user_email,
+                    token=token,
+                    phase_results=phase_results,
+                    workspace=ws,
+                    harness_name=harness.name,   # REVIEW #8 propagation
+                )
+            except Exception as exc:
+                logger.warning(
+                    "harness_engine post_execute raised harness_run=%s phase=%s: %s",
+                    harness_run_id, phase.name, exc, exc_info=True,
+                )
+                artifact_evt.update({
+                    "ok": False,
+                    "error": "post_execute_raised",
+                    "code": "POST_EXEC_EXC",
+                    "detail": str(exc)[:500],
+                    "fallback_message": (
+                        "Post-phase artifact generation failed — see chat for the markdown summary."
+                    ),
+                })
+                yield artifact_evt
+            else:
+                if isinstance(pe_result, dict) and pe_result.get("error"):
+                    logger.warning(
+                        "harness_engine post_execute returned error harness_run=%s phase=%s code=%s",
+                        harness_run_id, phase.name, pe_result.get("code"),
+                    )
+                    artifact_evt.update({
+                        "ok": False,
+                        **{k: pe_result.get(k) for k in
+                           ("error", "code", "detail", "fallback_message") if k in pe_result},
+                    })
+                    yield artifact_evt
+                elif isinstance(pe_result, dict):
+                    artifact_evt.update({"ok": True, **{
+                        k: v for k, v in pe_result.items() if k != "wrote_binary"
+                    }})
+                    yield artifact_evt
+
+                    # REVIEW #7: emit workspace_updated AFTER artifact event when
+                    # post_execute wrote a binary. The Workspace Panel listens for this
+                    # event and re-fetches its file list. Only fires when post_execute
+                    # signals opt-in via wrote_binary=True (prevents spurious refreshes
+                    # from no-op success returns). Mirrors chat.py:1004 pattern.
+                    if pe_result.get("wrote_binary") and pe_result.get("docx_path"):
+                        yield {
+                            "type": "workspace_updated",
+                            "harness_run_id": harness_run_id,
+                            "thread_id": thread_id,
+                            "file_path": pe_result["docx_path"],
+                            "operation": "create",
+                            "source": "harness",
+                            "size_bytes": int(pe_result.get("size_bytes") or 0),
+                        }
+                # pe_result is None → no-op, no yield (matches default semantics)
 
         await _append_progress(
             thread_id=thread_id,
