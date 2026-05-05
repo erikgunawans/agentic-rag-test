@@ -32,6 +32,7 @@ from app.harnesses.types import HarnessDefinition
 from app.services import harness_runs_service, audit_service
 from app.services.openrouter_service import OpenRouterService
 from app.services.redaction.egress import egress_filter
+from app.services.workspace_service import WorkspaceService
 from app.database import get_supabase_authed_client
 
 logger = logging.getLogger(__name__)
@@ -54,7 +55,10 @@ _EGRESS_REFUSAL = (
 # System prompt builder (per-harness, deterministic — KV-cache friendly)
 # ---------------------------------------------------------------------------
 
-def build_system_prompt(harness: HarnessDefinition) -> str:
+def build_system_prompt(
+    harness: HarnessDefinition,
+    workspace_files: list[dict] | None = None,
+) -> str:
     prereq = harness.prerequisites
     if prereq.requires_upload:
         upload_block = (
@@ -66,13 +70,41 @@ def build_system_prompt(harness: HarnessDefinition) -> str:
     else:
         upload_block = "No file uploads required to begin.\n"
 
+    # D-22-03: few-shot examples (intent-match, not literal). Static across turns —
+    # placed BEFORE the per-turn workspace block to keep the cache prefix stable
+    # (KV-cache friendliness — DEEP-05 analogous).
+    display_name = harness.display_name
+    few_shots = (
+        "EXAMPLES (intent-match, not literal):\n"
+        f"  user: 'Review this contract' + workspace non-empty -> emit {SENTINEL}\n"
+        f"  user: 'Check this for risks' + workspace non-empty -> emit {SENTINEL}\n"
+        f"  user: 'I uploaded a contract' + workspace non-empty -> emit {SENTINEL}\n"
+        f"  user: 'Help me with this {display_name}' + DOCX/PDF present -> emit {SENTINEL}\n"
+        f"  user: 'Hello' / 'What\\'s this app do?' -> DO NOT emit {SENTINEL}\n"
+    )
+
+    # D-22-01 / D-22-02: workspace block (filename + size only, no content peek).
+    # Built fresh per turn from list_files; this is the per-turn-changing portion.
+    if workspace_files:
+        items = ", ".join(
+            f"{f.get('file_path', '?')} ({f.get('size_bytes', 0) // 1024} KB)"
+            for f in workspace_files
+        )
+        workspace_block = f"Workspace: {items}\n"
+    else:
+        workspace_block = "Workspace: (empty -- user has not uploaded yet)\n"
+
     return (
         f"You are the gatekeeper for the {harness.display_name} harness.\n\n"
         f"INTRO: {prereq.harness_intro}\n\n"
         f"{upload_block}\n"
+        f"{few_shots}\n"
+        f"{workspace_block}\n"
         f"GUIDANCE:\n"
         f"- Greet the user, explain what the harness will do, and check prerequisites.\n"
-        f"- If prerequisites are met (e.g. required files are present in workspace), "
+        f"- Use the Workspace block above as ground truth — if it lists matching "
+        f"file types/counts, prerequisites are met regardless of user phrasing.\n"
+        f"- If prerequisites are met, "
         f"END YOUR FINAL MESSAGE WITH the literal token {SENTINEL}\n"
         f"- The token must appear at the very end of your last message — it will be "
         f"stripped before display.\n"
@@ -220,9 +252,22 @@ async def run_gatekeeper(
     )
     # The history will now include the user message we just persisted,
     # so reconstruct messages from history (which already includes current turn).
+
+    # --- 3. D-22-01 (CR-21-08 fix): query workspace per-turn so gatekeeper LLM can
+    # verify prerequisites against ground truth rather than user assertion alone. ---
+    try:
+        ws = WorkspaceService(token=token)
+        workspace_files = await ws.list_files(thread_id)
+    except Exception as exc:
+        logger.warning(
+            "gatekeeper: list_files failed thread_id=%s: %s — falling back to empty workspace",
+            thread_id, exc,
+        )
+        workspace_files = []
+
     # Build messages: [system] + history (includes current user msg we just inserted)
     messages = [
-        {"role": "system", "content": build_system_prompt(harness)},
+        {"role": "system", "content": build_system_prompt(harness, workspace_files)},
         *history,
     ]
 
