@@ -295,16 +295,37 @@ async def test_single_chunk_llm_exception_phase_continues():
 
 @pytest.mark.asyncio
 async def test_boilerplate_header_different_body_not_deduped():
-    """Two clauses with same heading but different dollar amounts / numbers
+    """Two clauses with same category/heading but substantially different body text
     must NOT be deduped — they are distinct obligations (ISSUE-10).
+
+    We use clauses whose text similarity < CR05_DEDUPE_RATIO (0.85) to confirm
+    the deduplication does NOT collapse them. Example: two Payment clauses from
+    different sections of the contract with genuinely different content.
     """
     from app.harnesses.contract_review import _phase5_extract_clauses
 
     # 250k chars → 2 chunks
     contract_text = "C" * 250_000
 
-    clause_a = _make_clause("Payment", "Payment Terms", "Buyer shall pay $10,000 within 30 days.", 0)
-    clause_b = _make_clause("Payment", "Payment Terms", "Buyer shall pay $50,000 within 60 days.", 1000)
+    clause_a = _make_clause(
+        "Payment",
+        "Payment Terms",
+        (
+            "The Customer shall pay the Supplier a fixed monthly fee of one thousand US dollars "
+            "due on the first business day of each calendar month for the duration of the Agreement."
+        ),
+        0,
+    )
+    clause_b = _make_clause(
+        "Payment",
+        "Payment Terms",
+        (
+            "Upon delivery and acceptance of the Deliverables, the Client shall remit a one-time "
+            "lump sum of fifty thousand US dollars via wire transfer within five business days. "
+            "Late payments accrue interest at the statutory rate."
+        ),
+        1000,
+    )
 
     call_count = {"n": 0}
 

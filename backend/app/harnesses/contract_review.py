@@ -46,6 +46,8 @@ from app.harnesses.types import (
     PhaseType,
 )
 from app.services.harness_registry import register
+from app.services.openrouter_service import OpenRouterService
+from app.services.redaction.egress import egress_filter
 from app.services.workspace_service import WorkspaceService
 
 logger = logging.getLogger(__name__)
@@ -136,6 +138,31 @@ class PlaybookContext(BaseModel):
         description="'founded' (>=1 playbook doc found) or 'unfounded' (D-22-07 empty-playbook fallback)",
     )
     notes: str = Field(default="", max_length=2000)
+
+
+# ---------------------------------------------------------------------------
+# CR-05 — Clause Extraction schemas + constants
+# ---------------------------------------------------------------------------
+
+class Clause(BaseModel):
+    """Single extracted clause (CR-05 output element)."""
+    category: str = Field(..., description="One of CLAUSE_CATEGORIES; coerce to 'Other' if unrecognized")
+    heading: str = Field(..., min_length=1, max_length=300)
+    text: str = Field(..., min_length=1, max_length=10_000)
+    position: int = Field(..., ge=0)
+
+
+class ClauseExtractionResult(BaseModel):
+    """LLM JSON output shape for a single chunk (CR-05)."""
+    clauses: list[Clause] = Field(default_factory=list)
+    chunk_index: int = Field(..., ge=0)
+    total_chunks: int = Field(..., ge=1)
+
+
+# CR-05 chunking constants (plan 22-08)
+CR05_CHUNK_CHARS = 180_000
+CR05_CHUNK_OVERLAP_CHARS = 5_000
+CR05_DEDUPE_RATIO = 0.85
 
 
 # ---------------------------------------------------------------------------
@@ -249,6 +276,180 @@ async def _phase1_intake(
         "page_count": page_count,
         "char_count": len(text),
         "source_file": file_path,
+    }
+
+
+# ---------------------------------------------------------------------------
+# CR-05 executor — PROGRAMMATIC clause extraction with per-chunk egress_filter wrap
+# ---------------------------------------------------------------------------
+
+def _chunk_for_clause_extraction(text: str) -> list[str]:
+    """Split `text` into overlapping chunks of CR05_CHUNK_CHARS with CR05_CHUNK_OVERLAP_CHARS overlap."""
+    if len(text) <= CR05_CHUNK_CHARS:
+        return [text]
+    chunks: list[str] = []
+    step = CR05_CHUNK_CHARS - CR05_CHUNK_OVERLAP_CHARS
+    for start in range(0, len(text), step):
+        end = min(start + CR05_CHUNK_CHARS, len(text))
+        chunks.append(text[start:end])
+        if end == len(text):
+            break
+    return chunks
+
+
+def _dedupe_clauses(clauses: list[Clause], ratio: float) -> list[Clause]:
+    """Deduplicate by (category, text) fuzzy similarity. Different bodies → NOT deduped (ISSUE-10)."""
+    from difflib import SequenceMatcher
+    kept: list[Clause] = []
+    for c in clauses:
+        is_dup = False
+        for k in kept:
+            if k.category == c.category and SequenceMatcher(None, k.text, c.text).ratio() > ratio:
+                is_dup = True
+                break
+        if not is_dup:
+            kept.append(c)
+    return kept
+
+
+def _build_cr05_chunk_prompt(*, chunk_text: str, chunk_index: int, total_chunks: int) -> str:
+    """Build the per-chunk extraction prompt for CR-05."""
+    return (
+        "You are extracting every distinct legal clause from a contract chunk. "
+        f"This is chunk {chunk_index + 1} of {total_chunks}.\n\n"
+        "For each clause you find, return a JSON object with fields:\n"
+        "  category: one of these strings exactly — "
+        f"{', '.join(CLAUSE_CATEGORIES)}\n"
+        "  heading: section heading OR the first 80-100 chars of the clause\n"
+        "  text: the clause's verbatim text (do not paraphrase)\n"
+        "  position: approximate character offset in the chunk (integer)\n\n"
+        "Return ONLY a JSON object of shape "
+        "{\"clauses\": [...], \"chunk_index\": <int>, \"total_chunks\": <int>}.\n"
+        f"Use chunk_index={chunk_index}, total_chunks={total_chunks}.\n"
+        "Use 'Other' for clauses that don't fit any of the listed categories.\n\n"
+        f"--- CONTRACT CHUNK ---\n{chunk_text}\n--- END CHUNK ---\n"
+    )
+
+
+async def _phase5_extract_clauses(
+    *,
+    inputs: dict[str, str],
+    token: str,
+    thread_id: str,
+    harness_run_id: str,
+    # REVIEW #4 / SEC-04 / B4 single-registry — engine passes these via plan 22-08 Task 1:
+    registry=None,
+    system_settings: dict | None = None,
+    user_id: str | None = None,
+    user_email: str | None = None,
+    **_,  # forward-compat for any future engine kwargs
+) -> dict:
+    """CR-05: read contract-text.md; LLM-extract clauses (chunked if needed); dedupe; write clauses.md + clauses.json.
+
+    REVIEW #4 invariant: every per-chunk LLM call is wrapped by egress_filter(payload, registry, None)
+    BEFORE OpenRouterService is invoked. If the registry is None (e.g. unit test or harness invoked
+    outside chat router), the wrap is skipped — but in production the chat router B4 single-registry
+    always provides one.
+    """
+    import json as _j
+
+    contract_text = (inputs or {}).get("contract-text.md", "")
+    if not contract_text or not contract_text.strip():
+        return {
+            "error": "contract_text_missing",
+            "code": "NO_CONTRACT",
+            "detail": "Phase 5 invoked but inputs['contract-text.md'] is empty",
+        }
+
+    chunks = _chunk_for_clause_extraction(contract_text)
+    total_chunks = len(chunks)
+    logger.info(
+        "CR-05: chunked harness_run=%s chars=%d chunks=%d",
+        harness_run_id, len(contract_text), total_chunks,
+    )
+
+    all_clauses: list[Clause] = []
+    chunks_failed = 0
+    chunks_egress_blocked = 0
+
+    for idx, chunk in enumerate(chunks):
+        prompt = _build_cr05_chunk_prompt(
+            chunk_text=chunk, chunk_index=idx, total_chunks=total_chunks
+        )
+        messages = [{"role": "system", "content": prompt}]
+
+        # REVIEW #4 / SEC-04: egress filter pre-call. Mirrors harness_engine.py LLM_SINGLE pattern.
+        if registry is not None:
+            payload = _j.dumps(messages, ensure_ascii=False)
+            er = egress_filter(payload, registry, None)
+            if er.tripped:
+                chunks_egress_blocked += 1
+                chunks_failed += 1
+                logger.warning(
+                    "CR-05 chunk %d/%d egress-blocked harness_run=%s",
+                    idx, total_chunks, harness_run_id,
+                )
+                continue  # skip this chunk; don't fail the whole phase
+
+        try:
+            or_svc = OpenRouterService()
+            llm_result = await or_svc.complete_with_tools(
+                messages=messages,
+                tools=None,
+                model=None,
+                response_format={"type": "json_object"},
+            )
+            raw = llm_result.get("content", "")
+            parsed = ClauseExtractionResult.model_validate(_j.loads(raw))
+            for c in parsed.clauses:
+                if c.category not in CLAUSE_CATEGORIES:
+                    c.category = "Other"
+            all_clauses.extend(parsed.clauses)
+        except Exception as exc:
+            chunks_failed += 1
+            logger.warning(
+                "CR-05 chunk %d/%d failed harness_run=%s: %s",
+                idx, total_chunks, harness_run_id, exc, exc_info=True,
+            )
+
+    if chunks_failed == total_chunks:
+        return {
+            "error": "all_chunks_failed",
+            "code": "CR05_FAILED",
+            "detail": (
+                f"All {total_chunks} chunks failed extraction "
+                f"(egress_blocked={chunks_egress_blocked})"
+            ),
+        }
+
+    deduped = _dedupe_clauses(all_clauses, ratio=CR05_DEDUPE_RATIO)
+
+    clauses_json = _j.dumps([c.model_dump() for c in deduped], ensure_ascii=False, indent=2)
+    markdown = (
+        f"# Extracted Clauses\n\n"
+        f"- **Total clauses:** {len(deduped)} (from {len(all_clauses)} pre-dedupe)\n"
+        f"- **Chunks processed:** {total_chunks - chunks_failed}/{total_chunks}\n\n"
+        f"```json\n{clauses_json}\n```\n"
+    )
+
+    # ISSUE-04 / ISSUE-25: also write clauses.json sibling for CR-06 LLM_BATCH_AGENTS consumption
+    try:
+        ws_inst = WorkspaceService(token=token)
+        await ws_inst.write_text_file(
+            thread_id,
+            "clauses.json",
+            clauses_json,
+            source="harness",
+        )
+    except Exception as exc:
+        logger.warning("CR-05 sibling clauses.json write failed: %s", exc)
+
+    return {
+        "content": markdown,
+        "clause_count": len(deduped),
+        "chunk_count": total_chunks,
+        "chunks_failed": chunks_failed,
+        "chunks_egress_blocked": chunks_egress_blocked,
     }
 
 
@@ -420,15 +621,18 @@ CONTRACT_REVIEW = HarnessDefinition(
             workspace_output="playbook-context.md",
             timeout_seconds=600,
         ),
-        # Phase 5 — CR-05 Clause Extraction (PROGRAMMATIC)  [stub — plan 22-08]
+        # Phase 5 — CR-05 Clause Extraction (PROGRAMMATIC)  [plan 22-08]
         PhaseDefinition(
             name="extract-clauses",
-            description="Stub — Plan 22-08 populates the chunk-and-extract executor.",
+            description=(
+                "Chunk contract-text.md; per-chunk LLM extraction with egress_filter wrap (REVIEW #4); "
+                "dedupe + write clauses.md + clauses.json sibling (ISSUE-04/ISSUE-25)."
+            ),
             phase_type=PhaseType.PROGRAMMATIC,
             tools=[],
             workspace_inputs=["contract-text.md"],
             workspace_output="clauses.md",
-            executor=_phase_stub_not_implemented,
+            executor=_phase5_extract_clauses,
             timeout_seconds=600,
         ),
         # Phase 6 — CR-06 Risk Analysis (LLM_BATCH_AGENTS)  [stub — plan 22-09]
