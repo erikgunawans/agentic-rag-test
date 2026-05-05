@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Agent Harness & Domain-Specific Workflows
 status: executing
-last_updated: "2026-05-05T08:16:58.645Z"
-last_activity: 2026-05-05 -- Phase 22 planning complete
+last_updated: "2026-05-05T10:37:46.517Z"
+last_activity: 2026-05-05 -- Phase 22 execution started
 progress:
   total_phases: 6
   completed_phases: 5
-  total_plans: 55
+  total_plans: 52
   completed_plans: 43
-  percent: 78
+  percent: 83
 ---
 
 # State: LexCore
@@ -20,14 +20,14 @@ progress:
 See: `.planning/PROJECT.md` (updated 2026-05-03 — v1.3 milestone started)
 
 **Core value:** Indonesian legal teams can manage the full contract lifecycle with confidence that AI outputs are accurate, citable, and traceable, and that sensitive client PII never leaves the control boundary.
-**Current focus:** Phase 21 — batched-parallel-sub-agents-human-in-the-loop
+**Current focus:** Phase 22 — contract-review-harness-docx-deliverable
 
 ## Current Position
 
-Phase: 21 — COMPLETE
-Plan: 1 of 6
-Status: Ready to execute
-Last activity: 2026-05-05 -- Phase 22 planning complete
+Phase: 22 (contract-review-harness-docx-deliverable) — EXECUTING
+Plan: 1 of 12
+Status: Executing Phase 22
+Last activity: 2026-05-05 -- Phase 22 execution started
 Resume file: .planning/phases/22-contract-review-harness-docx-deliverable/22-CONTEXT.md
 
 ## Roadmap Snapshot (v1.3)
