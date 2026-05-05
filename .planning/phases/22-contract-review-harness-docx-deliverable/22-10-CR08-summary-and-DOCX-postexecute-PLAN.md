@@ -12,44 +12,44 @@ autonomous: true
 requirements: [CR-08, DOCX-01, DOCX-02, DOCX-03, DOCX-04, DOCX-05, DOCX-06, DOCX-07, DOCX-08]
 must_haves:
   truths:
-    - "CR-08 (executive-summary) is LLM_SINGLE; output_schema=ExecutiveSummary; writes contract-review-report.md"
-    - "post_execute=_generate_docx_post_execute callable wired on CR-08 phase (phases[8] in the 9-phase HarnessDefinition)"
-    - "_generate_docx_post_execute reads all 6 artifact files, builds python-docx script, runs in sandbox via SandboxService.execute(), writes DOCX to workspace_files with source='harness'"
-    - "DOCX includes: title page (CONFIDENTIAL + risk badge), exec summary, key findings, color-coded redline table, GREEN section, recommended next steps"
-    - "Pastel risk colors per D-22-13: GREEN=#E6F4EA, YELLOW=#FEF7E0, RED=#FCE8E6"
+    - "CR-08 (executive-summary) is LLM_SINGLE; output_schema=ExecutiveSummary; engine writes the validated JSON to executive-summary.json"
+    - "REVIEW #6 closed: a deterministic _render_summary_markdown step (run inside post_execute) reads executive-summary.json and writes contract-review-report.md as REAL markdown — not raw JSON in a .md file"
+    - "post_execute=_docx_post_execute_shim wired on CR-08 (phases[8])"
+    - "_generate_docx_post_execute (a) calls _render_summary_markdown to produce the markdown report, (b) reads 6 artifacts, (c) builds python-docx script, (d) runs in sandbox via SandboxService.execute(), (e) writes DOCX to workspace_files with source='harness'"
+    - "post_execute return now includes wrote_binary=True + size_bytes so plan 22-03 engine wraps with workspace_updated event (REVIEW #7)"
     - "Filename pattern: contract-review-{harness_run_id[:8]}.docx (D-22-14)"
     - "D-22-15 non-fatal fallback: post_execute returns error dict on sandbox failure; harness_runs.status stays 'completed'"
-    - "post_execute does NOT make LLM calls — DOCX is purely deterministic python-docx serialization"
-    - "Audit log: contract_review_docx_generated on success, contract_review_docx_failed on fallback"
-    - "Sandbox API PINNED: SandboxService.execute(*, code, thread_id, user_id, token) returning dict with exit_code/files; NO files= kwarg, NO timeout_seconds= kwarg, NO ok field"
-    - "DOCX bytes retrieved by HTTP GET on sb_result['files'][0]['signed_url'] (auto-collected /sandbox/output/contract-review.docx) — no base64 stdout exfiltration"
+    - "Sandbox API PINNED: SandboxService.execute(*, code, thread_id, user_id, token); DOCX bytes via auto-collected files[0].signed_url HTTP GET"
   artifacts:
     - path: "backend/app/harnesses/contract_review.py"
-      provides: "ExecutiveSummary schema + CR-08 prompt populated + post_execute wired on phases[8]"
-      contains: "_generate_docx_post_execute"
+      provides: "ExecutiveSummary schema + CR-08 prompt + _render_summary_markdown helper + post_execute shim"
+      contains: "_render_summary_markdown"
     - path: "backend/app/harnesses/contract_review_docx.py"
-      provides: "_generate_docx_post_execute callable + DOCX_GENERATION_SCRIPT_BODY string constant"
+      provides: "_generate_docx_post_execute + DOCX_GENERATION_SCRIPT_BODY"
       contains: "DOCX_GENERATION_SCRIPT_BODY"
     - path: "backend/tests/harnesses/test_contract_review_docx.py"
-      provides: "Tests for ExecutiveSummary, post_execute success/fail, sandbox script structure, fallback contract"
+      provides: "Tests for ExecutiveSummary, markdown render (REVIEW #6), post_execute success/fail (REVIEW #7 wrote_binary), DOCX structure"
   key_links:
-    - from: "CR-08 phase (phases[8])"
-      to: "_generate_docx_post_execute callable"
-      via: "PhaseDefinition.post_execute field (Plan 22-03 invocation site)"
-      pattern: "post_execute=_generate_docx_post_execute"
-    - from: "_generate_docx_post_execute"
-      to: "WorkspaceService.write_binary_file(thread_id, 'contract-review-{run_id_short}.docx', bytes, source='harness')"
-      via: "SandboxService.execute() with DOCX_GENERATION_SCRIPT_BODY + INPUT_DATA literal prefix"
-      pattern: "write_binary_file"
+    - from: "CR-08 LLM_SINGLE output (executive-summary.json)"
+      to: "_render_summary_markdown writes contract-review-report.md"
+      via: "deterministic markdown render (REVIEW #6)"
+      pattern: "contract-review-report\\.md"
+    - from: "_generate_docx_post_execute return"
+      to: "engine workspace_updated emission (plan 22-03)"
+      via: "wrote_binary=True flag (REVIEW #7)"
+      pattern: "wrote_binary"
 ---
 
 <objective>
-Replace the CR-08 stub with the real LLM_SINGLE prompt + ExecutiveSummary Pydantic schema, AND wire the `_generate_docx_post_execute` callable that runs python-docx generation in the sandbox and writes the result to workspace_files.
+Replace the CR-08 stub. Three review findings drive this plan's structure:
 
-Per ROADMAP success criterion 5: writes `contract-review-report.md` AND generates a CONFIDENTIAL-marked .docx with all 7 sections (DOCX-02..07). D-22-15 ensures non-fatal fallback.
-Output: CR-08 prompt + schema, post_execute callable in a separate module, DOCX-generation script as a string constant for sandbox dispatch (per PATTERNS.md L28 recommendation).
+1. **REVIEW #6:** prior plan had CR-08's LLM_SINGLE write `contract-review-report.md` directly. But `LLM_SINGLE` writes raw JSON (verified at `harness_engine.py:615-623`). Fix: CR-08 writes `executive-summary.json` (JSON), and a NEW deterministic `_render_summary_markdown` step inside post_execute renders it into actual markdown at `contract-review-report.md`.
 
-CR-08 lives at `phases[8]` in the 9-phase HarnessDefinition (Plan 22-06's filter-redline-candidates phase at index 6 shifts CR-07 to index 7 and CR-08 to index 8).
+2. **REVIEW #7:** post_execute return must include `wrote_binary=True` + `size_bytes` so the engine (plan 22-03) emits `workspace_updated` after the DOCX write. Frontend Workspace Panel auto-refreshes.
+
+3. **D-22-15 non-fatal fallback** preserved.
+
+Output: ExecutiveSummary + CR-08 prompt + markdown render helper + DOCX post_execute callable + tests.
 </objective>
 
 <execution_context>
@@ -62,227 +62,258 @@ CR-08 lives at `phases[8]` in the 9-phase HarnessDefinition (Plan 22-06's filter
 @.planning/REQUIREMENTS.md
 @.planning/phases/22-contract-review-harness-docx-deliverable/22-CONTEXT.md
 @.planning/phases/22-contract-review-harness-docx-deliverable/22-PATTERNS.md
+@.planning/phases/22-contract-review-harness-docx-deliverable/22-REVIEWS.md
 @backend/app/harnesses/contract_review.py
 </context>
 
 <interfaces>
-<!-- ISSUE-05 PIN (CANONICAL): sandbox_service.SandboxService.execute() actual signature (sandbox_service.py:228-258) -->
-<!-- -->
-<!--   @traced(name="sandbox_execute") -->
-<!--   async def execute(self, *, code: str, thread_id: str, user_id: str, -->
-<!--                     token: str | None = None, -->
-<!--                     stream_callback: Callable[[str, str], Awaitable[None]] | None = None, -->
-<!--                     workspace_callback: Callable[[dict], None] | None = None) -> dict: -->
-<!--   Returns: { -->
-<!--     "stdout": str, "stderr": str, "exit_code": int, -->
-<!--     "error_type": str | None,  # None | "timeout" | "exception" | "security_violation" -->
-<!--     "execution_ms": int, -->
-<!--     "files": list[dict],  # [{filename, size_bytes, signed_url, storage_path}] -->
-<!--     "execution_id": str, -->
-<!--   } -->
-<!-- -->
-<!-- KEY FACTS: -->
-<!--   1. Method name is `execute`, NOT `execute_code`, NOT `run_code`, NOT `submit`. -->
-<!--   2. NO `files=` kwarg. NO `timeout_seconds=` kwarg (timeout is enforced by service config). -->
-<!--   3. The only way to pass input data: INLINE in the `code` string as a Python literal. -->
-<!--   4. Result has `exit_code` (int) — success = exit_code == 0. NO `ok` field. -->
-<!--   5. Files written to /sandbox/output/ are auto-collected and uploaded; signed URLs returned -->
-<!--      in result["files"]. We use this auto-collect path: write to /sandbox/output/contract-review.docx, -->
-<!--      then HTTP GET the bytes from result["files"][0]["signed_url"]. -->
-<!--      NO base64 stdout exfiltration is used. -->
-<!--   6. Singleton accessor: `from app.services.sandbox_service import get_sandbox_service` -->
-<!-- -->
-<!-- Therefore plan 22-10's call site is: -->
-<!-- -->
-<!--   sb = get_sandbox_service() -->
-<!--   sb_result = await sb.execute( -->
-<!--       code=code_with_inputs, -->
-<!--       thread_id=thread_id, -->
-<!--       user_id=user_id, -->
-<!--       token=token, -->
-<!--   ) -->
-<!--   if sb_result.get("exit_code") != 0: -->
-<!--       raise DocxGenerationError(f"sandbox exit_code={sb_result.get('exit_code')}: {(sb_result.get('stderr') or '')[:500]}") -->
-<!-- -->
-<!-- Inputs marshaling: prefix the script with a Python literal -->
-<!--   inputs_literal = f"INPUT_DATA = {json.dumps(sandbox_inputs, ensure_ascii=False)}\n" -->
-<!--   code_with_inputs = inputs_literal + DOCX_GENERATION_SCRIPT_BODY -->
-<!-- where DOCX_GENERATION_SCRIPT_BODY references INPUT_DATA directly (no file reads). -->
+<!-- ISSUE-05 PIN: SandboxService.execute(*, code, thread_id, user_id, token) -->
+<!--   Returns {stdout, stderr, exit_code, error_type, execution_ms, files, execution_id} -->
+<!--   files[i] = {filename, size_bytes, signed_url, storage_path} (auto-collected /sandbox/output/*) -->
+<!--   NO files= kwarg, NO timeout_seconds= kwarg, NO ok field. -->
 
-<!-- ExecutiveSummary schema for CR-08 -->
-
+ExecutiveSummary schema (REVIEW #6 — written as JSON, NOT markdown):
 ```python
 class ExecutiveSummary(BaseModel):
-    overall_risk: RiskGrade = Field(..., description="Aggregated worst grade across all clauses")
-    recommendation: str = Field(..., min_length=20, max_length=2000,
-        description="One-paragraph: sign / sign-with-redlines / do-not-sign + key reason")
-    key_findings: list[str] = Field(..., min_length=1, max_length=10,
-        description="3-7 bullets summarizing the most important issues")
-    risk_breakdown: dict[str, int] = Field(...,
-        description="{'GREEN': N, 'YELLOW': M, 'RED': K} counts")
-    next_steps: list[str] = Field(..., min_length=1, max_length=10,
-        description="Recommended actions: 'request redline N', 'escalate to senior counsel', etc.")
+    overall_risk: RiskGrade
+    recommendation: str = Field(..., min_length=20, max_length=2000)
+    key_findings: list[str] = Field(..., min_length=1, max_length=10)
+    risk_breakdown: dict[str, int]
+    next_steps: list[str] = Field(..., min_length=1, max_length=10)
 ```
 
-<!-- _generate_docx_post_execute signature (matches plan 22-03 contract) -->
+CR-08 phase config (REVIEW #6):
 ```python
-async def _generate_docx_post_execute(
-    *,
-    harness_run_id: str,
-    thread_id: str,
-    user_id: str,
-    user_email: str,
-    token: str,
-    phase_results: dict,
-    workspace,
-) -> dict:
-    # Returns:
-    #   {"ok": True, "docx_path": "<path>", "signed_url": "<url>"}    on success
-    #   {"error": "...", "code": "...", "detail": "...",              on failure (D-22-15)
-    #    "fallback_message": "..."}
-    # NEVER raises.
+PhaseDefinition(
+    name="executive-summary",
+    phase_type=PhaseType.LLM_SINGLE,
+    workspace_output="executive-summary.json",   # CHANGED — was contract-review-report.md
+    output_schema=ExecutiveSummary,
+    post_execute=_docx_post_execute_shim,
+    ...
+)
+```
+
+post_execute return shape (REVIEW #7 — engine emits workspace_updated):
+```python
+{
+    "ok": True,
+    "docx_path": "contract-review-{run_id_short}.docx",
+    "signed_url": "<workspace signed url>",
+    "wrote_binary": True,        # NEW (REVIEW #7) — triggers engine workspace_updated emission
+    "size_bytes": int,           # NEW
+}
 ```
 </interfaces>
 
 <tasks>
 
 <task type="auto" tdd="true">
-  <name>Task 1: Populate CR-08 prompt + add ExecutiveSummary schema</name>
+  <name>Task 1: ExecutiveSummary + CR-08 prompt + _render_summary_markdown helper (REVIEW #6)</name>
   <files>backend/app/harnesses/contract_review.py</files>
   <read_first>
-    - backend/app/harnesses/contract_review.py (post-Plan-22-09 state — CR-08 stub at phases[8] in the 9-phase definition; CR-07 at phases[7]; filter at phases[6])
-    - backend/app/harnesses/smoke_echo.py (lines 140-156 — LLM_SINGLE analog with output_schema)
-    - .planning/phases/22-contract-review-harness-docx-deliverable/22-CONTEXT.md (D-22-12..15)
+    - backend/app/harnesses/contract_review.py (post-Plan-22-09 state — find CR-08 stub at phases[8])
+    - backend/app/services/harness_engine.py (lines 615-623 — confirm LLM_SINGLE writes raw JSON, REVIEW #6 anchor)
+    - .planning/phases/22-contract-review-harness-docx-deliverable/22-REVIEWS.md (review finding #6)
   </read_first>
   <behavior>
-    - Test 1: ExecutiveSummary schema accepts a fully-populated valid instance.
-    - Test 2: ExecutiveSummary rejects empty key_findings list (`min_length=1`).
-    - Test 3: ExecutiveSummary rejects empty next_steps list.
-    - Test 4: CR-08 phase (phases[8]) has `output_schema=ExecutiveSummary`.
-    - Test 5: CR-08 phase prompt mentions reading classification.md + review-context.md + playbook-context.md + clauses.md + risk-analysis.json + redlines.json (all 6 input files).
-    - Test 6: CR-08 phase has `post_execute=_docx_post_execute_shim` (set after plan 22-10 Task 2 lands; plan 22-10 Task 1 sets it to the imported callable).
+    - Test 1: ExecutiveSummary accepts a fully-populated valid instance.
+    - Test 2: ExecutiveSummary rejects empty key_findings.
+    - Test 3: CR-08 phase has `output_schema=ExecutiveSummary`.
+    - Test 4 (REVIEW #6): CR-08 phase `workspace_output == "executive-summary.json"` — NOT `contract-review-report.md`.
+    - Test 5: CR-08 prompt mentions reading the 6 input files.
+    - Test 6: `_render_summary_markdown` produces markdown with `# Contract Review Report`, `## Executive Summary`, `## Risk Breakdown`, `## Key Findings`, `## Recommended Next Steps` sections.
+    - Test 7: `_render_summary_markdown` writes `contract-review-report.md` to workspace via `write_text_file`.
+    - Test 8 (REVIEW #6 anti-regression): rendered output starts with `# ` (markdown header) and is NOT raw JSON (does NOT start with `{`).
   </behavior>
   <action>
     Edit `backend/app/harnesses/contract_review.py`:
 
     **A) Add ExecutiveSummary schema** below ClauseRisk + Redline:
     ```python
-    # ---------------------------------------------------------------------------
-    # CR-08 — Executive Summary schema
-    # ---------------------------------------------------------------------------
-
     class ExecutiveSummary(BaseModel):
-        overall_risk: RiskGrade = Field(..., description="Worst-case aggregate grade across clauses")
-        recommendation: str = Field(..., min_length=20, max_length=2000,
-            description="One paragraph: sign-as-is / sign-with-redlines / do-not-sign + key reason")
-        key_findings: list[str] = Field(..., min_length=1, max_length=10,
-            description="3-7 bullets summarizing most important issues")
-        risk_breakdown: dict[str, int] = Field(...,
-            description="{'GREEN': N, 'YELLOW': M, 'RED': K} clause counts")
-        next_steps: list[str] = Field(..., min_length=1, max_length=10,
-            description="Recommended actions for the user/legal team")
+        overall_risk: RiskGrade
+        recommendation: str = Field(..., min_length=20, max_length=2000)
+        key_findings: list[str] = Field(..., min_length=1, max_length=10)
+        risk_breakdown: dict[str, int]
+        next_steps: list[str] = Field(..., min_length=1, max_length=10)
     ```
 
-    **B) Replace CR-08 (`executive-summary`) `system_prompt_template`** with this exact text:
+    **B) Replace CR-08 prompt + change workspace_output to executive-summary.json** (REVIEW #6):
     ```python
-    system_prompt_template=(
-        "You are writing the executive summary for a Contract Review run.\n\n"
-        "INPUTS (workspace files):\n"
-        "  - classification.md: contract type, parties, dates, governing law, jurisdiction\n"
-        "  - review-context.md: user's perspective, deadline, focus areas (raw user text)\n"
-        "  - playbook-context.md: playbook docs + clause_category_to_playbook map + context_quality\n"
-        "  - clauses.md: full extracted clauses array\n"
-        "  - risk-analysis.json: ClauseRisk array (every clause graded GREEN/YELLOW/RED + rationale)\n"
-        "  - redlines.json: Redline array (proposed replacements for YELLOW/RED clauses only)\n\n"
-        "OUTPUT: a JSON object matching ExecutiveSummary schema:\n"
-        "  - overall_risk: aggregate worst grade (any RED -> RED, else any YELLOW -> YELLOW, else GREEN)\n"
-        "  - recommendation: one paragraph closing recommendation: sign / sign-with-redlines / do-not-sign\n"
-        "  - key_findings: 3-7 bullets covering the most important issues across the contract\n"
-        "  - risk_breakdown: counts {GREEN, YELLOW, RED} from risk-analysis.json\n"
-        "  - next_steps: recommended actions (e.g. 'request redlines 3, 7, 12', 'escalate to senior counsel')\n\n"
-        "If playbook-context.md.context_quality == 'unfounded', BEGIN your recommendation with:\n"
-        "  'No playbook materials found — risk grades reflect generic legal standards.' (D-22-07)\n\n"
-        "Return ONLY the JSON object — no prose."
-    ),
+    PhaseDefinition(
+        name="executive-summary",
+        phase_type=PhaseType.LLM_SINGLE,
+        system_prompt_template=(
+            "You are writing the executive summary for a Contract Review run.\n\n"
+            "INPUTS (workspace files):\n"
+            "  - classification.md, review-context.md, playbook-context.md\n"
+            "  - clauses.md, risk-analysis.json, redlines.json\n\n"
+            "OUTPUT: a JSON object matching ExecutiveSummary schema. Return ONLY JSON, no prose.\n"
+            "If playbook-context.md.context_quality == 'unfounded', BEGIN your recommendation with:\n"
+            "  'No playbook materials found — risk grades reflect generic legal standards.'"
+        ),
+        workspace_inputs=["classification.md", "review-context.md", "playbook-context.md",
+                          "clauses.md", "risk-analysis.json", "redlines.json"],
+        workspace_output="executive-summary.json",       # REVIEW #6: JSON, not markdown
+        output_schema=ExecutiveSummary,
+        post_execute=_docx_post_execute_shim,
+        timeout_seconds=180,
+    )
     ```
 
-    Set `phases[8].output_schema = ExecutiveSummary` (replace `output_schema=None` from plan 22-06 stub at phases[8]).
-
-    **C) Wire post_execute** — add at top of file (right after the imports), to break a potential import cycle:
+    **C) Add `_render_summary_markdown` helper** below ExecutiveSummary:
     ```python
-    # Lazy-import (CR-21-01 circular guard): the DOCX module imports back into
-    # this module for schemas; wrap the post_execute reference in a small shim.
+    async def _render_summary_markdown(
+        *,
+        executive_summary: dict,
+        classification: dict,
+        playbook: dict,
+        risks: list,
+        redlines: list,
+        workspace,
+        thread_id: str,
+    ) -> str:
+        """REVIEW #6: deterministic markdown render of executive-summary.json into
+        contract-review-report.md. CR-08's LLM_SINGLE writes the JSON; this helper
+        produces the human-readable markdown that users (and the DOCX) consume.
+
+        Returns the rendered markdown string AND writes contract-review-report.md.
+        """
+        rb = executive_summary.get("risk_breakdown") or {}
+        red_n = int(rb.get("RED", 0))
+        yellow_n = int(rb.get("YELLOW", 0))
+        green_n = int(rb.get("GREEN", 0))
+
+        contract_type = classification.get("contract_type", "Unknown")
+        parties = classification.get("parties") or []
+        governing_law = classification.get("governing_law", "?")
+        overall_risk = executive_summary.get("overall_risk", "?")
+        recommendation = executive_summary.get("recommendation", "")
+        key_findings = executive_summary.get("key_findings") or []
+        next_steps = executive_summary.get("next_steps") or []
+
+        lines: list[str] = []
+        lines.append("# Contract Review Report")
+        lines.append("")
+        lines.append("**CONFIDENTIAL — Privileged Legal Analysis**")
+        lines.append("")
+        lines.append(f"- **Contract type:** {contract_type}")
+        lines.append(f"- **Parties:** {', '.join(parties) if parties else '—'}")
+        lines.append(f"- **Governing law:** {governing_law}")
+        lines.append(f"- **Overall risk:** **{overall_risk}**")
+        lines.append("")
+        lines.append("## Executive Summary")
+        lines.append("")
+        lines.append(recommendation)
+        lines.append("")
+        lines.append("## Risk Breakdown")
+        lines.append("")
+        lines.append(f"- RED: **{red_n}**")
+        lines.append(f"- YELLOW: **{yellow_n}**")
+        lines.append(f"- GREEN: **{green_n}**")
+        lines.append("")
+        lines.append("## Key Findings")
+        lines.append("")
+        for i, f in enumerate(key_findings, 1):
+            lines.append(f"{i}. {f}")
+        lines.append("")
+        lines.append("## Detailed Redline Analysis")
+        lines.append("")
+        if redlines:
+            lines.append("| # | Clause | Original (truncated) | Proposed |")
+            lines.append("|---|--------|----------------------|----------|")
+            for r in (redlines or []):
+                if not isinstance(r, dict):
+                    continue
+                idx = r.get("clause_index", "?")
+                cat = r.get("clause_category", "")
+                orig = (r.get("original_text") or "").replace("|", r"\|")[:120]
+                prop = (r.get("proposed_text") or "").replace("|", r"\|")[:120]
+                lines.append(f"| {idx} | {cat} | {orig} | {prop} |")
+        else:
+            lines.append("_No redlines proposed (all clauses GREEN, or filter found no candidates)._")
+        lines.append("")
+        lines.append("## Recommended Next Steps")
+        lines.append("")
+        for i, s in enumerate(next_steps, 1):
+            lines.append(f"{i}. {s}")
+        lines.append("")
+
+        markdown = "\n".join(lines)
+
+        try:
+            await workspace.write_text_file(
+                thread_id, "contract-review-report.md", markdown, source="harness",
+            )
+        except Exception as exc:
+            logger.warning("REVIEW #6: contract-review-report.md write failed: %s", exc)
+
+        return markdown
+    ```
+
+    **D) Wire post_execute via shim** (right after imports, breaks circular import):
+    ```python
     async def _docx_post_execute_shim(**kwargs):
         from app.harnesses.contract_review_docx import _generate_docx_post_execute
         return await _generate_docx_post_execute(**kwargs)
     ```
-
-    Then in CR-08's PhaseDefinition (phases[8]): `post_execute=_docx_post_execute_shim`.
-
-    Add inline comment: `# CR-08 (phases[8]) wires post_execute via shim to break circular import (CR-21-01 lesson).`
   </action>
   <verify>
-    <automated>cd backend && source venv/bin/activate && pytest tests/harnesses/test_contract_review_docx.py::test_cr08_phase_has_post_execute_and_schema -v --tb=short || true && python -c "from app.harnesses.contract_review import ExecutiveSummary, CONTRACT_REVIEW; print('OK')"</automated>
+    <automated>cd backend && source venv/bin/activate && pytest tests/harnesses/test_contract_review_docx.py -v --tb=short -k "render_summary or executive_summary or cr08" && python -c "from app.harnesses.contract_review import ExecutiveSummary, _render_summary_markdown, CONTRACT_REVIEW; print('OK')"</automated>
   </verify>
   <acceptance_criteria>
-    - `python -c "from app.harnesses.contract_review import ExecutiveSummary; e = ExecutiveSummary(overall_risk='YELLOW', recommendation='Sign with the proposed redlines applied because two YELLOW clauses warrant negotiation.', key_findings=['IP assignment too broad', 'Liability cap too low'], risk_breakdown={'GREEN':5,'YELLOW':2,'RED':0}, next_steps=['Apply redlines 1-2']); print(e.overall_risk)"` prints `RiskGrade.YELLOW`
-    - `grep -c "ExecutiveSummary" backend/app/harnesses/contract_review.py` returns `>= 3`
-    - `grep -c "_docx_post_execute_shim\|_generate_docx_post_execute" backend/app/harnesses/contract_review.py` returns `>= 2`
-    - `python -c "from app.harnesses.contract_review import CONTRACT_REVIEW; assert CONTRACT_REVIEW.phases[8].name == 'executive-summary'; assert CONTRACT_REVIEW.phases[8].output_schema.__name__ == 'ExecutiveSummary'; assert CONTRACT_REVIEW.phases[8].post_execute is not None; print('OK')"` prints `OK`
+    - `python -c "from app.harnesses.contract_review import ExecutiveSummary; e = ExecutiveSummary(overall_risk='YELLOW', recommendation='Sign with redlines applied for two YELLOW clauses.', key_findings=['IP too broad','Liability too low'], risk_breakdown={'GREEN':5,'YELLOW':2,'RED':0}, next_steps=['Apply redlines 1-2']); print(e.overall_risk)"` prints `RiskGrade.YELLOW`
+    - `grep -c "_render_summary_markdown" backend/app/harnesses/contract_review.py` returns `>= 2`
+    - `grep -c "REVIEW #6" backend/app/harnesses/contract_review.py` returns `>= 2`
+    - `grep -c "executive-summary.json" backend/app/harnesses/contract_review.py` returns `>= 2`
+    - `python -c "from app.harnesses.contract_review import CONTRACT_REVIEW; assert CONTRACT_REVIEW.phases[8].workspace_output == 'executive-summary.json'; print('OK')"` prints `OK`
   </acceptance_criteria>
-  <done>CR-08 prompt populated, ExecutiveSummary schema added, post_execute wired via shim on phases[8].</done>
+  <done>ExecutiveSummary schema + CR-08 prompt + workspace_output changed to JSON + _render_summary_markdown helper added.</done>
 </task>
 
 <task type="auto" tdd="true">
-  <name>Task 2: Implement _generate_docx_post_execute in contract_review_docx.py</name>
+  <name>Task 2: _generate_docx_post_execute with markdown render + REVIEW #7 wrote_binary flag</name>
   <files>backend/app/harnesses/contract_review_docx.py</files>
   <read_first>
-    - backend/app/services/sandbox_service.py (lines 228-258 — `SandboxService.execute(*, code, thread_id, user_id, token)` PINNED signature; NO files= kwarg; returns {exit_code, stdout, stderr, files, ...})
-    - backend/app/services/workspace_service.py (lines 511-660 — write_binary_file signature + storage path conventions)
-    - .planning/phases/22-contract-review-harness-docx-deliverable/22-PATTERNS.md (lines 261-329 — sandbox invocation + non-fatal fallback shape; lines 100-110 — D-22-13 pastel colors + DOCX section list)
-    - backend/app/harnesses/contract_review.py (post-Task-1 — for ClauseRisk, Redline, ExecutiveSummary, RiskGrade imports)
-    - backend/app/services/audit_service.py (find log_action signature; PATTERNS.md L519-526)
+    - backend/app/services/sandbox_service.py (lines 228-258 — `SandboxService.execute(*, code, thread_id, user_id, token)` PINNED signature)
+    - backend/app/services/workspace_service.py (lines 511-660 — write_binary_file)
+    - backend/app/harnesses/contract_review.py (post-Task-1 — for ClauseRisk, ExecutiveSummary, _render_summary_markdown imports)
+    - backend/app/services/audit_service.py (find log_action)
+    - .planning/phases/22-contract-review-harness-docx-deliverable/22-REVIEWS.md (findings #6 + #7)
   </read_first>
   <behavior>
-    - Test 1: post_execute reads all 6 artifact files via workspace.read_file.
-    - Test 2: On sandbox success (exit_code=0, files=[{signed_url, ...}]), HTTP-GETs the signed URL, then calls workspace.write_binary_file with `file_path` matching `f"contract-review-{harness_run_id[:8]}.docx"`, `source="harness"`.
-    - Test 3: Returns `{"ok": True, "docx_path": "<the path>", "signed_url": "<...>"}` on success.
-    - Test 4: On sandbox non-zero exit_code, returns `{"error": "docx_generation_failed", "code": "DOCX_FAILED", "detail": "...", "fallback_message": "..."}` and does NOT raise.
-    - Test 5: Audit log fires `contract_review_docx_generated` on success, `contract_review_docx_failed` on fallback.
-    - Test 6: DOCX_GENERATION_SCRIPT_BODY string contains `from docx import Document`, `add_heading`, `add_table`, the three pastel hex codes (`E6F4EA`, `FEF7E0`, `FCE8E6`), and the literal `CONFIDENTIAL` marker (per D-22-13).
-    - Test 7: post_execute does NOT make LLM calls (assert no OpenRouterService import or call in this module).
-    - Test 8 (ISSUE-11): `_extract_json_from_markdown` parses a JSONL stream (3 newline-separated JSON objects) into a list of 3 dicts. Also parses a single ```json``` code block correctly. Also parses a raw JSON array correctly.
-    - Test 9: Sandbox call uses `SandboxService.execute(*, code, thread_id, user_id, token)` — NOT `execute_code(...files=...)`. Module text MUST contain `.execute(` and MUST NOT contain `.execute_code(` or `files=` kwarg or `timeout_seconds=` kwarg.
-    - Test 10: Module text MUST contain `exit_code` (success check) and MUST NOT contain `DOCX_B64_BEGIN` (no base64 stdout exfiltration).
-    - Test 11 (integration-gated, ISSUE-05): real-sandbox happy-path test marked `@pytest.mark.integration` and gated behind `os.getenv("RUN_SANDBOX_INTEGRATION_TESTS")`. Skipped by default in CI.
-    - Tests 12-14: misc edge cases (empty workspace files, missing signed_url, httpx timeout) — all map to the D-22-15 fallback path.
+    - Test 1: post_execute reads classification.md, review-context.md, playbook-context.md, executive-summary.json, risk-analysis.json, redlines.json from workspace.
+    - Test 2: post_execute calls `_render_summary_markdown` → contract-review-report.md gets written (REVIEW #6).
+    - Test 3: On sandbox success (exit_code=0, files=[{signed_url, ...}]), HTTP-GETs the signed URL, calls write_binary_file with `file_path="contract-review-{run_id[:8]}.docx"`, source="harness".
+    - Test 4: Returns `{"ok": True, "docx_path": ..., "signed_url": ..., "wrote_binary": True, "size_bytes": N}` on success — REVIEW #7 wrote_binary flag is True.
+    - Test 5: On sandbox non-zero exit_code, returns `{"error": ..., "code": "DOCX_FAILED", ..., "fallback_message": ...}` (does NOT raise; wrote_binary absent or False).
+    - Test 6: Audit log fires `contract_review_docx_generated` on success, `contract_review_docx_failed` on fallback.
+    - Test 7: DOCX_GENERATION_SCRIPT_BODY contains `from docx import Document`, `add_heading`, `add_table`, the three pastel hex codes (E6F4EA, FEF7E0, FCE8E6), and `CONFIDENTIAL`.
+    - Test 8: post_execute does NOT make LLM calls (no OpenRouterService imports).
+    - Test 9: PINNED API check — module text contains `.execute(` and `exit_code` and does NOT contain `execute_code`, `files=` kwarg, or `DOCX_B64_BEGIN`.
+    - Test 10 (REVIEW #6 — markdown rendered, not JSON): when post_execute runs successfully, `contract-review-report.md` was written with content starting with `# Contract Review Report` (markdown header), not `{` (JSON brace).
   </behavior>
   <action>
-    Create `backend/app/harnesses/contract_review_docx.py`. Per PATTERNS.md L28 recommendation, embed the python-docx generation logic as a STRING CONSTANT (`DOCX_GENERATION_SCRIPT_BODY`) sent to the sandbox at runtime (faster iteration than rebuilding the sandbox image).
+    Create `backend/app/harnesses/contract_review_docx.py` with the following structure:
 
-    The PINNED API is `SandboxService.execute(*, code, thread_id, user_id, token)` (NO `files=` kwarg, NO `timeout_seconds=` kwarg, NO `ok` field in result). Inputs MUST be inlined as a Python literal at the top of the script string. DOCX bytes are retrieved via HTTP GET on the signed URL returned in `sb_result["files"]` — NO base64 stdout exfiltration.
-
-    Module structure:
     ```python
     """Phase 22 / DOCX-01..08 — Sandbox-driven .docx generation post_execute callback.
 
-    Called by harness_engine after CR-08 (executive-summary) completes. Reads all
-    6 artifact files, builds a python-docx script, runs it in the sandbox via
-    SandboxService.execute(), retrieves the auto-collected DOCX from
-    sb_result["files"][0]["signed_url"], and writes it into workspace_files
-    with source='harness'.
+    Called by harness_engine after CR-08 (executive-summary) completes its LLM_SINGLE call.
 
-    D-22-12: pure programmatic generation, no template file.
-    D-22-13: pastel risk colors GREEN=#E6F4EA YELLOW=#FEF7E0 RED=#FCE8E6.
-    D-22-14: filename = contract-review-{harness_run_id[:8]}.docx, source='harness'.
+    REVIEW #6: this callback runs `_render_summary_markdown` first to produce the
+    deterministic human-readable contract-review-report.md, THEN proceeds to DOCX.
+    Without this rendering, `contract-review-report.md` would be raw JSON (LLM_SINGLE
+    writes JSON to workspace_output).
+
+    REVIEW #7: returns wrote_binary=True + size_bytes so the engine emits a
+    workspace_updated event after the DOCX write — the frontend Workspace Panel
+    auto-refreshes.
+
     D-22-15: NEVER raise — error dict + fallback_message on any failure.
-
-    ISSUE-05 PIN: SandboxService.execute() — NO files= kwarg, NO timeout_seconds= kwarg.
-    Inputs inlined as INPUT_DATA Python literal prepended to DOCX_GENERATION_SCRIPT_BODY.
-    DOCX bytes returned via auto-collected files list (not stdout base64).
     """
     from __future__ import annotations
-    import base64  # only for module-level imports if needed elsewhere — NOT used for DOCX exfiltration
     import json
     import logging
     from typing import Any
@@ -295,29 +326,22 @@ async def _generate_docx_post_execute(
 
 
     class DocxGenerationError(RuntimeError):
-        """Internal exception raised when sandbox DOCX generation fails. Always caught
-        in _generate_docx_post_execute and translated to D-22-15 fallback dict."""
+        """Internal — caught in _generate_docx_post_execute and translated to D-22-15 fallback."""
 
 
-    # The Python script that runs in the sandbox. Reads `INPUT_DATA` (a Python
-    # literal prepended by the caller) and writes the .docx to /sandbox/output/.
-    # The sandbox auto-collects /sandbox/output/* and uploads them; signed URLs
-    # are returned in sb_result["files"].
     DOCX_GENERATION_SCRIPT_BODY = r'''
     import os
     from docx import Document
-    from docx.shared import Pt, RGBColor, Inches
+    from docx.shared import Pt, RGBColor
     from docx.enum.text import WD_ALIGN_PARAGRAPH
 
-    # Inputs supplied via prepended INPUT_DATA literal (no /sandbox/inputs.json read)
     data = INPUT_DATA  # noqa: F821 — defined by inputs_literal prefix at runtime
-
-    classification = data['classification']      # dict
-    review_context_text = data['review_context'] # str (raw)
-    playbook = data['playbook']                  # dict (PlaybookContext)
-    risks = data['risks']                        # list[ClauseRisk]
-    redlines = data['redlines']                  # list[Redline]
-    exec_summary = data['executive_summary']     # dict (ExecutiveSummary)
+    classification = data['classification']
+    review_context_text = data['review_context']
+    playbook = data['playbook']
+    risks = data['risks']
+    redlines = data['redlines']
+    exec_summary = data['executive_summary']
 
     # Pastel risk colors — D-22-13
     COLOR_GREEN_FILL  = 'E6F4EA'
@@ -326,7 +350,7 @@ async def _generate_docx_post_execute(
 
     doc = Document()
 
-    # ---- DOCX-02: Title page ----
+    # Title page (DOCX-02)
     title = doc.add_paragraph()
     title.alignment = WD_ALIGN_PARAGRAPH.CENTER
     title_run = title.add_run('CONFIDENTIAL')
@@ -342,10 +366,9 @@ async def _generate_docx_post_execute(
     doc.add_paragraph(f"Parties: {', '.join(classification.get('parties', []))}")
     doc.add_paragraph(f"Governing law: {classification.get('governing_law', '?')}")
     doc.add_paragraph(f"Overall risk: {exec_summary.get('overall_risk', '?')}")
-
     doc.add_page_break()
 
-    # ---- DOCX-03: Executive summary section ----
+    # Executive summary (DOCX-03)
     doc.add_heading('Executive Summary', level=1)
     doc.add_paragraph(exec_summary.get('recommendation', ''))
     breakdown = exec_summary.get('risk_breakdown', {})
@@ -354,12 +377,12 @@ async def _generate_docx_post_execute(
         f"YELLOW: {breakdown.get('YELLOW', 0)}, GREEN: {breakdown.get('GREEN', 0)}"
     )
 
-    # ---- DOCX-04: Numbered key findings ----
+    # Numbered key findings (DOCX-04)
     doc.add_heading('Key Findings', level=1)
     for i, finding in enumerate(exec_summary.get('key_findings', []), 1):
         doc.add_paragraph(f"{i}. {finding}")
 
-    # ---- DOCX-05: Color-coded redline table ----
+    # Color-coded redline table (DOCX-05)
     doc.add_heading('Detailed Redline Analysis', level=1)
     if risks:
         table = doc.add_table(rows=1, cols=4)
@@ -370,8 +393,7 @@ async def _generate_docx_post_execute(
         hdr[2].text = 'Original'
         hdr[3].text = 'Proposed / Rationale'
 
-        # Index redlines by clause_index for lookup
-        redline_by_idx = {r.get('clause_index'): r for r in redlines}
+        redline_by_idx = {r.get('clause_index'): r for r in (redlines or [])}
 
         for risk in risks:
             row = table.add_row().cells
@@ -385,7 +407,6 @@ async def _generate_docx_post_execute(
                 row[2].text = '(no redline — see rationale)'
                 row[3].text = risk.get('rationale', '')
 
-            # Apply pastel fill on first cell per D-22-13
             grade = risk.get('risk_grade', '')
             if grade == 'GREEN':
                 fill_color = COLOR_GREEN_FILL
@@ -402,7 +423,7 @@ async def _generate_docx_post_execute(
                 shd.set(qn('w:fill'), fill_color)
                 row[0]._tc.get_or_add_tcPr().append(shd)
 
-    # ---- DOCX-06: GREEN clauses (no changes recommended) ----
+    # GREEN clauses (DOCX-06)
     doc.add_heading('Acceptable Clauses (GREEN)', level=1)
     greens = [r for r in risks if r.get('risk_grade') == 'GREEN']
     if greens:
@@ -414,12 +435,11 @@ async def _generate_docx_post_execute(
     else:
         doc.add_paragraph('None — every clause has at least YELLOW status.')
 
-    # ---- DOCX-07: Recommended next steps ----
+    # Recommended next steps (DOCX-07)
     doc.add_heading('Recommended Next Steps', level=1)
     for i, step in enumerate(exec_summary.get('next_steps', []), 1):
         doc.add_paragraph(f"{i}. {step}")
 
-    # Persist to sandbox output dir — auto-collected by SandboxService and uploaded
     out_path = '/sandbox/output/contract-review.docx'
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     doc.save(out_path)
@@ -434,49 +454,55 @@ async def _generate_docx_post_execute(
         user_email: str,
         token: str,
         phase_results: dict,
-        workspace,                # WorkspaceService instance threaded by engine
+        workspace,
+        harness_name: str = "contract-review",
+        **_,  # forward-compat
     ) -> dict:
-        """Read 6 artifacts, run python-docx in sandbox via SandboxService.execute(),
-        retrieve auto-collected DOCX bytes, and write to workspace.
+        """REVIEW #6 + #7 + D-22-15. NEVER raises."""
+        from app.harnesses.contract_review import _render_summary_markdown
 
-        ISSUE-05: sandbox API pinned to SandboxService.execute(); inputs inlined as
-        Python literal; DOCX returned via auto-collected files list (not stdout base64).
-
-        D-22-15 invariant: NEVER raise. All failure modes return error dicts.
-        """
         run_id_short = (harness_run_id or "")[:8] or "unknown"
         out_path = f"contract-review-{run_id_short}.docx"
 
         try:
-            # 1. Read all 6 artifact files from workspace
+            # Read all artifacts
             classification_md = (await workspace.read_file(thread_id, "classification.md")).get("content", "")
             review_ctx = (await workspace.read_file(thread_id, "review-context.md")).get("content", "")
             playbook_md = (await workspace.read_file(thread_id, "playbook-context.md")).get("content", "")
             risks_md = (await workspace.read_file(thread_id, "risk-analysis.json")).get("content", "")
             redlines_md = (await workspace.read_file(thread_id, "redlines.json")).get("content", "")
-            summary_md = (await workspace.read_file(thread_id, "contract-review-report.md")).get("content", "")
+            exec_summary_md = (await workspace.read_file(thread_id, "executive-summary.json")).get("content", "")
 
-            # Parse classification + summary out of their markdown wrappers (LLM_SINGLE writes JSON)
             classification = _extract_json_from_markdown(classification_md)
             playbook = _extract_json_from_markdown(playbook_md)
             risks = _extract_json_from_markdown(risks_md, default=[])
             redlines = _extract_json_from_markdown(redlines_md, default=[])
-            executive_summary = _extract_json_from_markdown(summary_md)
+            executive_summary = _extract_json_from_markdown(exec_summary_md)
 
+            # REVIEW #6: render the deterministic markdown report BEFORE DOCX generation
+            await _render_summary_markdown(
+                executive_summary=executive_summary if isinstance(executive_summary, dict) else {},
+                classification=classification if isinstance(classification, dict) else {},
+                playbook=playbook if isinstance(playbook, dict) else {},
+                risks=risks if isinstance(risks, list) else [],
+                redlines=redlines if isinstance(redlines, list) else [],
+                workspace=workspace,
+                thread_id=thread_id,
+            )
+
+            # Build sandbox inputs
             sandbox_inputs = {
-                "classification": classification,
+                "classification": classification if isinstance(classification, dict) else {},
                 "review_context": review_ctx,
-                "playbook": playbook,
-                "risks": risks if isinstance(risks, list) else risks.get("clauses", []),
-                "redlines": redlines if isinstance(redlines, list) else redlines.get("redlines", []),
-                "executive_summary": executive_summary,
+                "playbook": playbook if isinstance(playbook, dict) else {},
+                "risks": risks if isinstance(risks, list) else [],
+                "redlines": redlines if isinstance(redlines, list) else [],
+                "executive_summary": executive_summary if isinstance(executive_summary, dict) else {},
             }
 
-            # 2. Submit to sandbox — PINNED API: SandboxService.execute()
             from app.services.sandbox_service import get_sandbox_service
             sb = get_sandbox_service()
 
-            # Inputs inlined as Python literal at top of script (NO files= kwarg available)
             inputs_literal = f"INPUT_DATA = {json.dumps(sandbox_inputs, ensure_ascii=False)}\n"
             code_with_inputs = inputs_literal + DOCX_GENERATION_SCRIPT_BODY
 
@@ -488,25 +514,18 @@ async def _generate_docx_post_execute(
             )
             if sb_result.get("exit_code") != 0:
                 stderr = (sb_result.get("stderr") or "")[:500]
-                raise DocxGenerationError(
-                    f"sandbox exit_code={sb_result.get('exit_code')}: {stderr}"
-                )
+                raise DocxGenerationError(f"sandbox exit_code={sb_result.get('exit_code')}: {stderr}")
 
-            # 3. Retrieve DOCX bytes from auto-collected files (NOT stdout base64)
             sb_files = sb_result.get("files") or []
             if not sb_files:
-                raise DocxGenerationError(
-                    "sandbox produced no output files (expected contract-review.docx)"
-                )
+                raise DocxGenerationError("sandbox produced no output files")
+
             docx_meta = next(
                 (f for f in sb_files if f.get("filename") == "contract-review.docx"),
                 None,
             )
             if docx_meta is None:
-                names = [f.get("filename") for f in sb_files]
-                raise DocxGenerationError(
-                    f"contract-review.docx missing in sandbox files: {names}"
-                )
+                raise DocxGenerationError(f"contract-review.docx missing in sandbox files: {[f.get('filename') for f in sb_files]}")
             sandbox_signed_url = docx_meta.get("signed_url") or ""
             if not sandbox_signed_url:
                 raise DocxGenerationError("sandbox file missing signed_url")
@@ -518,7 +537,7 @@ async def _generate_docx_post_execute(
             if not docx_bytes:
                 raise DocxGenerationError("sandbox returned empty DOCX bytes")
 
-            # 4. Write binary to workspace
+            # Workspace write
             await workspace.write_binary_file(
                 thread_id=thread_id,
                 file_path=out_path,
@@ -528,14 +547,14 @@ async def _generate_docx_post_execute(
                 source="harness",
             )
 
-            # 5. Get a signed URL for the chat bubble link
-            signed_url = (
-                await workspace.get_signed_url(thread_id, out_path)
-                if hasattr(workspace, "get_signed_url")
-                else ""
-            )
+            # Signed URL for chat chip
+            signed_url = ""
+            if hasattr(workspace, "get_signed_url"):
+                try:
+                    signed_url = await workspace.get_signed_url(thread_id, out_path) or ""
+                except Exception as exc:
+                    logger.warning("get_signed_url failed (non-fatal): %s", exc)
 
-            # 6. Audit log
             try:
                 audit_service.log_action(
                     user_id=user_id, user_email=user_email,
@@ -545,7 +564,14 @@ async def _generate_docx_post_execute(
             except Exception as exc:
                 logger.warning("audit log failed (non-fatal): %s", exc)
 
-            return {"ok": True, "docx_path": out_path, "signed_url": signed_url}
+            # REVIEW #7: wrote_binary=True signals plan 22-03 engine to emit workspace_updated
+            return {
+                "ok": True,
+                "docx_path": out_path,
+                "signed_url": signed_url,
+                "wrote_binary": True,
+                "size_bytes": len(docx_bytes),
+            }
 
         except Exception as exc:
             logger.warning(
@@ -572,13 +598,10 @@ async def _generate_docx_post_execute(
 
 
     def _extract_json_from_markdown(md_text: str, default: Any = None) -> Any:
-        """LLM_SINGLE phases write markdown with a ```json``` code block; extract it.
-        Also handles JSONL streams (one JSON object per line) and raw JSON arrays/objects."""
         if default is None:
             default = {}
         if not md_text:
             return default
-        # Try to find a ```json code block
         import re as _re
         m = _re.search(r"```json\s*(\{.*?\}|\[.*?\])\s*```", md_text, _re.DOTALL)
         if m:
@@ -586,166 +609,145 @@ async def _generate_docx_post_execute(
                 return json.loads(m.group(1))
             except Exception:
                 pass
-        # Fallback: try to parse the whole text as JSON
         try:
             return json.loads(md_text)
         except Exception:
             pass
-        # JSONL fallback: one JSON object per non-empty line
-        try:
-            rows = []
-            for line in md_text.strip().splitlines():
-                line = line.strip()
-                if not line:
-                    continue
-                rows.append(json.loads(line))
-            if rows:
-                return rows
-        except Exception:
-            pass
         return default
     ```
-
-    Note the deliberate API choices:
-    - `await sb.execute(code=..., thread_id=..., user_id=..., token=...)` — PINNED signature, no `files=` or `timeout_seconds=` kwargs.
-    - Success check: `sb_result.get("exit_code") != 0` (NOT `sb_result.get("ok")`).
-    - DOCX retrieval: HTTP GET on `sb_result["files"][0]["signed_url"]`. NO `DOCX_B64_BEGIN` markers, NO base64 stdout extraction.
-    - Inputs marshaled via prepended `INPUT_DATA = {...}` Python literal — no /sandbox/inputs.json file read.
   </action>
   <verify>
     <automated>cd backend && source venv/bin/activate && pytest tests/harnesses/test_contract_review_docx.py -v --tb=short && python -c "from app.harnesses.contract_review_docx import _generate_docx_post_execute, DOCX_GENERATION_SCRIPT_BODY; print('OK' if 'CONFIDENTIAL' in DOCX_GENERATION_SCRIPT_BODY else 'FAIL')"</automated>
   </verify>
   <acceptance_criteria>
     - `grep -c "CONFIDENTIAL\|E6F4EA\|FEF7E0\|FCE8E6" backend/app/harnesses/contract_review_docx.py` returns `>= 4`
-    - `grep -c "_generate_docx_post_execute" backend/app/harnesses/contract_review_docx.py` returns `>= 2`
-    - `grep -c "OpenRouterService\|chat_completion" backend/app/harnesses/contract_review_docx.py` returns `0` (no LLM calls in post_execute)
+    - `grep -c "_render_summary_markdown" backend/app/harnesses/contract_review_docx.py` returns `>= 1` (REVIEW #6 — called inside post_execute)
+    - `grep -c "wrote_binary" backend/app/harnesses/contract_review_docx.py` returns `>= 1` (REVIEW #7)
+    - `grep -c "OpenRouterService\|chat_completion" backend/app/harnesses/contract_review_docx.py` returns `0`
     - `grep -c "contract_review_docx_generated\|contract_review_docx_failed" backend/app/harnesses/contract_review_docx.py` returns `>= 2`
-    - `grep -q "\.execute(" backend/app/harnesses/contract_review_docx.py && grep -q "exit_code" backend/app/harnesses/contract_review_docx.py` exits 0 (PINNED API present)
-    - `grep -c "execute_code\|DOCX_B64_BEGIN\|/sandbox/inputs.json" backend/app/harnesses/contract_review_docx.py` returns `0` (old API removed)
-    - `python -c "from app.harnesses.contract_review_docx import DOCX_GENERATION_SCRIPT_BODY; assert 'add_heading' in DOCX_GENERATION_SCRIPT_BODY and 'add_table' in DOCX_GENERATION_SCRIPT_BODY and 'CONFIDENTIAL' in DOCX_GENERATION_SCRIPT_BODY and '#FCE8E6' in DOCX_GENERATION_SCRIPT_BODY.replace('FCE8E6', '#FCE8E6'); print('OK')"` prints `OK` (pastel hex codes present per D-22-13)
+    - `grep -q "\.execute(" backend/app/harnesses/contract_review_docx.py && grep -q "exit_code" backend/app/harnesses/contract_review_docx.py` exits 0
+    - `grep -c "execute_code\|DOCX_B64_BEGIN" backend/app/harnesses/contract_review_docx.py` returns `0`
   </acceptance_criteria>
-  <done>post_execute callable + DOCX_GENERATION_SCRIPT_BODY string + audit logging + non-fatal fallback all in place; PINNED SandboxService.execute() API used exclusively.</done>
+  <done>post_execute callable + markdown render + wrote_binary flag + DOCX script body all in place.</done>
 </task>
 
 <task type="auto" tdd="true">
-  <name>Task 3: Add CR-08 + DOCX tests</name>
+  <name>Task 3: CR-08 + DOCX tests (REVIEW #6 + #7)</name>
   <files>backend/tests/harnesses/test_contract_review_docx.py</files>
   <read_first>
-    - backend/app/harnesses/contract_review.py + backend/app/harnesses/contract_review_docx.py (post-Task-2 state)
+    - backend/app/harnesses/contract_review.py + contract_review_docx.py (post-Task-2 state)
     - backend/tests/services/test_harness_engine_post_execute.py (analog from plan 22-03)
   </read_first>
   <behavior>
-    Combines behaviors from Task 1 (6 tests) and Task 2 (8 tests, including ISSUE-11 JSONL handling) for a total of 14 tests (13 unit + 1 integration-gated real-sandbox). The integration test is skipped unless `RUN_SANDBOX_INTEGRATION_TESTS=1`. See behavior blocks above.
+    See behaviors 1-10 in Task 1 + 1-10 in Task 2. Total ~14 unit tests + 1 integration-gated.
   </behavior>
   <action>
-    Create `backend/tests/harnesses/test_contract_review_docx.py` with 14 tests (13 unit, 1 integration-gated).
+    Create `backend/tests/harnesses/test_contract_review_docx.py` with ~15 tests.
 
-    For tests 2-5 of Task 2 (post_execute behavior), mock:
-    - `WorkspaceService.read_file` returning canned markdown content for each of the 6 files
-    - `WorkspaceService.write_binary_file` returning `{"ok": True, "size_bytes": 12345}`
-    - `WorkspaceService.get_signed_url` returning `"https://example.com/signed"`
-    - `sandbox_service.get_sandbox_service().execute` returning `{"exit_code": 0, "stdout": "", "stderr": "", "files": [{"filename": "contract-review.docx", "size_bytes": 12345, "signed_url": "https://sandbox.example/abc.docx", "storage_path": "..."}]}`
-    - `httpx.AsyncClient.get` returning a response with `content=b"FAKE_DOCX_BYTES"` and `raise_for_status` no-op
-    - `audit_service.log_action` (assert called with the right action strings)
-
-    Concrete test 4 (sandbox failure → fallback):
+    Concrete test 4 (REVIEW #7 — wrote_binary):
     ```python
     @pytest.mark.asyncio
-    async def test_post_execute_sandbox_failure_returns_error_dict():
+    async def test_post_execute_returns_wrote_binary_true_on_success():
+        """REVIEW #7: post_execute return must include wrote_binary=True + size_bytes
+        so the engine (plan 22-03) emits workspace_updated."""
         from app.harnesses.contract_review_docx import _generate_docx_post_execute
         ws = MagicMock()
-        ws.read_file = AsyncMock(return_value={"content": '{"ok": true}'})
+        ws.read_file = AsyncMock(return_value={"content": '{"overall_risk":"GREEN","recommendation":"x"*30,"key_findings":["a"],"risk_breakdown":{"GREEN":1},"next_steps":["b"]}'})
+        ws.write_text_file = AsyncMock(return_value={"ok": True})
+        ws.write_binary_file = AsyncMock(return_value={"ok": True})
+        ws.get_signed_url = AsyncMock(return_value="https://example.com/signed")
 
         with patch("app.services.sandbox_service.get_sandbox_service") as gs:
-            gs.return_value.execute = AsyncMock(return_value={"exit_code": 1, "stderr": "boom", "files": []})
-            result = await _generate_docx_post_execute(
-                harness_run_id="abc12345",
-                thread_id="thr",
-                user_id="u",
-                user_email="e@x",
-                token="tok",
-                phase_results={},
-                workspace=ws,
-            )
-        assert result["error"] == "docx_generation_failed"
-        assert result["code"] == "DOCX_FAILED"
-        assert "fallback_message" in result
-        # MUST NOT raise — pytest will fail if exception propagates
+            gs.return_value.execute = AsyncMock(return_value={
+                "exit_code": 0, "stdout": "", "stderr": "",
+                "files": [{"filename": "contract-review.docx", "size_bytes": 9876,
+                           "signed_url": "https://sandbox.example/abc.docx"}],
+            })
+            with patch("httpx.AsyncClient") as hc_cls:
+                hc_cls.return_value.__aenter__.return_value.get = AsyncMock(
+                    return_value=MagicMock(content=b"FAKE_DOCX_BYTES", raise_for_status=lambda: None)
+                )
+                result = await _generate_docx_post_execute(
+                    harness_run_id="abc12345", thread_id="thr", user_id="u",
+                    user_email="e@x", token="tok", phase_results={}, workspace=ws,
+                )
+
+        assert result["ok"] is True
+        assert result["wrote_binary"] is True, "REVIEW #7: must signal engine to emit workspace_updated"
+        assert result["size_bytes"] == len(b"FAKE_DOCX_BYTES")
+        assert result["docx_path"] == "contract-review-abc12345.docx"
     ```
 
-    Concrete test 6 (script structure — pastel colors and required sections per D-22-13):
+    Concrete test 10 (REVIEW #6 — markdown rendered, not JSON):
     ```python
-    def test_docx_script_body_has_required_sections_and_pastel_colors():
-        from app.harnesses.contract_review_docx import DOCX_GENERATION_SCRIPT_BODY
-        # Required python-docx primitives
-        assert "add_heading" in DOCX_GENERATION_SCRIPT_BODY
-        assert "add_table" in DOCX_GENERATION_SCRIPT_BODY
-        # Required content marker (DOCX-02 title page)
-        assert "CONFIDENTIAL" in DOCX_GENERATION_SCRIPT_BODY
-        # Pastel risk colors per D-22-13
-        assert "E6F4EA" in DOCX_GENERATION_SCRIPT_BODY  # GREEN
-        assert "FEF7E0" in DOCX_GENERATION_SCRIPT_BODY  # YELLOW
-        assert "FCE8E6" in DOCX_GENERATION_SCRIPT_BODY  # RED
-    ```
-
-    Concrete test 7 (no LLM calls — module-level static check):
-    ```python
-    def test_docx_module_makes_no_llm_calls():
-        import pathlib
-        text = pathlib.Path("backend/app/harnesses/contract_review_docx.py").read_text()
-        assert "OpenRouterService" not in text
-        assert "chat_completion" not in text
-    ```
-
-    Concrete test 9 (PINNED API check — no execute_code, no files= kwarg, no DOCX_B64_BEGIN):
-    ```python
-    def test_module_uses_pinned_sandbox_api_only():
-        import pathlib
-        text = pathlib.Path("backend/app/harnesses/contract_review_docx.py").read_text()
-        assert ".execute(" in text, "must call SandboxService.execute()"
-        assert "exit_code" in text, "must check exit_code (not 'ok')"
-        assert "execute_code" not in text, "must NOT use legacy execute_code API"
-        assert "DOCX_B64_BEGIN" not in text, "must NOT base64-exfiltrate via stdout"
-        assert "/sandbox/inputs.json" not in text, "must inline INPUT_DATA, not file-read"
-    ```
-
-    Test 11 (integration-gated, ISSUE-05 — real sandbox):
-    ```python
-    @pytest.mark.integration
-    @pytest.mark.skipif(not os.getenv("RUN_SANDBOX_INTEGRATION_TESTS"), reason="real sandbox gated")
     @pytest.mark.asyncio
-    async def test_post_execute_real_sandbox_smoke():
-        # Invokes _generate_docx_post_execute with real SandboxService (NOT stub).
-        # Asserts non-empty DOCX bytes returned and write_binary_file called.
-        ...
+    async def test_post_execute_writes_markdown_not_json_to_report_file():
+        """REVIEW #6: contract-review-report.md must be MARKDOWN (starts with '# '), NOT
+        raw JSON in a .md file. The deterministic _render_summary_markdown step ensures this."""
+        from app.harnesses.contract_review_docx import _generate_docx_post_execute
+        captured_writes: dict[str, str] = {}
+        ws = MagicMock()
+        ws.read_file = AsyncMock(return_value={"content": json.dumps({
+            "overall_risk": "RED",
+            "recommendation": "Negotiate the liability cap upward before signing.",
+            "key_findings": ["Liability cap too low"],
+            "risk_breakdown": {"GREEN": 1, "YELLOW": 0, "RED": 1},
+            "next_steps": ["Apply redline 1"],
+        })})
+        async def _wt(thread_id, file_path, content, source="agent"):
+            captured_writes[file_path] = content
+            return {"ok": True}
+        ws.write_text_file = AsyncMock(side_effect=_wt)
+        ws.write_binary_file = AsyncMock(return_value={"ok": True})
+        ws.get_signed_url = AsyncMock(return_value="https://example.com/signed")
+
+        with patch("app.services.sandbox_service.get_sandbox_service") as gs:
+            gs.return_value.execute = AsyncMock(return_value={
+                "exit_code": 0, "files": [{"filename": "contract-review.docx",
+                                            "signed_url": "https://x.example/abc.docx"}],
+            })
+            with patch("httpx.AsyncClient") as hc_cls:
+                hc_cls.return_value.__aenter__.return_value.get = AsyncMock(
+                    return_value=MagicMock(content=b"docx", raise_for_status=lambda: None)
+                )
+                await _generate_docx_post_execute(
+                    harness_run_id="r", thread_id="thr", user_id="u",
+                    user_email="e@x", token="tok", phase_results={}, workspace=ws,
+                )
+
+        assert "contract-review-report.md" in captured_writes, "REVIEW #6: report.md must be written"
+        report_md = captured_writes["contract-review-report.md"]
+        assert report_md.lstrip().startswith("# Contract Review Report"), (
+            "REVIEW #6: report must start with markdown header, NOT JSON"
+        )
+        assert not report_md.lstrip().startswith("{"), "Report must NOT be raw JSON"
     ```
   </action>
   <verify>
     <automated>cd backend && source venv/bin/activate && pytest tests/harnesses/test_contract_review_docx.py -v --tb=short</automated>
   </verify>
   <acceptance_criteria>
-    - `pytest backend/tests/harnesses/test_contract_review_docx.py -v` exits 0; 14 tests collected (13 unit + 1 integration-gated; integration test skipped unless RUN_SANDBOX_INTEGRATION_TESTS=1)
-    - ISSUE-05 acceptance: a real-sandbox integration test exists, marked `@pytest.mark.integration` and gated behind `os.getenv("RUN_SANDBOX_INTEGRATION_TESTS")`. It invokes `_generate_docx_post_execute` with a real `SandboxService` (not stub) and asserts a non-empty DOCX returned. CI defaults to skipping (env unset) but the test MUST exist.
+    - `pytest backend/tests/harnesses/test_contract_review_docx.py -v` exits 0 with ~15 tests
+    - `grep -c "REVIEW #6\|REVIEW #7" backend/tests/harnesses/test_contract_review_docx.py` returns `>= 2`
+    - `grep -c "wrote_binary" backend/tests/harnesses/test_contract_review_docx.py` returns `>= 1`
+    - `grep -c "# Contract Review Report" backend/tests/harnesses/test_contract_review_docx.py` returns `>= 1`
     - `grep -c "DOCX_FAILED\|fallback_message" backend/tests/harnesses/test_contract_review_docx.py` returns `>= 2`
-    - `grep -q "\.execute(" backend/tests/harnesses/test_contract_review_docx.py && grep -q "exit_code" backend/tests/harnesses/test_contract_review_docx.py` exits 0
   </acceptance_criteria>
-  <done>14 tests pass (13 unit + 1 integration-gated; integration test skipped unless RUN_SANDBOX_INTEGRATION_TESTS=1), locking in CR-08 + DOCX-01..08 contracts and the PINNED SandboxService.execute() API.</done>
+  <done>15 tests pass, REVIEW #6 + #7 anti-regression locked in.</done>
 </task>
 
 </tasks>
 
 <truths>
 - D-22-12 (programmatic generation, no template) — script as string, runs in sandbox.
-- D-22-13 (pastel risk colors) — three exact hex codes (#E6F4EA, #FEF7E0, #FCE8E6).
-- D-22-14 (filename pattern, source='harness', no auto-download) — filename uses `harness_run_id[:8]`.
-- D-22-15 (non-fatal fallback) — error dict + fallback_message; harness_runs.status stays `completed` (enforced by plan 22-03 invocation site).
-- B4 single-registry NOT applicable here — post_execute does NOT call cloud LLMs (plan 22-09 covered all LLM call sites for CR-06/07; CR-08 LLM_SINGLE is the engine's normal LLM call before post_execute fires).
-- SEC-04 NOT applicable — no LLM payload here.
-- OBS-02: thread_id correlation logging via the existing logger.warning calls.
-- Audit log: `contract_review_docx_generated` on success, `contract_review_docx_failed` on fallback (PATTERNS.md L527).
-- CR-21-01 circular-import guard via `_docx_post_execute_shim` lazy import.
-- ISSUE-05 PIN: SandboxService.execute() — NO files= kwarg, NO timeout_seconds= kwarg, NO ok field. Inputs inlined as INPUT_DATA literal; DOCX bytes via auto-collected files list (NOT base64 stdout).
-- CR-08 lives at phases[8] in the 9-phase HarnessDefinition (filter-redline-candidates inserted at phases[6] shifts CR-07 to phases[7] and CR-08 to phases[8]).
+- D-22-13 (pastel risk colors) — three exact hex codes.
+- D-22-14 (filename pattern, source='harness', no auto-download).
+- D-22-15 (non-fatal fallback) — error dict + fallback_message; harness_runs.status stays `completed`.
+- REVIEW #6 closed: CR-08 LLM_SINGLE writes executive-summary.json (JSON); _render_summary_markdown produces contract-review-report.md as actual markdown.
+- REVIEW #7 closed: post_execute returns wrote_binary=True + size_bytes; plan 22-03's engine wrapper emits workspace_updated downstream.
+- ISSUE-05 PIN: SandboxService.execute() — NO files= kwarg, NO timeout_seconds= kwarg.
+- CR-21-01 circular-import guard via _docx_post_execute_shim lazy import.
+- CR-08 lives at phases[8] in 9-phase definition (filter at phases[6] shifts CR-07 to phases[7], CR-08 to phases[8]).
 </truths>
 
 <threat_model>
@@ -753,36 +755,36 @@ async def _generate_docx_post_execute(
 
 | Boundary | Description |
 |----------|-------------|
-| Workspace artifact files → sandbox script | Files contain real PII; sandbox is isolated container, not host |
+| Workspace artifact files → sandbox script | Files contain real PII; sandbox isolated |
 | Sandbox auto-collected files → backend HTTP GET | Signed URL fetch bounded by httpx 60s timeout |
-| DOCX bytes → workspace write_binary_file | RLS enforces thread-ownership; binary stored in Supabase Storage with metadata in workspace_files |
+| DOCX bytes → workspace write_binary_file | RLS enforces thread-ownership |
 
 ## STRIDE Threat Register
 
 | Threat ID | Category | Component | Disposition | Mitigation Plan |
 |-----------|----------|-----------|-------------|-----------------|
-| T-22-10-01 | Information Disclosure | DOCX file path traversal | mitigate | Filename `contract-review-{8-char-hex}.docx` is safe; `validate_workspace_path` upstream rejects `..` `/` etc |
-| T-22-10-02 | Tampering | INPUT_DATA literal escape via injected JSON | mitigate | All inputs json.dumps'd — no raw text concatenation; sandbox isolation prevents host impact |
-| T-22-10-03 | DoS | Pathological input causing 5GB DOCX | mitigate | Sandbox config-level timeout; redline cell text capped at 1500 chars in script |
-| T-22-10-04 | Information Disclosure | DOCX containing PII reaching cloud LLM | n/a | post_execute does NOT call any LLM (Test 7 enforces); DOCX is purely deterministic serialization |
-| T-22-10-05 | Repudiation | DOCX generation untraceable | mitigate | audit_service.log_action with `contract_review_docx_generated` / `_failed`; existing LangSmith covers harness_engine |
+| T-22-10-01 | Information Disclosure | DOCX file path traversal | mitigate | Filename `contract-review-{8-char-hex}.docx` is safe |
+| T-22-10-02 | Tampering | INPUT_DATA literal escape via injected JSON | mitigate | json.dumps inputs; sandbox isolation |
+| T-22-10-03 | DoS | Pathological input causing huge DOCX | mitigate | Sandbox config-level timeout; redline cell text capped |
+| T-22-10-04 | Information Disclosure | DOCX containing PII reaching cloud LLM | n/a | post_execute makes NO LLM calls; deterministic serialization only |
+| T-22-10-05 | Repudiation | DOCX generation untraceable | mitigate | audit_service.log_action for both generated + failed paths |
 </threat_model>
 
 <verification>
-1. `pytest backend/tests/harnesses/test_contract_review_docx.py -v` exits 0 with 14 tests collected (13 unit + 1 integration-gated)
-2. `pytest backend/tests/harnesses/ backend/tests/services/test_harness_engine_post_execute.py -v` exits 0 (full regression)
+1. `pytest backend/tests/harnesses/test_contract_review_docx.py -v` exits 0
+2. `pytest backend/tests/harnesses/ backend/tests/services/test_harness_engine_post_execute.py -v` exits 0
 3. `python -c "from app.main import app; print('OK')"` prints `OK`
-4. `python -c "from app.harnesses.contract_review import CONTRACT_REVIEW; assert all(p.system_prompt_template != 'STUB' or p.executor for p in CONTRACT_REVIEW.phases); print('OK')"` prints `OK` — no remaining STUBs
-5. `python -c "from app.harnesses.contract_review import CONTRACT_REVIEW; assert CONTRACT_REVIEW.phases[8].name == 'executive-summary' and CONTRACT_REVIEW.phases[8].post_execute is not None; print('OK')"` prints `OK`
+4. `python -c "from app.harnesses.contract_review import CONTRACT_REVIEW; assert CONTRACT_REVIEW.phases[8].workspace_output == 'executive-summary.json' and CONTRACT_REVIEW.phases[8].post_execute is not None; print('OK')"` prints `OK`
 </verification>
 
 <success_criteria>
-- CR-08 LLM_SINGLE writes contract-review-report.md with ExecutiveSummary
-- post_execute generates a polished .docx with all 7 sections
-- Pastel risk colors honored (D-22-13)
+- CR-08 LLM_SINGLE writes executive-summary.json (REVIEW #6: JSON, not pretending to be markdown)
+- _render_summary_markdown produces real markdown contract-review-report.md
+- post_execute generates polished .docx with all 7 sections
+- post_execute returns wrote_binary=True (REVIEW #7) so engine emits workspace_updated
 - D-22-15 fallback path tested
-- PINNED SandboxService.execute() API used exclusively (no execute_code, no files= kwarg, no base64 stdout exfiltration)
-- Off-mode invariant: when contract_review_enabled=False, the harness is not registered, post_execute callable is dead code
+- PINNED SandboxService.execute() API used exclusively
+- Off-mode invariant: when contract_review_enabled=False, harness not registered, post_execute callable is dead code
 </success_criteria>
 
 <output>

@@ -182,12 +182,12 @@ Full archive: `.planning/milestones/v1.1-ROADMAP.md`
   5. Phase 8 (executive summary, llm_single + post_execute) writes `contract-review-report.md` (overall risk, recommendation, key findings, RED/YELLOW/GREEN breakdown), and the post_execute callback runs a sandbox python-docx script to generate a CONFIDENTIAL-marked `.docx` with title page, executive summary, key findings list, color-coded redline table, acceptable-clauses (GREEN) section, and recommended next steps; if sandbox is unavailable, the markdown report is still saved (non-fatal degradation).
 **Plans:** 12 plans
 - [ ] 22-01-PLAN.md — Sandbox image bump: python-docx + PyPDF2 (DOCX-01 prereq)
-- [ ] 22-02-PLAN.md — Tool registry adapter-wrap: search_documents_by_doc_ids (D-22-06)
-- [ ] 22-03-PLAN.md — Engine post_execute invocation site + harness_artifact SSE event (DOCX-08)
+- [ ] 22-02-PLAN.md — Tool registry adapter-wrap: list_playbook_documents + search_documents_by_doc_ids (D-22-05/06; REVIEW #1, #10)
+- [ ] 22-03-PLAN.md — Engine post_execute invocation + harness_artifact + workspace_updated chaining (DOCX-08; REVIEW #7, #8)
 - [ ] 22-04-PLAN.md — Workspace-aware gatekeeper system prompt + few-shots (D-22-01..03, CR-21-08 fix)
 - [ ] 22-05-PLAN.md — Gatekeeper trigger eval set (15 phrasings) + CI test (D-22-04)
 - [ ] 22-06-PLAN.md — contract_review.py skeleton + CR-01 intake + CR-02 classification (flag-gated)
-- [ ] 22-07-PLAN.md — CR-03 HIL gather context + CR-04 LLM_AGENT load playbook (D-22-05..09)
+- [ ] 22-07-PLAN.md — CR-03 HIL gather context + CR-04 LLM_AGENT load playbook with list_playbook_documents (D-22-05..09; REVIEW #1)
 - [ ] 22-08-PLAN.md — CR-05 clause extraction (programmatic + chunked LLM + dedupe)
 - [ ] 22-09-PLAN.md — CR-06 risk analysis + CR-07 redline generation (LLM_BATCH_AGENTS x2)
 - [ ] 22-10-PLAN.md — CR-08 executive summary + DOCX post_execute (DOCX-01..08)
