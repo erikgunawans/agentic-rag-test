@@ -216,6 +216,120 @@ class Redline(BaseModel):
     fallback_positions: list[str] = Field(default_factory=list, max_length=5)
 
 
+# ---------------------------------------------------------------------------
+# CR-08 — Executive Summary output schema (plan 22-10, REVIEW #6)
+# ---------------------------------------------------------------------------
+
+class ExecutiveSummary(BaseModel):
+    """CR-08 LLM output. Written as JSON to executive-summary.json (REVIEW #6).
+
+    LLM_SINGLE writes raw JSON to workspace_output — NOT markdown. The
+    _render_summary_markdown helper (also plan 22-10) converts this JSON into
+    the human-readable contract-review-report.md in the post_execute callback.
+    """
+    overall_risk: RiskGrade
+    recommendation: str = Field(..., min_length=20, max_length=2000)
+    key_findings: list[str] = Field(..., min_length=1, max_length=10)
+    risk_breakdown: dict[str, int]
+    next_steps: list[str] = Field(..., min_length=1, max_length=10)
+
+
+async def _render_summary_markdown(
+    *,
+    executive_summary: dict,
+    classification: dict,
+    playbook: dict,
+    risks: list,
+    redlines: list,
+    workspace,
+    thread_id: str,
+) -> str:
+    """REVIEW #6: deterministic markdown render of executive-summary.json into
+    contract-review-report.md. CR-08's LLM_SINGLE writes the JSON; this helper
+    produces the human-readable markdown that users (and the DOCX) consume.
+
+    REVIEW #6 invariant: renders starts with '# ' (markdown header), NOT '{' (JSON).
+
+    Returns the rendered markdown string AND writes contract-review-report.md.
+    """
+    rb = executive_summary.get("risk_breakdown") or {}
+    red_n = int(rb.get("RED", 0))
+    yellow_n = int(rb.get("YELLOW", 0))
+    green_n = int(rb.get("GREEN", 0))
+
+    contract_type = classification.get("contract_type", "Unknown")
+    parties = classification.get("parties") or []
+    governing_law = classification.get("governing_law", "?")
+    overall_risk = executive_summary.get("overall_risk", "?")
+    recommendation = executive_summary.get("recommendation", "")
+    key_findings = executive_summary.get("key_findings") or []
+    next_steps = executive_summary.get("next_steps") or []
+
+    lines: list[str] = []
+    lines.append("# Contract Review Report")
+    lines.append("")
+    lines.append("**CONFIDENTIAL — Privileged Legal Analysis**")
+    lines.append("")
+    lines.append(f"- **Contract type:** {contract_type}")
+    lines.append(f"- **Parties:** {', '.join(parties) if parties else '—'}")
+    lines.append(f"- **Governing law:** {governing_law}")
+    lines.append(f"- **Overall risk:** **{overall_risk}**")
+    lines.append("")
+    lines.append("## Executive Summary")
+    lines.append("")
+    lines.append(recommendation)
+    lines.append("")
+    lines.append("## Risk Breakdown")
+    lines.append("")
+    lines.append(f"- RED: **{red_n}**")
+    lines.append(f"- YELLOW: **{yellow_n}**")
+    lines.append(f"- GREEN: **{green_n}**")
+    lines.append("")
+    lines.append("## Key Findings")
+    lines.append("")
+    for i, f in enumerate(key_findings, 1):
+        lines.append(f"{i}. {f}")
+    lines.append("")
+    lines.append("## Detailed Redline Analysis")
+    lines.append("")
+    if redlines:
+        lines.append("| # | Clause | Original (truncated) | Proposed |")
+        lines.append("|---|--------|----------------------|----------|")
+        for r in (redlines or []):
+            if not isinstance(r, dict):
+                continue
+            idx = r.get("clause_index", "?")
+            cat = r.get("clause_category", "")
+            orig = (r.get("original_text") or "").replace("|", r"\|")[:120]
+            prop = (r.get("proposed_text") or "").replace("|", r"\|")[:120]
+            lines.append(f"| {idx} | {cat} | {orig} | {prop} |")
+    else:
+        lines.append("_No redlines proposed (all clauses GREEN, or filter found no candidates)._")
+    lines.append("")
+    lines.append("## Recommended Next Steps")
+    lines.append("")
+    for i, s in enumerate(next_steps, 1):
+        lines.append(f"{i}. {s}")
+    lines.append("")
+
+    markdown = "\n".join(lines)
+
+    try:
+        await workspace.write_text_file(
+            thread_id, "contract-review-report.md", markdown, source="harness",
+        )
+    except Exception as exc:
+        logger.warning("REVIEW #6: contract-review-report.md write failed: %s", exc)
+
+    return markdown
+
+
+async def _docx_post_execute_shim(**kwargs):
+    """CR-21-01 circular-import guard: lazy-import contract_review_docx at call time."""
+    from app.harnesses.contract_review_docx import _generate_docx_post_execute
+    return await _generate_docx_post_execute(**kwargs)
+
+
 # CR-05 chunking constants (plan 22-08)
 CR05_CHUNK_CHARS = 180_000
 CR05_CHUNK_OVERLAP_CHARS = 5_000
@@ -1001,21 +1115,38 @@ CONTRACT_REVIEW = HarnessDefinition(
             batch_size=5,
             timeout_seconds=1800,
         ),
-        # Phase 9 — CR-08 Executive Summary + DOCX post_execute  [stub — plan 22-10]
+        # Phase 9 — CR-08 Executive Summary + DOCX post_execute  [plan 22-10]
+        # REVIEW #6: workspace_output is executive-summary.json (JSON, not markdown).
+        # LLM_SINGLE writes raw JSON; _render_summary_markdown (in post_execute) converts
+        # it to human-readable contract-review-report.md.
+        # REVIEW #7: post_execute returns wrote_binary=True so the engine emits workspace_updated.
+        # D-22-15: post_execute never raises; error dict + fallback_message on failure.
         PhaseDefinition(
             name="executive-summary",
-            description="Stub — Plan 22-10 populates the summary prompt + DOCX post_execute.",
+            description=(
+                "CR-08 executive summary: LLM_SINGLE writes ExecutiveSummary JSON; "
+                "post_execute renders markdown report + generates .docx via sandbox (plan 22-10). "
+                "REVIEW #6: workspace_output=executive-summary.json (JSON, NOT markdown)."
+            ),
             phase_type=PhaseType.LLM_SINGLE,
-            system_prompt_template="STUB",
+            system_prompt_template=(
+                "You are writing the executive summary for a Contract Review run.\n\n"
+                "INPUTS (workspace files):\n"
+                "  - classification.md, review-context.md, playbook-context.md\n"
+                "  - clauses.md, risk-analysis.json, redlines.json\n\n"
+                "OUTPUT: a JSON object matching ExecutiveSummary schema. Return ONLY JSON, no prose.\n"
+                "If playbook-context.md.context_quality == 'unfounded', BEGIN your recommendation with:\n"
+                "  'No playbook materials found — risk grades reflect generic legal standards.'"
+            ),
             tools=[],
             workspace_inputs=[
                 "classification.md", "review-context.md", "playbook-context.md",
                 "clauses.md", "risk-analysis.json", "redlines.json",
             ],
-            workspace_output="contract-review-report.md",
-            output_schema=None,      # Plan 22-10 sets ExecutiveSummary
-            post_execute=None,       # Plan 22-10 sets _generate_docx_post_execute
-            timeout_seconds=300,
+            workspace_output="executive-summary.json",   # REVIEW #6: JSON, not markdown
+            output_schema=ExecutiveSummary,              # Plan 22-10 — Pydantic-validated JSON
+            post_execute=_docx_post_execute_shim,        # Plan 22-10 — markdown render + DOCX
+            timeout_seconds=180,
         ),
     ],
 )
