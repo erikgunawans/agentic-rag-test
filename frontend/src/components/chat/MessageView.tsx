@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react'
-import { GitFork, ChevronLeft, ChevronRight, ShieldAlert, MessageCircleQuestion } from 'lucide-react'
+import { GitFork, ChevronLeft, ChevronRight, ShieldAlert, MessageCircleQuestion, FileText, Download, AlertCircle } from 'lucide-react'
 import { StreamingMessage } from './StreamingMessage'
 import { ThinkingIndicator } from './ThinkingIndicator'
 import { ToolCallCard, ToolCallList } from './ToolCallCard'
@@ -163,6 +163,44 @@ export function MessageView({
                     <p className="text-sm text-foreground leading-relaxed">{askUser.question}</p>
                   </div>
                 )
+              })()}
+              {/* Phase 22 / D-22-14 / REVIEW #8: harness DOCX download chip + fallback note.
+                  CLAUDE.md Glass rule: persistent chip — NO backdrop-blur, solid border only. */}
+              {(() => {
+                const a = msg.harness_artifact
+                if (!a) return null
+                if (a.ok && a.file_path && a.signed_url) {
+                  return (
+                    <a
+                      href={a.signed_url}
+                      download={a.file_path}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      role="link"
+                      aria-label={t('harness.docx.downloadAriaLabel', { name: a.file_path })}
+                      className="flex items-center gap-2 mt-2 px-3 py-2 rounded border border-border/50 hover:bg-accent/50 transition-colors text-sm text-foreground"
+                      data-testid="harness-docx-chip"
+                    >
+                      <FileText size={16} className="text-primary shrink-0" aria-hidden="true" />
+                      <span className="flex-1 truncate">{a.file_path}</span>
+                      <Download size={14} className="text-muted-foreground" aria-hidden="true" />
+                    </a>
+                  )
+                }
+                if (!a.ok) {
+                  return (
+                    <div
+                      role="note"
+                      aria-label={t('harness.docx.fallbackAriaLabel')}
+                      className="flex items-start gap-2 mt-2 px-3 py-2 rounded border border-amber-500/30 bg-amber-500/10 text-sm text-foreground"
+                      data-testid="harness-docx-fallback"
+                    >
+                      <AlertCircle size={16} className="text-amber-500 shrink-0 mt-0.5" aria-hidden="true" />
+                      <p className="text-xs leading-relaxed">{a.fallback_message ?? t('harness.docx.fallbackDefault')}</p>
+                    </div>
+                  )
+                }
+                return null
               })()}
               <div className="flex items-center gap-2 mt-1">
                 {hasBranches && onSwitchBranch && parentId && (
