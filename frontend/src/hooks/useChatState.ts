@@ -7,10 +7,11 @@ import type { Thread, Message, SSEEvent, ToolStartEvent, ToolResultEvent, Todo }
 // Phase 18 / WS-07 / WS-08 / WS-11: workspace virtual filesystem types.
 // Reflects the shape returned by GET /threads/{id}/files and the
 // workspace_updated SSE event payload (plan 18-04 / 18-06).
+// Phase 22 / REVIEW #8: source widened to include 'harness' (DOCX written by post_execute).
 export type WorkspaceFile = {
   file_path: string
   size_bytes: number
-  source: 'agent' | 'sandbox' | 'upload'
+  source: 'agent' | 'sandbox' | 'upload' | 'harness'
   mime_type: string | null
   updated_at: string
 }

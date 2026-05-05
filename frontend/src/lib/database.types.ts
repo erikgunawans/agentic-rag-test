@@ -37,6 +37,17 @@ export interface Message {
   // True when this assistant message was generated via the deep-mode loop.
   // Frontend reads this to render the Deep Mode badge in MessageView.tsx.
   deep_mode?: boolean
+  // Phase 22 / REVIEW #8 — correlation for post-harness DOCX artifact attachment:
+  // harness_run_id is set by the summary_complete SSE reducer so a subsequent
+  // harness_artifact event can find this message deterministically.
+  harness_run_id?: string | null
+  harness_mode?: string | null
+  harness_artifact?: {
+    ok: boolean
+    file_path?: string
+    signed_url?: string
+    fallback_message?: string
+  } | null
 }
 
 export interface DeltaEvent {
@@ -200,6 +211,8 @@ export type SSEEvent =
   | GatekeeperCompleteEvent
   | HarnessSubAgentStartEvent
   | HarnessSubAgentCompleteEvent
+  | HarnessArtifactEvent      // Phase 22 / REVIEW #8 — DOCX artifact delivery
+  | SummaryCompleteEvent      // Phase 22 / REVIEW #8 — post-harness summary complete (was UNHANDLED)
 
 export interface DocumentMetadata {
   title: string
@@ -311,10 +324,43 @@ export interface AskUserEvent {
 }
 
 // Phase 18 / WS-07 / WS-08: workspace file update event.
+// Phase 22 / REVIEW #8: source widened to include 'harness' (post_execute writes via WorkspaceService).
 export interface WorkspaceUpdatedEvent {
   type: 'workspace_updated'
   file_path: string
   operation: 'create' | 'update' | 'delete'
   size_bytes: number
-  source: 'agent' | 'sandbox' | 'upload'
+  source: 'agent' | 'sandbox' | 'upload' | 'harness'
+  thread_id?: string
+  harness_run_id?: string
+}
+
+// Phase 22 / REVIEW #8: harness DOCX artifact delivery event.
+// Emitted by harness_engine post_execute callback after DOCX is written to workspace.
+// Correlated to the assistant message via harness_run_id (set by summary_complete reducer).
+export interface HarnessArtifactEvent {
+  type: 'harness_artifact'
+  harness_run_id: string
+  harness_mode: string                  // Phase 22 / REVIEW #8 correlation anchor — e.g. 'contract-review'
+  phase_index: number
+  phase_name: string
+  ok: boolean
+  docx_path?: string
+  signed_url?: string
+  error?: string
+  code?: string
+  detail?: string
+  fallback_message?: string
+}
+
+// Phase 22 / REVIEW #8: post-harness summary completion event.
+// Emitted by post_harness.py after the assistant summary message is persisted.
+// Carries assistant_message_id so the useChatState reducer can tag the message
+// with harness_run_id — enabling deterministic harness_artifact correlation.
+// NOTE: This event was previously UNHANDLED in useChatState; added per REVIEW #8.
+export interface SummaryCompleteEvent {
+  type: 'summary_complete'
+  assistant_message_id: string | null   // Phase 22 / REVIEW #8 — the persisted Message.id
+  harness_run_id?: string
+  harness_mode?: string
 }
