@@ -194,6 +194,13 @@ class Settings(BaseSettings):
     # Default False everywhere; flip True in dev/test environments.
     harness_smoke_enabled: bool = False
 
+    # Phase 22 / v1.3 (CR-*, DOCX-*; D-16): Contract Review harness flag.
+    # When False: Contract Review NOT registered in HarnessRegistry, gatekeeper
+    # never sees it as a candidate, post_execute DOCX path inert. Codebase
+    # byte-identical to pre-Phase-22 (D-16 invariant). Mirrors HARNESS_SMOKE_ENABLED
+    # dark-launch precedent.
+    contract_review_enabled: bool = False
+
     @model_validator(mode="after")
     def _validate_local_embedding(self) -> "Settings":
         # CR-02 fix: catch EMBEDDING_PROVIDER=local + empty LOCAL_EMBEDDING_BASE_URL at startup.
