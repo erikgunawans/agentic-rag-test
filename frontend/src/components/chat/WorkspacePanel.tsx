@@ -81,6 +81,7 @@ const SOURCE_COLORS: Record<WorkspaceFile['source'], string> = {
   agent: 'bg-purple-500/20 text-purple-300',
   sandbox: 'bg-blue-500/20 text-blue-300',
   upload: 'bg-zinc-500/20 text-zinc-300',
+  harness: 'bg-green-500/20 text-green-300', // Phase 22 / D-22-14: harness-generated DOCX
 }
 
 function SourceBadge({ source }: { source: WorkspaceFile['source'] }) {

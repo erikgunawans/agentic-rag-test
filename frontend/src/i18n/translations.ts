@@ -680,10 +680,16 @@ export const translations: Record<Locale, Record<string, string>> = {
     'workspace.source.agent': 'agen',
     'workspace.source.sandbox': 'sandbox',
     'workspace.source.upload': 'unggahan',
+    'workspace.source.harness': 'Harness', // Phase 22 / REVIEW #11
     'workspace.download': 'Unduh',
     'workspace.view': 'Lihat',
     'workspace.collapse': 'Sembunyikan',
     'workspace.expand': 'Tampilkan',
+
+    // Phase 22 / D-22-14 / REVIEW #11: harness DOCX artifact i18n keys (FLAT key style)
+    'harness.docx.downloadAriaLabel': 'Unduh {name}',
+    'harness.docx.fallbackAriaLabel': 'Ekspor DOCX gagal',
+    'harness.docx.fallbackDefault': 'Ekspor DOCX tidak tersedia saat ini — ringkasan markdown ada di atas. Coba ulang harness untuk mencoba lagi.',
 
     // Phase 19 / TASK-07 / ASK-02 / STATUS-01 / STATUS-05 — AgentStatusChip + TaskPanel + question-bubble
     'agentStatus.working': 'Agen sedang bekerja',
@@ -1425,10 +1431,16 @@ export const translations: Record<Locale, Record<string, string>> = {
     'workspace.source.agent': 'agent',
     'workspace.source.sandbox': 'sandbox',
     'workspace.source.upload': 'upload',
+    'workspace.source.harness': 'Harness', // Phase 22 / REVIEW #11
     'workspace.download': 'Download',
     'workspace.view': 'View',
     'workspace.collapse': 'Collapse',
     'workspace.expand': 'Expand',
+
+    // Phase 22 / D-22-14 / REVIEW #11: harness DOCX artifact i18n keys (FLAT key style)
+    'harness.docx.downloadAriaLabel': 'Download {name}',
+    'harness.docx.fallbackAriaLabel': 'DOCX export failed',
+    'harness.docx.fallbackDefault': 'DOCX export unavailable right now — the markdown summary is above. Retry by re-running the harness if needed.',
 
     // Phase 19 / TASK-07 / ASK-02 / STATUS-01 / STATUS-05 — AgentStatusChip + TaskPanel + question-bubble
     'agentStatus.working': 'Agent working',
