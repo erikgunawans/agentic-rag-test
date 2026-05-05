@@ -887,7 +887,7 @@ CONTRACT_REVIEW = HarnessDefinition(
             timeout_seconds=600,
         ),
         # Phase 6 — CR-06 Risk Analysis (LLM_BATCH_AGENTS)  [plan 22-09]
-        # REVIEW #1 (22-REVIEWS.md): tools=["search_documents_by_doc_ids"] ONLY — no analyze_document.
+        # REVIEW #1 (22-REVIEWS.md): tools=["search_documents_by_doc_ids"] ONLY (no legacy v1.0 tool aliases).
         # REVIEW #2 closed: sub-agents output JSON inside ```json``` fenced blocks; filter extracts
         #   via _parse_subagent_json_terminal from result.terminal.text (canonical merge shape).
         PhaseDefinition(
@@ -896,7 +896,7 @@ CONTRACT_REVIEW = HarnessDefinition(
                 "Per-clause risk assessment using playbook grounding. "
                 "LLM_BATCH_AGENTS, batch_size=5. Sub-agents output ClauseRisk JSON "
                 "inside ```json``` fenced blocks (REVIEW #2). "
-                "REVIEW #1: tools=['search_documents_by_doc_ids'] only — no analyze_document."
+                "REVIEW #1: tools=['search_documents_by_doc_ids'] only (no legacy v1.0 tool aliases)."
             ),
             phase_type=PhaseType.LLM_BATCH_AGENTS,
             system_prompt_template=(
@@ -928,7 +928,7 @@ CONTRACT_REVIEW = HarnessDefinition(
                 "  ```\n"
                 "Stay focused: ONE clause per sub-agent, ONE JSON object out, no surrounding prose."
             ),
-            tools=["search_documents_by_doc_ids"],  # REVIEW #1: NO analyze_document
+            tools=["search_documents_by_doc_ids"],  # REVIEW #1: only this tool, no legacy v1.0 aliases
             workspace_inputs=["clauses.json", "playbook-context.md", "review-context.md"],
             workspace_output="risk-analysis.json",
             batch_size=5,
