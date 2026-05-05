@@ -18,6 +18,10 @@ RUN mkdir -p /sandbox/output
 # Pre-bake ToolClient — stdlib only, no pip installs needed
 COPY tool_client.py /sandbox/tool_client.py
 
+# DOCX-01 / Phase 22: python-docx for DOCX report generation,
+# PyPDF2 for any contract-text fallback parsing inside the sandbox.
+RUN pip install --no-cache-dir python-docx==1.1.2 PyPDF2==3.0.1
+
 # Make /sandbox writeable so runtime stub injection can write /sandbox/stubs.py
 RUN chmod 777 /sandbox
 
