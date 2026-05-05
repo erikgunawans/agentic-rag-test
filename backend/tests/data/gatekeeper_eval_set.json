@@ -1,0 +1,205 @@
+{
+  "version": "1.0",
+  "phase": "22",
+  "decision_id": "D-22-04",
+  "harnesses": {
+    "contract-review": {
+      "display_name": "Contract Review",
+      "min_files": 1,
+      "max_files": 1
+    },
+    "smoke-echo": {
+      "display_name": "Smoke Echo",
+      "min_files": 1,
+      "max_files": 1
+    }
+  },
+  "phrasings": [
+    {
+      "id": "cr-trigger-01",
+      "text": "Review this contract",
+      "harness": "contract-review",
+      "workspace": [
+        {
+          "file_path": "contract.docx",
+          "size_bytes": 245000,
+          "mime_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        }
+      ],
+      "expected_triggered": true,
+      "rationale": "Direct contract review request with DOCX in workspace — should trigger immediately"
+    },
+    {
+      "id": "cr-trigger-02",
+      "text": "Check this NDA for risks",
+      "harness": "contract-review",
+      "workspace": [
+        {
+          "file_path": "nda.pdf",
+          "size_bytes": 89000,
+          "mime_type": "application/pdf"
+        }
+      ],
+      "expected_triggered": true,
+      "rationale": "Risk-check request with PDF in workspace — NDA is a contract type, should trigger"
+    },
+    {
+      "id": "cr-trigger-03",
+      "text": "I uploaded a contract — please analyze it",
+      "harness": "contract-review",
+      "workspace": [
+        {
+          "file_path": "agreement.docx",
+          "size_bytes": 412000,
+          "mime_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        }
+      ],
+      "expected_triggered": true,
+      "rationale": "User explicitly states upload complete and requests analysis — workspace confirms it"
+    },
+    {
+      "id": "cr-trigger-04",
+      "text": "Help me with this contract review",
+      "harness": "contract-review",
+      "workspace": [
+        {
+          "file_path": "msa.pdf",
+          "size_bytes": 156000,
+          "mime_type": "application/pdf"
+        }
+      ],
+      "expected_triggered": true,
+      "rationale": "Help request matches few-shot pattern 'Help me with this Contract Review' with file present"
+    },
+    {
+      "id": "cr-trigger-05",
+      "text": "Tolong cek kontrak ini",
+      "harness": "contract-review",
+      "workspace": [
+        {
+          "file_path": "kontrak.pdf",
+          "size_bytes": 198000,
+          "mime_type": "application/pdf"
+        }
+      ],
+      "expected_triggered": true,
+      "rationale": "Indonesian: 'Please check this contract' — bilingual coverage; workspace has PDF"
+    },
+    {
+      "id": "smoke-trigger-01",
+      "text": "Run smoke echo",
+      "harness": "smoke-echo",
+      "workspace": [
+        {
+          "file_path": "any.pdf",
+          "size_bytes": 50000,
+          "mime_type": "application/pdf"
+        }
+      ],
+      "expected_triggered": true,
+      "rationale": "Phase 21 regression guard: direct smoke-echo trigger phrase with file uploaded"
+    },
+    {
+      "id": "smoke-trigger-02",
+      "text": "Smoke test the harness",
+      "harness": "smoke-echo",
+      "workspace": [
+        {
+          "file_path": "doc.docx",
+          "size_bytes": 100000,
+          "mime_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        }
+      ],
+      "expected_triggered": true,
+      "rationale": "Phase 21 regression guard: smoke test phrasing with file in workspace"
+    },
+    {
+      "id": "smoke-trigger-03",
+      "text": "Diagnostic test please",
+      "harness": "smoke-echo",
+      "workspace": [
+        {
+          "file_path": "file.pdf",
+          "size_bytes": 30000,
+          "mime_type": "application/pdf"
+        }
+      ],
+      "expected_triggered": true,
+      "rationale": "Phase 21 regression guard: diagnostic intent with file present should trigger smoke-echo"
+    },
+    {
+      "id": "smoke-trigger-04",
+      "text": "I uploaded a file for the smoke echo",
+      "harness": "smoke-echo",
+      "workspace": [
+        {
+          "file_path": "test.docx",
+          "size_bytes": 25000,
+          "mime_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        }
+      ],
+      "expected_triggered": true,
+      "rationale": "Phase 21 regression guard: user explicitly names smoke echo harness with upload"
+    },
+    {
+      "id": "smoke-trigger-05",
+      "text": "Verify the engine is working",
+      "harness": "smoke-echo",
+      "workspace": [
+        {
+          "file_path": "verify.pdf",
+          "size_bytes": 80000,
+          "mime_type": "application/pdf"
+        }
+      ],
+      "expected_triggered": true,
+      "rationale": "Phase 21 regression guard: engine verification intent maps to smoke-echo purpose"
+    },
+    {
+      "id": "none-01",
+      "text": "Hello",
+      "harness": "contract-review",
+      "workspace": [],
+      "expected_triggered": false,
+      "rationale": "Empty workspace and generic greeting — gatekeeper must ask for upload, not trigger"
+    },
+    {
+      "id": "none-02",
+      "text": "What's this app do?",
+      "harness": "contract-review",
+      "workspace": [],
+      "expected_triggered": false,
+      "rationale": "Off-topic question about the app — no contract intent, no upload"
+    },
+    {
+      "id": "none-03",
+      "text": "Review this contract",
+      "harness": "contract-review",
+      "workspace": [],
+      "expected_triggered": false,
+      "rationale": "User requests review but workspace is empty — gatekeeper should ask for upload first"
+    },
+    {
+      "id": "none-04",
+      "text": "Halo, apa kabar?",
+      "harness": "contract-review",
+      "workspace": [
+        {
+          "file_path": "contract.docx",
+          "size_bytes": 100000,
+          "mime_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        }
+      ],
+      "expected_triggered": false,
+      "rationale": "Indonesian greeting 'Hello, how are you?' — workspace has file but user message is unrelated; gatekeeper must NOT trigger on workspace alone"
+    },
+    {
+      "id": "none-05",
+      "text": "How does the legal AI work?",
+      "harness": "contract-review",
+      "workspace": [],
+      "expected_triggered": false,
+      "rationale": "Meta-question about the platform — no contract review intent, empty workspace"
+    }
+  ]
+}
