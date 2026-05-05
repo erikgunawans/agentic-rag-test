@@ -3,7 +3,8 @@ import { Database, Search, Globe, FileText, ChevronDown, ChevronRight, Loader2, 
 import type { ToolCallRecord } from '@/lib/database.types'
 import { useI18n } from '@/i18n/I18nContext'
 import { CodeExecutionPanel } from './CodeExecutionPanel'
-import { SubAgentPanel, hasSubAgentState, type SubAgentState } from './SubAgentPanel'
+import { SubAgentPanel, type SubAgentState } from './SubAgentPanel'
+import { hasSubAgentState } from './subAgentUtils'
 
 const TOOL_CONFIG: Record<string, { icon: typeof Database; label: string }> = {
   search_documents: { icon: Search, label: 'Document Search' },

@@ -11,8 +11,6 @@
  * No backdrop-blur (CLAUDE.md design rule — persistent panel).
  */
 
-import type { ToolCallRecord } from '@/lib/database.types'
-
 export interface SubAgentState {
   mode: 'explorer' | 'analysis' | string
   document_id: string | null
@@ -61,17 +59,4 @@ export function SubAgentPanel({ state }: SubAgentPanelProps) {
       )}
     </div>
   )
-}
-
-
-/**
- * Type guard — checks if a ToolCallRecord carries sub_agent_state with a
- * minimally-correct shape. Used by ToolCallList router to branch rendering.
- */
-export function hasSubAgentState(
-  call: ToolCallRecord,
-): call is ToolCallRecord & { sub_agent_state: SubAgentState } {
-  if (!call.sub_agent_state) return false
-  const s = call.sub_agent_state as Record<string, unknown>
-  return typeof s.mode === 'string' && Array.isArray(s.explorer_tool_calls)
 }
