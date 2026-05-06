@@ -130,14 +130,21 @@ def _truncate_phase_results(
 async def _persist_summary(
     *,
     thread_id: str,
+    user_id: str,
     content: str,
     harness_name: str,
     token: str,
 ) -> str | None:
     """Insert a summary assistant message row with harness_mode tag.
 
+    `user_id` is required (CR-22-15 / mirrors CR-21-04 fix in gatekeeper.py):
+    the messages RLS policy `users can create own messages` enforces
+    `auth.uid() = user_id`. Without it, postgrest raises 42501 and the
+    post-harness summary is silently dropped.
+
     Args:
         thread_id:   Thread UUID.
+        user_id:     Supabase auth.users UUID — REQUIRED for RLS.
         content:     Full summary text.
         harness_name: Value for messages.harness_mode (D-04, POST-03).
         token:       JWT for RLS-scoped Supabase client.
@@ -149,6 +156,7 @@ async def _persist_summary(
     try:
         result = client.table("messages").insert({
             "thread_id": thread_id,
+            "user_id": user_id,
             "role": "assistant",
             "content": content,
             "harness_mode": harness_name,
@@ -260,6 +268,7 @@ async def summarize_harness_run(
     full = "".join(buf)
     msg_id = await _persist_summary(
         thread_id=thread_id,
+        user_id=user_id,
         content=full,
         harness_name=harness.name,
         token=token,
