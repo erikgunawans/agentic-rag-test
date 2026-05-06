@@ -126,23 +126,76 @@ def test_cr06_prompt_grounds_clause_index_to_input():
 #     this test is shape-agnostic — it asserts the EFFECT, not the mechanism.
 
 @pytest.mark.asyncio
-async def test_empty_redline_candidates_produces_empty_redlines_json(monkeypatch, tmp_path):
+async def test_empty_redline_candidates_produces_empty_redlines_json(monkeypatch):
     """When the filter produces redline-candidates.json = [], CR-07 (redline-generation)
     MUST still produce redlines.json = [] so CR-08's workspace_read does not fail.
 
-    This test is integration-flavored — it exercises the real LLM_BATCH_AGENTS dispatch
-    path with an empty input. If the engine handles empty-batch correctly, redlines.json
-    is written as []. If CR-07 writes its own output, that's also acceptable.
-
-    The executor MAY choose to mock OpenRouter — but the workspace_output write MUST
-    be exercised, not stubbed.
+    Plan 22-19 Layer B (Path A — engine-level): the LLM_BATCH_AGENTS dispatch now
+    short-circuits on items_total == 0 and writes workspace_output as []. This test
+    exercises that path by running _dispatch_phase directly with an empty input batch.
     """
-    # Implementation hint: see harness_engine.py LLM_BATCH_AGENTS dispatch; locate where
-    # workspace_output is written. The fix should ensure that path is reached even when
-    # the input batch is []. The executor decides the precise injection point.
-    pytest.skip(
-        "Integration test scaffold — executor implements during Task 2 once the "
-        "engine code path is identified. Skip is intentional pending implementation."
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    from app.services.harness_engine import _dispatch_phase
+    from app.harnesses.types import PhaseDefinition, PhaseType
+
+    phase = PhaseDefinition(
+        name="redline-generation",
+        description="test",
+        phase_type=PhaseType.LLM_BATCH_AGENTS,
+        system_prompt_template="Draft a redline.",
+        tools=[],
+        workspace_inputs=["redline-candidates.json"],
+        workspace_output="redlines.json",
+        batch_size=5,
+        timeout_seconds=60,
+    )
+
+    writes: list[tuple] = []
+
+    async def mock_write(thread_id, path, content, source=None):
+        writes.append((path, content))
+        return {"ok": True}
+
+    ws_mock = MagicMock()
+    # read_file returns [] for the input (empty redline-candidates.json)
+    # and an error dict for the JSONL resume file (does not exist yet)
+    async def mock_read(thread_id, path):
+        if path == "redline-candidates.json":
+            return {"content": "[]"}
+        return {"error": "not_found", "detail": "file not found"}
+
+    ws_mock.read_file = mock_read
+    ws_mock.write_text_file = mock_write
+
+    with patch("app.services.harness_engine.WorkspaceService", return_value=ws_mock):
+        events = []
+        async for evt in _dispatch_phase(
+            phase=phase,
+            phase_index=0,
+            harness_run_id="test-22-19-empty",
+            thread_id="thr-22-19",
+            token="tok",
+            user_id="u1",
+            user_email="u@test.com",
+            registry=None,
+        ):
+            events.append(evt)
+
+    # The engine MUST have written redlines.json as "[]"
+    written_paths = [w[0] for w in writes]
+    assert "redlines.json" in written_paths, (
+        f"Engine must write redlines.json even for empty input batch. Writes: {written_paths}"
+    )
+    written_content = next(w[1] for w in writes if w[0] == "redlines.json")
+    assert json.loads(written_content) == [], (
+        f"redlines.json must be written as [] for empty batch. Got: {written_content!r}"
+    )
+    # Terminal event must signal empty-batch completion, not an error
+    terminal = next((e for e in events if "_terminal_phase_result" in e), None)
+    assert terminal is not None, "Engine must yield a _terminal_phase_result event"
+    assert "error" not in terminal["_terminal_phase_result"], (
+        f"Empty batch must not produce an error result. Got: {terminal}"
     )
 
 

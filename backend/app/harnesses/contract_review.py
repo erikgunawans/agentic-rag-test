@@ -1051,6 +1051,12 @@ CONTRACT_REVIEW = HarnessDefinition(
                 "   \"alternative_language\": \"<for YELLOW/RED: a paragraph of suggested replacement; for GREEN: null>\",\n"
                 "   \"grounding_doc_ids\": [\"<uuid-1>\", ...]}\n"
                 "  ```\n"
+                "CRITICAL — clause_index grounding (plan 22-19):\n"
+                "  The 'clause_index' field in your output JSON MUST be the EXACT integer from\n"
+                "  the input clause object's clause_index field. Do NOT generate a new number.\n"
+                "  Do NOT use line numbers, character offsets, page numbers, or paragraph counts.\n"
+                "  Do NOT 'estimate' or 'approximate' the index. ECHO IT VERBATIM.\n"
+                "  Example: input clause has 'clause_index': 3, output JSON has 'clause_index': 3.\n\n"
                 "Stay focused: ONE clause per sub-agent, ONE JSON object out, no surrounding prose."
             ),
             tools=["search_documents_by_doc_ids"],  # REVIEW #1: only this tool, no legacy v1.0 aliases
@@ -1147,7 +1153,12 @@ CONTRACT_REVIEW = HarnessDefinition(
                 "  - clauses.md, risk-analysis.json, redlines.json\n\n"
                 "OUTPUT: a JSON object matching ExecutiveSummary schema. Return ONLY JSON, no prose.\n"
                 "If playbook-context.md.context_quality == 'unfounded', BEGIN your recommendation with:\n"
-                "  'No playbook materials found — risk grades reflect generic legal standards.'"
+                "  'No playbook materials found — risk grades reflect generic legal standards.'\n"
+                "If redlines.json is an empty array [], ACKNOWLEDGE it explicitly:\n"
+                "  'No clauses warranted redlines under the current playbook + review context.'\n"
+                "Then proceed to summarize classification + risk grades from clauses.md and\n"
+                "risk-analysis.json. The ExecutiveSummary is still required (overall_risk,\n"
+                "recommendation, key_findings, risk_breakdown, next_steps)."
             ),
             tools=[],
             workspace_inputs=[

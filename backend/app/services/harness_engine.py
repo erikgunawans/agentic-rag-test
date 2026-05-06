@@ -1088,6 +1088,24 @@ async def _dispatch_phase(
         #    is globally unique across batches.
         remaining = [(i, it) for i, it in enumerate(all_items) if i not in done_set]
         items_total = len(all_items)
+        if items_total == 0:
+            # Plan 22-19 / UAT-NEW-03: empty input batch — write workspace_output as []
+            # so downstream phases that declare this file in workspace_inputs can still read it.
+            # _merge_jsonl_to_json is a no-op when no JSONL exists, so we write explicitly.
+            if phase.workspace_output:
+                try:
+                    await ws.write_text_file(
+                        thread_id, merged_path, "[]", source="harness"
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "_dispatch_phase: empty-batch workspace write failed phase=%s: %s",
+                        phase.name, exc,
+                    )
+            yield {"_terminal_phase_result": {
+                "text": "Empty input batch — wrote workspace_output as []",
+            }}
+            return
         if not remaining:
             # Already complete — go straight to merge pass
             await _merge_jsonl_to_json(ws, thread_id, jsonl_path, merged_path)
