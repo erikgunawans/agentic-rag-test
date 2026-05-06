@@ -180,7 +180,7 @@ Full archive: `.planning/milestones/v1.1-ROADMAP.md`
   3. Phase 5 (clause extraction, programmatic with internal LLM) writes `clauses.md` as a JSON array of every clause across the 13 categories (Liability, Indemnification, IP, Data Protection, Confidentiality, Warranties, Term/Termination, Governing Law, Insurance, Assignment, Force Majeure, Payment, Other); contracts >50 k tokens chunk with overlap and dedupe-merge.
   4. Phase 6 (risk analysis, llm_batch_agents batch_size=5) assigns GREEN/YELLOW/RED per clause against the playbook with rationale + alternative language, exposing real-time "Analyzing clause N/M" with nested RAG tool calls; Phase 7 (redline generation, llm_batch_agents batch_size=5) processes only YELLOW/RED clauses and writes `redlines.md` with original / proposed replacement / rationale / fallback positions.
   5. Phase 8 (executive summary, llm_single + post_execute) writes `contract-review-report.md` (overall risk, recommendation, key findings, RED/YELLOW/GREEN breakdown), and the post_execute callback runs a sandbox python-docx script to generate a CONFIDENTIAL-marked `.docx` with title page, executive summary, key findings list, color-coded redline table, acceptable-clauses (GREEN) section, and recommended next steps; if sandbox is unavailable, the markdown report is still saved (non-fatal degradation).
-**Plans:** 14/16 plans executed
+**Plans:** 15/16 plans executed
 - [ ] 22-01-PLAN.md — Sandbox image bump: python-docx + PyPDF2 (DOCX-01 prereq)
 - [ ] 22-02-PLAN.md — Tool registry adapter-wrap: list_playbook_documents + search_documents_by_doc_ids (D-22-05/06; REVIEW #1, #10)
 - [ ] 22-03-PLAN.md — Engine post_execute invocation + harness_artifact + workspace_updated chaining (DOCX-08; REVIEW #7, #8)
@@ -228,7 +228,7 @@ The following capabilities shipped before GSD initialization. Tracked as the Val
 | 19. Sub-Agent Delegation + Ask User + Status & Recovery | 10/10 | Complete    | 2026-05-03 |
 | 20. Harness Engine Core + Gatekeeper + Post-Harness + Upload + Locked Panel | 11/11 | Complete    | 2026-05-03 |
 | 21. Batched Parallel Sub-Agents + Human-in-the-Loop | 0/6 | Planned | — |
-| 22. Contract Review Harness + DOCX Deliverable | 14/16 | In Progress|  |
+| 22. Contract Review Harness + DOCX Deliverable | 15/16 | In Progress|  |
 
 ## Phase Numbering
 
