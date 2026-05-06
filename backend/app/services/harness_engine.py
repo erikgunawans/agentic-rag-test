@@ -113,6 +113,40 @@ class HumanInputQuestion(BaseModel):
     question: str = Field(..., min_length=1, max_length=500)
 
 
+def _make_object_strict(obj: dict) -> None:
+    """Mutate a JSON Schema object node to satisfy OpenAI/Azure strict mode.
+
+    Sets additionalProperties: false AND required: [<all property keys>].
+    No-op for non-object schema nodes (enums, primitives in $defs).
+    Idempotent: safe to re-run on already-strict schemas.
+
+    Plan 22-18 / UAT-NEW-02 (2026-05-06).
+    """
+    if obj.get("type") == "object" or "properties" in obj:
+        obj["additionalProperties"] = False
+        props = obj.get("properties") or {}
+        obj["required"] = list(props.keys())
+
+
+def _to_azure_strict_schema(model_cls: type[BaseModel]) -> dict:
+    """Pydantic model → JSON Schema with OpenAI/Azure strict-mode rules applied
+    at every object node (top-level + every $defs entry).
+
+    Pydantic v2's default model_json_schema() emits required only for fields
+    without defaults; Azure strict mode requires `required` to include EVERY
+    property key. This helper closes that gap at the emission boundary so we
+    don't have to teach every Pydantic model about Azure's contract.
+
+    Plan 22-18 / UAT-NEW-02. See plan 22-17 for the prior fix layer that added
+    additionalProperties: false at the per-model level.
+    """
+    schema = model_cls.model_json_schema()
+    _make_object_strict(schema)
+    for def_schema in (schema.get("$defs") or {}).values():
+        _make_object_strict(def_schema)
+    return schema
+
+
 # ---------------------------------------------------------------------------
 # Public entry point
 # ---------------------------------------------------------------------------
@@ -710,7 +744,7 @@ async def _dispatch_phase(
                 }
                 return
 
-        schema = phase.output_schema.model_json_schema()
+        schema = _to_azure_strict_schema(phase.output_schema)
 
         # Import here to avoid circular dependency at module level
         from app.services.openrouter_service import OpenRouterService
@@ -912,7 +946,7 @@ async def _dispatch_phase(
                 return
 
         # 4. LLM call with json_schema response_format against HumanInputQuestion.
-        schema = HumanInputQuestion.model_json_schema()
+        schema = _to_azure_strict_schema(HumanInputQuestion)
 
         from app.services.openrouter_service import OpenRouterService
         or_svc = OpenRouterService()
