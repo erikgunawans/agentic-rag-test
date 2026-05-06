@@ -55,7 +55,7 @@ import uuid
 from pathlib import PurePosixPath
 from typing import AsyncIterator
 
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from app.config import get_settings
 from app.harnesses.types import (
@@ -102,7 +102,14 @@ EVT_BATCH_ITEM_COMPLETE = "harness_batch_item_complete"  # Phase 21 D-08 — Pla
 # ---------------------------------------------------------------------------
 
 class HumanInputQuestion(BaseModel):
-    """Output schema for LLM_HUMAN_INPUT phase question generation (HIL-01)."""
+    """Output schema for LLM_HUMAN_INPUT phase question generation (HIL-01).
+
+    UAT-NEW-01: extra="forbid" emits additionalProperties: false in the JSON
+    schema, required by Azure-routed gpt-4o (OpenRouter strict mode).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
     question: str = Field(..., min_length=1, max_length=500)
 
 

@@ -39,7 +39,7 @@ import re
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.config import get_settings
 from app.harnesses.types import (
@@ -71,7 +71,12 @@ class ContractClassification(BaseModel):
     """CR-02 LLM output. Enforced via response_format=json_schema (HARN-05).
 
     ROADMAP success criterion: parties has min_length=2, contract_type non-empty.
+
+    UAT-NEW-01: extra="forbid" emits additionalProperties: false in the JSON
+    schema, required by Azure-routed gpt-4o (OpenRouter strict mode).
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     contract_type: str = Field(
         ..., min_length=1, max_length=200,
@@ -226,7 +231,13 @@ class ExecutiveSummary(BaseModel):
     LLM_SINGLE writes raw JSON to workspace_output — NOT markdown. The
     _render_summary_markdown helper (also plan 22-10) converts this JSON into
     the human-readable contract-review-report.md in the post_execute callback.
+
+    UAT-NEW-01: extra="forbid" emits additionalProperties: false in the JSON
+    schema, required by Azure-routed gpt-4o (OpenRouter strict mode).
     """
+
+    model_config = ConfigDict(extra="forbid")
+
     overall_risk: RiskGrade
     recommendation: str = Field(..., min_length=20, max_length=2000)
     key_findings: list[str] = Field(..., min_length=1, max_length=10)
