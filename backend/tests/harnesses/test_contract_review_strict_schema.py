@@ -70,3 +70,50 @@ def test_every_output_schema_is_strict_compliant():
         "Add `model_config = ConfigDict(extra=\"forbid\")` to each.\n"
         + "\n".join(failures)
     )
+
+
+def test_every_output_schema_is_azure_strict_via_helper():
+    """Defense-in-depth: walk the harness registry and assert that the
+    emission-boundary helper produces fully Azure-strict output for every
+    output_schema in CONTRACT_REVIEW.
+
+    Closes plan 22-18 (UAT-NEW-02). Compared to test_every_output_schema_is_strict_compliant,
+    this test asserts both strict rules (additionalProperties + required) on the
+    helper output rather than on the raw model_json_schema output.
+    """
+    from app.services.harness_engine import _to_azure_strict_schema, HumanInputQuestion
+
+    failures = []
+
+    def _check(label: str, schema: dict):
+        for obj in _walk_schema_object_types(schema):
+            if obj.get("additionalProperties") is not False:
+                failures.append(
+                    f"  - {label}: object {obj.get('title') or '(top-level)'!r} "
+                    f"missing additionalProperties: false"
+                )
+            props = set((obj.get("properties") or {}).keys())
+            req = set(obj.get("required") or [])
+            if props != req:
+                failures.append(
+                    f"  - {label}: object {obj.get('title') or '(top-level)'!r} "
+                    f"required={sorted(req)} != properties.keys()={sorted(props)}"
+                )
+
+    # HumanInputQuestion via the helper
+    _check("HumanInputQuestion", _to_azure_strict_schema(HumanInputQuestion))
+
+    # Every output_schema in the contract-review harness via the helper
+    for phase in CONTRACT_REVIEW.phases:
+        if phase.output_schema is None:
+            continue
+        if phase.phase_type != PhaseType.LLM_SINGLE:
+            continue
+        schema = _to_azure_strict_schema(phase.output_schema)
+        _check(f"phase={phase.name!r} schema={phase.output_schema.__name__}", schema)
+
+    assert not failures, (
+        "Helper-emitted schemas fail Azure strict-mode rules. Each entry "
+        "shows the schema-walk path that violated either additionalProperties: "
+        "false OR required = properties.keys().\n" + "\n".join(failures)
+    )
