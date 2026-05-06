@@ -200,6 +200,62 @@
       "workspace": [],
       "expected_triggered": false,
       "rationale": "Meta-question about the platform — no contract review intent, empty workspace"
+    },
+    {
+      "id": "cr-trigger-comp-01",
+      "text": "review this for risk",
+      "harness": "contract-review",
+      "workspace": [
+        {
+          "file_path": "contract.docx",
+          "size_bytes": 245000,
+          "mime_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        }
+      ],
+      "expected_triggered": true,
+      "rationale": "Phase 22 UAT Gap 4 — compositional 'review for X' phrasing observed to fail with gpt-4o-mini in live UAT 2026-05-06; covered now by expanded few-shots."
+    },
+    {
+      "id": "cr-trigger-comp-02",
+      "text": "analyze this contract for risks",
+      "harness": "contract-review",
+      "workspace": [
+        {
+          "file_path": "msa.pdf",
+          "size_bytes": 180000,
+          "mime_type": "application/pdf"
+        }
+      ],
+      "expected_triggered": true,
+      "rationale": "Phase 22 UAT Gap 4 — 'analyze for X' compositional phrasing; should map to risk-analysis intent."
+    },
+    {
+      "id": "cr-trigger-comp-03",
+      "text": "look at the redlines",
+      "harness": "contract-review",
+      "workspace": [
+        {
+          "file_path": "redlined-contract.docx",
+          "size_bytes": 320000,
+          "mime_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        }
+      ],
+      "expected_triggered": true,
+      "rationale": "Phase 22 UAT Gap 4 — 'look at the redlines' is contract-review intent when a DOCX is in workspace."
+    },
+    {
+      "id": "none-comp-01",
+      "text": "review my schedule for the week",
+      "harness": "contract-review",
+      "workspace": [
+        {
+          "file_path": "contract.docx",
+          "size_bytes": 245000,
+          "mime_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        }
+      ],
+      "expected_triggered": false,
+      "rationale": "Phase 22 UAT Gap 4 negative composition — 'review' alone is not contract-review intent; gatekeeper must use semantic context, not just keyword match."
     }
   ]
 }

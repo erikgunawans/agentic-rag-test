@@ -80,7 +80,15 @@ def build_system_prompt(
         f"  user: 'Check this for risks' + workspace non-empty -> emit {SENTINEL}\n"
         f"  user: 'I uploaded a contract' + workspace non-empty -> emit {SENTINEL}\n"
         f"  user: 'Help me with this {display_name}' + DOCX/PDF present -> emit {SENTINEL}\n"
+        # Phase 22 / UAT Gap 4 — compositional 'review for X' / 'analyze for X' phrasings
+        # gpt-4o-mini did not generalize from the 4 examples above; these were observed
+        # to fail in live UAT 2026-05-06 ('review my contract for risk' was refused).
+        f"  user: 'review this for risk' + workspace non-empty -> emit {SENTINEL}\n"
+        f"  user: 'analyze this contract for risks' + workspace non-empty -> emit {SENTINEL}\n"
+        f"  user: 'look at the redlines' + workspace non-empty -> emit {SENTINEL}\n"
         f"  user: 'Hello' / 'What\\'s this app do?' -> DO NOT emit {SENTINEL}\n"
+        # Negative composition: 'review' alone is not enough — workspace context governs.
+        f"  user: 'review my schedule for the week' -> DO NOT emit {SENTINEL}\n"
     )
 
     # D-22-01 / D-22-02: workspace block (filename + size only, no content peek).
