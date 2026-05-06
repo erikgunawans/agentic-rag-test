@@ -187,8 +187,9 @@ async def test_run_harness_engine_writes_agent_todos():
         )
 
     assert mock_write_todos.called
-    # First call is initialization — check that todo content has the display name prefix
-    first_call_todos = mock_write_todos.call_args_list[0][0][1]
+    # First call is initialization — check that todo content has the display name prefix.
+    # Correct signature: write_todos(thread_id, user_id, user_email, token, todos) → todos at [4]
+    first_call_todos = mock_write_todos.call_args_list[0][0][4]
     assert any("[My Harness] Phase One" in t["content"] for t in first_call_todos)
 
 

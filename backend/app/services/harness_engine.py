@@ -198,7 +198,7 @@ async def _run_harness_engine_inner(
         for idx, phase in enumerate(harness.phases)
     ]
     try:
-        await agent_todos_service.write_todos(thread_id, todos, token)
+        await agent_todos_service.write_todos(thread_id, user_id, user_email, token, todos)
         yield {"type": "todos_updated", "todos": todos}
     except Exception as exc:
         logger.warning(
@@ -286,7 +286,7 @@ async def _run_harness_engine_inner(
         # --- Mark this phase as in_progress ---
         todos[phase_index]["status"] = "in_progress"
         try:
-            await agent_todos_service.write_todos(thread_id, todos, token)
+            await agent_todos_service.write_todos(thread_id, user_id, user_email, token, todos)
         except Exception as exc:
             logger.warning("harness_engine: write_todos (in_progress) failed: %s", exc)
         yield {"type": "todos_updated", "todos": todos}
@@ -358,7 +358,7 @@ async def _run_harness_engine_inner(
         if isinstance(result, dict) and "error" in result:
             todos[phase_index]["status"] = "completed"
             try:
-                await agent_todos_service.write_todos(thread_id, todos, token)
+                await agent_todos_service.write_todos(thread_id, user_id, user_email, token, todos)
             except Exception as exc:
                 logger.warning("harness_engine: write_todos (error) failed: %s", exc)
 
@@ -425,7 +425,7 @@ async def _run_harness_engine_inner(
 
         todos[phase_index]["status"] = "completed"
         try:
-            await agent_todos_service.write_todos(thread_id, todos, token)
+            await agent_todos_service.write_todos(thread_id, user_id, user_email, token, todos)
         except Exception as exc:
             logger.warning("harness_engine: write_todos (completed) failed: %s", exc)
         yield {"type": "todos_updated", "todos": todos}
