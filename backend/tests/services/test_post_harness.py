@@ -421,3 +421,72 @@ async def test_summarize_system_prompt_contains_concise_guidance(monkeypatch):
     assert captured_messages, "No messages captured"
     system_content = captured_messages[0]["content"]
     assert "Be concise — 3-5 short paragraphs. Reference workspace files by path." in system_content
+
+
+# ---------------------------------------------------------------------------
+# Test 12: CR-22-15 regression — _persist_summary must include user_id (Gap 3)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_persist_summary_includes_user_id():
+    """Mirrors CR-21-04 (gatekeeper) fix for the post_harness path.
+
+    Failure mode pre-fix: PostgreSQL RLS policy 'users can create own messages'
+    enforces auth.uid() = user_id. _persist_summary's insert payload omitted
+    user_id, raising 42501 — the post-harness summary was silently dropped.
+
+    Reproduces the exact assertion shape from
+    backend/tests/services/test_gatekeeper.py:495-505.
+    """
+    insert_calls: list[dict] = []
+
+    def mock_get_client(token):
+        client = MagicMock()
+        def _capture_insert(payload):
+            insert_calls.append(payload)
+            chain = MagicMock()
+            chain.execute.return_value = MagicMock(data=[{"id": "msg-new"}])
+            return chain
+        client.table.return_value.insert.side_effect = _capture_insert
+        return client
+
+    # Mock OpenRouter streaming with a tiny payload.
+    mock_completions = AsyncMock()
+    mock_completions.create.return_value = _async_iter_chunks(["Done."])
+    mock_or_client = MagicMock()
+    mock_or_client.chat.completions = mock_completions
+
+    harness = _make_harness()
+    run = _make_run({"echo": {"text": "ok"}})
+
+    with patch("app.services.post_harness.get_supabase_authed_client", side_effect=mock_get_client), \
+         patch("app.services.post_harness.openrouter_service.client", mock_or_client), \
+         patch("app.services.post_harness.openrouter_service.model", "gpt-4o-mini"):
+        events = []
+        async for ev in summarize_harness_run(
+            harness=harness,
+            harness_run=run,
+            thread_id="thread-22",
+            user_id="user-22",
+            user_email="user22@test.com",
+            token="tok-22",
+            registry=None,
+        ):
+            events.append(ev)
+
+    # At least one insert into messages should have happened.
+    assert insert_calls, "No insert calls captured — _persist_summary did not run"
+    persisted = insert_calls[-1]   # the summary insert is the only one in this test
+
+    # CR-22-15 regression (mirrors CR-21-04 in gatekeeper):
+    # messages RLS policy `users can create own messages` enforces
+    # `auth.uid() = user_id`. Without `user_id` in the insert payload,
+    # postgrest raises 42501 and the post-harness summary is silently dropped.
+    assert persisted.get("user_id") == "user-22", (
+        f"CR-22-15: _persist_summary insert missing user_id (got {persisted!r}) — "
+        f"would be blocked by messages RLS policy in production."
+    )
+    # And the existing fields must remain.
+    assert persisted.get("thread_id") == "thread-22"
+    assert persisted.get("role") == "assistant"
+    assert persisted.get("harness_mode") == harness.name
